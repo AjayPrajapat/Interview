@@ -4,9 +4,9 @@ Category: Threat Modeling
 
 ## Subtopics
 
-- [004.01 Architecture Reviews](./004.01 Architecture Reviews/README.md)
-- [004.02 Compliance Drift](./004.02 Compliance Drift/README.md)
-- [004.03 Continuous Control Monitoring](./004.03 Continuous Control Monitoring/README.md)
+- [04.01 Architecture Reviews](./04.01 Architecture Reviews/README.md)
+- [04.02 Compliance Drift](./04.02 Compliance Drift/README.md)
+- [04.03 Continuous Control Monitoring](./04.03 Continuous Control Monitoring/README.md)
 
 ## Study Checklist
 

@@ -17,3 +17,20 @@
 - Network captures.
 - Query plans.
 - Browser performance recordings where applicable.
+
+## Debugging Checklist
+
+- Confirm the exact symptom and affected scope.
+- Compare a healthy request/path with an unhealthy one.
+- Check recent deploys, config changes, data migrations, traffic shifts, and dependency incidents.
+- Reduce the problem to one failing invariant.
+- Reproduce with the smallest input that still fails.
+- Add instrumentation before changing behavior if the cause is uncertain.
+
+## Common False Leads
+
+- Blaming the nearest stack trace frame instead of the root cause.
+- Debugging averages while the issue is in p99.
+- Ignoring retries that multiply traffic during incidents.
+- Assuming local reproduction proves production behavior.
+- Treating missing logs as proof that nothing happened.

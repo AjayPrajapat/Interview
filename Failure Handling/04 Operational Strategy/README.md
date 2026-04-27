@@ -4,9 +4,9 @@ Category: Failure Handling
 
 ## Subtopics
 
-- [004.01 Load Validation](./004.01 Load Validation/README.md)
-- [004.02 Capacity Forecasting](./004.02 Capacity Forecasting/README.md)
-- [004.03 Cost and Reliability Trade-offs](./004.03 Cost and Reliability Trade-offs/README.md)
+- [04.01 Load Validation](./04.01 Load Validation/README.md)
+- [04.02 Capacity Forecasting](./04.02 Capacity Forecasting/README.md)
+- [04.03 Cost and Reliability Trade-offs](./04.03 Cost and Reliability Trade-offs/README.md)
 
 ## Study Checklist
 

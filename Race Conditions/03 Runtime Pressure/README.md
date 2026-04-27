@@ -4,9 +4,9 @@ Category: Race Conditions
 
 ## Subtopics
 
-- [003.01 Resource Saturation](./003.01 Resource Saturation/README.md)
-- [003.02 Concurrency Limits](./003.02 Concurrency Limits/README.md)
-- [003.03 Backpressure Signals](./003.03 Backpressure Signals/README.md)
+- [03.01 Resource Saturation](./03.01 Resource Saturation/README.md)
+- [03.02 Concurrency Limits](./03.02 Concurrency Limits/README.md)
+- [03.03 Backpressure Signals](./03.03 Backpressure Signals/README.md)
 
 ## Study Checklist
 

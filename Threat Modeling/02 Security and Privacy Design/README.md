@@ -4,9 +4,9 @@ Category: Threat Modeling
 
 ## Subtopics
 
-- [002.01 Threat Modeling](./002.01 Threat Modeling/README.md)
-- [002.02 Data Classification](./002.02 Data Classification/README.md)
-- [002.03 Access Controls](./002.03 Access Controls/README.md)
+- [02.01 Threat Modeling](./02.01 Threat Modeling/README.md)
+- [02.02 Data Classification](./02.02 Data Classification/README.md)
+- [02.03 Access Controls](./02.03 Access Controls/README.md)
 
 ## Study Checklist
 

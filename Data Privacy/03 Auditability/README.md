@@ -4,9 +4,9 @@ Category: Data Privacy
 
 ## Subtopics
 
-- [003.01 Evidence Collection](./003.01 Evidence Collection/README.md)
-- [003.02 Change Tracking](./003.02 Change Tracking/README.md)
-- [003.03 Exception Handling](./003.03 Exception Handling/README.md)
+- [03.01 Evidence Collection](./03.01 Evidence Collection/README.md)
+- [03.02 Change Tracking](./03.02 Change Tracking/README.md)
+- [03.03 Exception Handling](./03.03 Exception Handling/README.md)
 
 ## Study Checklist
 

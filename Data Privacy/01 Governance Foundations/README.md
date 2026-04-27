@@ -4,9 +4,9 @@ Category: Data Privacy
 
 ## Subtopics
 
-- [001.01 Policies and Standards](./001.01 Policies and Standards/README.md)
-- [001.02 Risk Classification](./001.02 Risk Classification/README.md)
-- [001.03 Ownership Model](./001.03 Ownership Model/README.md)
+- [01.01 Policies and Standards](./01.01 Policies and Standards/README.md)
+- [01.02 Risk Classification](./01.02 Risk Classification/README.md)
+- [01.03 Ownership Model](./01.03 Ownership Model/README.md)
 
 ## Study Checklist
 

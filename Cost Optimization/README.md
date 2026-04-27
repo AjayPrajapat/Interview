@@ -2,7 +2,7 @@
 
 ## 01 Readiness Foundations
 
-### 001.01 Service Health
+### 01.01 Service Health
 
 #### 🔹 Core Concepts
 - Definition: Understand Service Health as it applies to Cost Optimization, including the problem it solves and the boundary it owns.
@@ -66,7 +66,7 @@ Input / trigger
 
 ---
 
-### 001.02 Operational Ownership
+### 01.02 Operational Ownership
 
 #### 🔹 Core Concepts
 - Definition: Understand Operational Ownership as it applies to Cost Optimization, including the problem it solves and the boundary it owns.
@@ -130,7 +130,7 @@ Input / trigger
 
 ---
 
-### 001.03 Release Safety
+### 01.03 Release Safety
 
 #### 🔹 Core Concepts
 - Definition: Understand Release Safety as it applies to Cost Optimization, including the problem it solves and the boundary it owns.
@@ -196,7 +196,7 @@ Input / trigger
 
 ## 02 Failure and Resilience
 
-### 002.01 Failure Modes
+### 02.01 Failure Modes
 
 #### 🔹 Core Concepts
 - Definition: Understand Failure Modes as it applies to Cost Optimization, including the problem it solves and the boundary it owns.
@@ -260,7 +260,7 @@ Input / trigger
 
 ---
 
-### 002.02 Graceful Degradation
+### 02.02 Graceful Degradation
 
 #### 🔹 Core Concepts
 - Definition: Understand Graceful Degradation as it applies to Cost Optimization, including the problem it solves and the boundary it owns.
@@ -324,7 +324,7 @@ Input / trigger
 
 ---
 
-### 002.03 Recovery Patterns
+### 02.03 Recovery Patterns
 
 #### 🔹 Core Concepts
 - Definition: Understand Recovery Patterns as it applies to Cost Optimization, including the problem it solves and the boundary it owns.
@@ -390,7 +390,7 @@ Input / trigger
 
 ## 03 Runtime Pressure
 
-### 003.01 Resource Saturation
+### 03.01 Resource Saturation
 
 #### 🔹 Core Concepts
 - Definition: Understand Resource Saturation as it applies to Cost Optimization, including the problem it solves and the boundary it owns.
@@ -454,7 +454,7 @@ Input / trigger
 
 ---
 
-### 003.02 Concurrency Limits
+### 03.02 Concurrency Limits
 
 #### 🔹 Core Concepts
 - Definition: Understand Concurrency Limits as it applies to Cost Optimization, including the problem it solves and the boundary it owns.
@@ -518,7 +518,7 @@ Input / trigger
 
 ---
 
-### 003.03 Backpressure Signals
+### 03.03 Backpressure Signals
 
 #### 🔹 Core Concepts
 - Definition: Understand Backpressure Signals as it applies to Cost Optimization, including the problem it solves and the boundary it owns.
@@ -584,7 +584,7 @@ Input / trigger
 
 ## 04 Operational Strategy
 
-### 004.01 Load Validation
+### 04.01 Load Validation
 
 #### 🔹 Core Concepts
 - Definition: Understand Load Validation as it applies to Cost Optimization, including the problem it solves and the boundary it owns.
@@ -648,7 +648,7 @@ Input / trigger
 
 ---
 
-### 004.02 Capacity Forecasting
+### 04.02 Capacity Forecasting
 
 #### 🔹 Core Concepts
 - Definition: Understand Capacity Forecasting as it applies to Cost Optimization, including the problem it solves and the boundary it owns.
@@ -712,7 +712,7 @@ Input / trigger
 
 ---
 
-### 004.03 Cost and Reliability Trade-offs
+### 04.03 Cost and Reliability Trade-offs
 
 #### 🔹 Core Concepts
 - Definition: Understand Cost and Reliability Trade-offs as it applies to Cost Optimization, including the problem it solves and the boundary it owns.

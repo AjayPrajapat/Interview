@@ -2,7 +2,7 @@
 
 ## 01 Governance Foundations
 
-### 001.01 Policies and Standards
+### 01.01 Policies and Standards
 
 #### 🔹 Core Concepts
 - Definition: Understand Policies and Standards as it applies to Data Privacy, including the problem it solves and the boundary it owns.
@@ -66,7 +66,7 @@ Input / trigger
 
 ---
 
-### 001.02 Risk Classification
+### 01.02 Risk Classification
 
 #### 🔹 Core Concepts
 - Definition: Understand Risk Classification as it applies to Data Privacy, including the problem it solves and the boundary it owns.
@@ -130,7 +130,7 @@ Input / trigger
 
 ---
 
-### 001.03 Ownership Model
+### 01.03 Ownership Model
 
 #### 🔹 Core Concepts
 - Definition: Understand Ownership Model as it applies to Data Privacy, including the problem it solves and the boundary it owns.
@@ -196,7 +196,7 @@ Input / trigger
 
 ## 02 Security and Privacy Design
 
-### 002.01 Threat Modeling
+### 02.01 Threat Modeling
 
 #### 🔹 Core Concepts
 - Definition: Understand Threat Modeling as it applies to Data Privacy, including the problem it solves and the boundary it owns.
@@ -260,7 +260,7 @@ Input / trigger
 
 ---
 
-### 002.02 Data Classification
+### 02.02 Data Classification
 
 #### 🔹 Core Concepts
 - Definition: Understand Data Classification as it applies to Data Privacy, including the problem it solves and the boundary it owns.
@@ -324,7 +324,7 @@ Input / trigger
 
 ---
 
-### 002.03 Access Controls
+### 02.03 Access Controls
 
 #### 🔹 Core Concepts
 - Definition: Understand Access Controls as it applies to Data Privacy, including the problem it solves and the boundary it owns.
@@ -390,7 +390,7 @@ Input / trigger
 
 ## 03 Auditability
 
-### 003.01 Evidence Collection
+### 03.01 Evidence Collection
 
 #### 🔹 Core Concepts
 - Definition: Understand Evidence Collection as it applies to Data Privacy, including the problem it solves and the boundary it owns.
@@ -454,7 +454,7 @@ Input / trigger
 
 ---
 
-### 003.02 Change Tracking
+### 03.02 Change Tracking
 
 #### 🔹 Core Concepts
 - Definition: Understand Change Tracking as it applies to Data Privacy, including the problem it solves and the boundary it owns.
@@ -518,7 +518,7 @@ Input / trigger
 
 ---
 
-### 003.03 Exception Handling
+### 03.03 Exception Handling
 
 #### 🔹 Core Concepts
 - Definition: Understand Exception Handling as it applies to Data Privacy, including the problem it solves and the boundary it owns.
@@ -584,7 +584,7 @@ Input / trigger
 
 ## 04 Production Governance
 
-### 004.01 Architecture Reviews
+### 04.01 Architecture Reviews
 
 #### 🔹 Core Concepts
 - Definition: Understand Architecture Reviews as it applies to Data Privacy, including the problem it solves and the boundary it owns.
@@ -648,7 +648,7 @@ Input / trigger
 
 ---
 
-### 004.02 Compliance Drift
+### 04.02 Compliance Drift
 
 #### 🔹 Core Concepts
 - Definition: Understand Compliance Drift as it applies to Data Privacy, including the problem it solves and the boundary it owns.
@@ -712,7 +712,7 @@ Input / trigger
 
 ---
 
-### 004.03 Continuous Control Monitoring
+### 04.03 Continuous Control Monitoring
 
 #### 🔹 Core Concepts
 - Definition: Understand Continuous Control Monitoring as it applies to Data Privacy, including the problem it solves and the boundary it owns.

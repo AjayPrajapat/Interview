@@ -1,0 +1,19 @@
+name: Broken link or structure issue
+description: Report a broken link, missing file, or folder structure issue
+title: "[Structure]: "
+labels: ["structure"]
+body:
+  - type: input
+    id: path
+    attributes:
+      label: Path
+      placeholder: "docs/TOPIC_INDEX.md"
+    validations:
+      required: true
+  - type: textarea
+    id: issue
+    attributes:
+      label: Issue
+      description: What is broken or missing?
+    validations:
+      required: true

@@ -4,9 +4,9 @@ Category: Race Conditions
 
 ## Subtopics
 
-- [001.01 Service Health](./001.01 Service Health/README.md)
-- [001.02 Operational Ownership](./001.02 Operational Ownership/README.md)
-- [001.03 Release Safety](./001.03 Release Safety/README.md)
+- [01.01 Service Health](./01.01 Service Health/README.md)
+- [01.02 Operational Ownership](./01.02 Operational Ownership/README.md)
+- [01.03 Release Safety](./01.03 Release Safety/README.md)
 
 ## Study Checklist
 

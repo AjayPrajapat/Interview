@@ -273,8 +273,16 @@ function paddedId(value) {
     .join(".");
 }
 
-function numberedName(number, name) {
-  return `${paddedId(number)} ${safeName(name)}`;
+function simplePaddedId(value) {
+  return String(value)
+    .split(".")
+    .map((part) => String(part).padStart(2, "0"))
+    .join(".");
+}
+
+function numberedName(number, name, hasCategoryNumber = true) {
+  const id = hasCategoryNumber ? paddedId(number) : simplePaddedId(number);
+  return `${id} ${safeName(name)}`;
 }
 
 function categoryFolderName(number, name) {
@@ -286,7 +294,7 @@ function prefixedName(prefix, number, name) {
 }
 
 function subtopicBlock(category, categoryNumber, topicNumber, subtopicNumber, topicName, subtopicName) {
-  const id = categoryNumber ? paddedId(`${categoryNumber}.${topicNumber}.${subtopicNumber}`) : paddedId(`${topicNumber}.${subtopicNumber}`);
+  const id = categoryNumber ? paddedId(`${categoryNumber}.${topicNumber}.${subtopicNumber}`) : simplePaddedId(`${topicNumber}.${subtopicNumber}`);
   return `### ${id} ${subtopicName}
 
 #### 🔹 Core Concepts
@@ -362,7 +370,7 @@ function readmeFor(category, categoryNumber = null) {
         )
         .join("\n---\n\n");
 
-      const id = categoryNumber ? paddedId(`${categoryNumber}.${topicNumber}`) : paddedId(topicNumber);
+      const id = categoryNumber ? paddedId(`${categoryNumber}.${topicNumber}`) : simplePaddedId(topicNumber);
       return `## ${id} ${slugText(topicName)}
 
 ${blocks}`;
@@ -411,11 +419,12 @@ ${body}
 }
 
 function topicReadmeFor(category, categoryNumber, topicNumber, topicName, subtopics) {
-  const topicId = categoryNumber ? paddedId(`${categoryNumber}.${topicNumber}`) : paddedId(topicNumber);
+  const topicId = categoryNumber ? paddedId(`${categoryNumber}.${topicNumber}`) : simplePaddedId(topicNumber);
   const links = subtopics
     .map((subtopicName, index) => {
-      const id = categoryNumber ? paddedId(`${categoryNumber}.${topicNumber}.${index + 1}`) : paddedId(`${topicNumber}.${index + 1}`);
-      return `- [${id} ${subtopicName}](./${numberedName(id, subtopicName)}/README.md)`;
+      const rawId = categoryNumber ? `${categoryNumber}.${topicNumber}.${index + 1}` : `${topicNumber}.${index + 1}`;
+      const id = categoryNumber ? paddedId(rawId) : simplePaddedId(rawId);
+      return `- [${id} ${subtopicName}](./${numberedName(rawId, subtopicName, Boolean(categoryNumber))}/README.md)`;
     })
     .join("\n");
 
@@ -438,7 +447,7 @@ ${links}
 }
 
 function subtopicReadmeFor(category, categoryNumber, topicNumber, subtopicNumber, topicName, subtopicName) {
-  const id = categoryNumber ? paddedId(`${categoryNumber}.${topicNumber}.${subtopicNumber}`) : paddedId(`${topicNumber}.${subtopicNumber}`);
+  const id = categoryNumber ? paddedId(`${categoryNumber}.${topicNumber}.${subtopicNumber}`) : simplePaddedId(`${topicNumber}.${subtopicNumber}`);
   return `# ${id} ${subtopicName}
 
 Category: ${category}
@@ -447,6 +456,7 @@ Topic: ${topicName}
 
 ## Files
 
+- [Learning Objectives](./learning-objectives.md)
 - [Core Concepts](./core-concepts.md)
 - [Deep Concepts](./deep-concepts.md)
 - [Code-Level Understanding](./code-level-understanding.md)
@@ -457,22 +467,272 @@ Topic: ${topicName}
 - [Failure Scenarios](./failure-scenarios.md)
 - [Debugging Strategies](./debugging-strategies.md)
 - [Optimization Techniques](./optimization-techniques.md)
+- [Mental Models](./mental-models.md)
+- [Practice Drills](./practice-drills.md)
+- [Validation Questions](./validation-questions.md)
+- [Mastery Checklist](./mastery-checklist.md)
+- [Revision Notes](./revision-notes.md)
+- [Domain-Specific Examples](./domain-specific-examples.md)
+- [Common Misconceptions](./common-misconceptions.md)
+- [Hands-On Lab](./hands-on-lab.md)
+- [Production Incident Review](./production-incident-review.md)
+- [System Design Connections](./system-design-connections.md)
+- [Interview Answer Framework](./interview-answer-framework.md)
+- [Debugging Playbook](./debugging-playbook.md)
+- [Staff Engineer Notes](./staff-engineer-notes.md)
 
 ## Outcome
 
 Use this folder to build interview-ready depth for ${subtopicName}: definition, internals, implementation, production behavior, debugging, and trade-offs.
+
+## Recommended Study Order
+
+1. Start with learning objectives and core concepts.
+2. Move into deep concepts and internal flow.
+3. Write or inspect code-level examples.
+4. Connect the idea to real-world systems and architecture decisions.
+5. Stress the topic with failure scenarios, debugging, and optimization.
+6. Answer validation questions before marking the topic complete.
 `;
 }
 
+const enrichmentProfiles = [
+  {
+    test: /JavaScript|TypeScript|RxJS|Functional Programming|OOP/i,
+    domain: "language/runtime engineering",
+    example: "a shared utility used by browser clients, Node.js services, and test suites where small semantic mistakes spread widely",
+    lab: "write a minimal TypeScript example, run it in Node.js, then change one assumption and record the output difference",
+    code: `const input: unknown = "42";
+const parsed = typeof input === "string" ? Number(input) : input;
+console.log({ input, parsed, type: typeof parsed });`,
+    misconception: "Knowing syntax is enough. At senior level, you must understand runtime behavior, coercion, allocation, scheduling, and failure modes.",
+    incident: "A production release works in tests but fails for a subset of users because runtime semantics differ for undefined, null, async timing, or object identity.",
+    signals: "unexpected undefined values, TypeError spikes, memory growth, event-loop delay, inconsistent browser or Node.js behavior",
+    system: "Language behavior shapes API contracts, serialization, frontend state, backend request handling, and debugging quality.",
+  },
+  {
+    test: /Angular|React|Frontend|Browser|HTML|CSS|Design System|UI Engineering|State Management|Accessibility|SEO|Internationalization|Analytics|Feature Flags|SSR|CSR|SSG|Hydration|Webpack|Vite|Nx/i,
+    domain: "frontend product engineering",
+    example: "a customer-facing dashboard where rendering, state, accessibility, analytics, and network behavior must stay predictable",
+    lab: "build a tiny UI state or rendering example, profile it, then add one failure path such as slow network or missing data",
+    code: `type ViewState<T> =
+  | { status: "loading" }
+  | { status: "ready"; data: T }
+  | { status: "error"; message: string };`,
+    misconception: "Frontend is only presentation. In production, frontend code owns latency, accessibility, state correctness, telemetry, and user-visible resilience.",
+    incident: "A deploy causes blank screens only for slow devices because rendering, hydration, state initialization, or bundle loading behaves differently under pressure.",
+    signals: "Core Web Vitals regressions, hydration warnings, JavaScript errors, layout shifts, failed API calls, accessibility violations",
+    system: "Frontend choices affect system design through caching, API shape, BFF boundaries, observability, experimentation, and user-perceived reliability.",
+  },
+  {
+    test: /Node|NestJS|Express|API Design|REST|GraphQL|WebSocket|Authentication|Authorization|BFF|API Gateway/i,
+    domain: "backend/API engineering",
+    example: "a request path that validates input, authorizes access, performs work, emits telemetry, and returns a stable contract",
+    lab: "implement a small endpoint contract with validation, typed result states, timeout handling, and one negative test",
+    code: `type ApiResult<T> =
+  | { ok: true; data: T }
+  | { ok: false; code: string; retryable: boolean };`,
+    misconception: "The endpoint is the system. Real backend design includes contracts, idempotency, authz, rate limits, observability, rollout safety, and dependency behavior.",
+    incident: "A downstream service slows down and causes request pileups because timeout, cancellation, connection pooling, or backpressure was not explicit.",
+    signals: "p95/p99 latency, 4xx/5xx rate, saturation, connection pool exhaustion, timeout count, retry amplification",
+    system: "API decisions define service boundaries, client contracts, security posture, data ownership, and operability.",
+  },
+  {
+    test: /System Design|Distributed|Microservices|Event-Driven|Kafka|RabbitMQ|Caching|Redis|Queue|Background Jobs|Rate Limiting|Idempotency|Multi-Tenant|SaaS|Payment|Notification|Search|CQRS|Event Sourcing/i,
+    domain: "distributed systems architecture",
+    example: "a multi-service workflow where data moves through APIs, queues, caches, storage, and asynchronous processors",
+    lab: "model a workflow with one synchronous call, one async message, one retry, and one compensation path",
+    code: `type EventEnvelope<T> = {
+  id: string;
+  type: string;
+  occurredAt: string;
+  payload: T;
+  idempotencyKey: string;
+};`,
+    misconception: "More services automatically improve scale. Distributed design trades local simplicity for coordination, consistency, observability, and failure complexity.",
+    incident: "A partial outage duplicates work or loses ordering because retries, idempotency, deduplication, and event contracts were not designed together.",
+    signals: "queue lag, duplicate events, consumer errors, cache stampedes, inconsistent reads, partition hot spots, retry storms",
+    system: "This topic maps directly to service boundaries, consistency models, resilience patterns, capacity planning, and operational ownership.",
+  },
+  {
+    test: /Database|SQL|NoSQL|Indexing|Transactions|Data Modeling|Domain-Driven/i,
+    domain: "data and persistence engineering",
+    example: "a high-traffic data access path where schema shape, indexes, transactions, and access patterns determine correctness and latency",
+    lab: "design a table or document model, list access patterns, choose indexes, and describe one migration path",
+    code: `type RecordState = {
+  id: string;
+  version: number;
+  status: "draft" | "active" | "archived";
+  updatedAt: string;
+};`,
+    misconception: "Database design is only schema design. Production data work includes access patterns, locking, migrations, consistency, backups, and query plans.",
+    incident: "A query that is fast in staging becomes a production bottleneck because cardinality, index selectivity, lock contention, or transaction scope differs.",
+    signals: "slow query logs, lock waits, deadlocks, high I/O, replication lag, connection saturation, migration duration",
+    system: "Data decisions anchor domain boundaries, consistency guarantees, service autonomy, reporting, compliance, and disaster recovery.",
+  },
+  {
+    test: /Security|OWASP|Compliance|Privacy|Threat Modeling|Governance/i,
+    domain: "security and governance engineering",
+    example: "a sensitive user workflow where identity, authorization, data handling, auditability, and threat modeling must align",
+    lab: "draw a trust boundary diagram, list assets, identify attackers, add controls, and define audit evidence",
+    code: `type AccessDecision = {
+  subject: string;
+  action: string;
+  resource: string;
+  allowed: boolean;
+  reason: string;
+};`,
+    misconception: "Security is a checklist at the end. In real systems it is a design constraint across boundaries, defaults, data, operations, and incident response.",
+    incident: "A permission change exposes data because authorization logic, caching, tenancy boundaries, or audit controls were incomplete.",
+    signals: "auth failures, unusual access patterns, policy drift, missing audit logs, secret exposure, high-risk dependency alerts",
+    system: "Security topics connect to trust boundaries, least privilege, data classification, compliance evidence, and architecture review.",
+  },
+  {
+    test: /Cloud|DevOps|Docker|Kubernetes|CI-CD|Infrastructure|Observability|Logging|Monitoring|Tracing|Production Readiness|Operational Excellence|Resilience|Failure Handling|Backpressure|Load Testing|Capacity|Cost Optimization|Incident/i,
+    domain: "platform and operations engineering",
+    example: "a production service with deployment pipelines, health signals, autoscaling, alerting, rollback, and cost constraints",
+    lab: "define SLIs, an alert, a rollback path, a capacity assumption, and a load-test scenario for this topic",
+    code: `type ServiceSlo = {
+  availabilityTarget: number;
+  latencyP95Ms: number;
+  errorBudgetPercent: number;
+};`,
+    misconception: "Operations starts after deploy. Production engineering starts in design through health checks, observability, capacity, resilience, and rollback.",
+    incident: "A routine deploy becomes an incident because readiness checks, alerts, capacity limits, or rollback automation were incomplete.",
+    signals: "error budget burn, pod restarts, CPU throttling, memory pressure, alert noise, deploy correlation, cost spikes",
+    system: "Operational topics map to reliability, scalability, deployment safety, platform ownership, and business continuity.",
+  },
+  {
+    test: /Testing|Unit|Integration|E2E|Contract|Performance Engineering|Scalability|Reliability|Production Debugging|Memory Leaks|Concurrency|Race Conditions/i,
+    domain: "quality and performance engineering",
+    example: "a critical workflow where tests, profiling, concurrency control, and failure injection prevent production regressions",
+    lab: "write one fast test, one boundary test, one failure test, and one measurement experiment for this topic",
+    code: `type TestCase = {
+  name: string;
+  arrange: string;
+  act: string;
+  assert: string;
+  riskCovered: string;
+};`,
+    misconception: "Testing proves correctness. Tests sample risk; production confidence also needs observability, contracts, profiling, and controlled rollout.",
+    incident: "A change passes tests but fails under concurrency, large data, slow devices, or realistic production traffic.",
+    signals: "flaky tests, p99 regression, memory growth, race frequency, failed contracts, test coverage gaps, canary failures",
+    system: "Quality topics connect implementation confidence to release safety, reliability, performance budgets, and incident prevention.",
+  },
+  {
+    test: /AI|LLM|Prompt|RAG|Agentic|Copilot|Cursor|Claude|ChatGPT/i,
+    domain: "AI-assisted engineering",
+    example: "an AI-assisted workflow where prompts, context, tools, evaluation, review, and safety controls affect engineering output",
+    lab: "create a prompt, define expected output, run a review checklist, and record failure cases or hallucination risks",
+    code: `type EvaluationCase = {
+  input: string;
+  expectedBehavior: string;
+  unacceptableFailure: string;
+  reviewRequired: boolean;
+};`,
+    misconception: "AI output is either magic or useless. Senior use depends on task framing, context quality, evaluation, tool boundaries, and human review.",
+    incident: "Generated code introduces a subtle security, correctness, or maintainability issue because review and evaluation gates were weak.",
+    signals: "inconsistent outputs, hallucinated APIs, missing tests, unsafe assumptions, high token cost, poor retrieval grounding",
+    system: "AI topics connect to developer productivity, code review, knowledge retrieval, governance, and quality control.",
+  },
+  {
+    test: /Leadership|Mentoring|Decision|Review|Stakeholder|Estimation|Agile|Hiring|Documentation|RFC|Trade-off|Collaboration|Productivity|Staff/i,
+    domain: "technical leadership",
+    example: "a cross-team engineering decision where clarity, influence, trade-offs, delivery risk, and long-term ownership matter",
+    lab: "write a one-page decision record with context, options, trade-offs, recommendation, risks, and follow-up signals",
+    code: `type DecisionRecord = {
+  context: string;
+  options: string[];
+  decision: string;
+  tradeoffs: string[];
+  reviewDate: string;
+};`,
+    misconception: "Leadership is mostly communication. Staff-level leadership is technical judgment made legible across teams and time.",
+    incident: "A technically reasonable decision fails because ownership, migration path, stakeholder alignment, or operational readiness was unclear.",
+    signals: "repeated escalations, unclear ownership, stalled reviews, rework, missed dependencies, decision churn",
+    system: "Leadership topics shape architecture quality through decision records, governance, mentoring, planning, and cross-team alignment.",
+  },
+];
+
+const defaultEnrichment = {
+  domain: "general software engineering",
+  example: "a production workflow where correctness, observability, ownership, and maintainability matter",
+  lab: "create one small example, one failure scenario, one debugging checklist, and one architecture trade-off",
+  code: `type LearningArtifact = {
+  concept: string;
+  example: string;
+  failureMode: string;
+  tradeoff: string;
+};`,
+  misconception: "Understanding the definition is enough. Mastery requires implementation, failure analysis, debugging, and trade-off reasoning.",
+  incident: "A simple path fails in production because assumptions about input, state, ownership, or dependencies were not made explicit.",
+  signals: "error rate, latency, saturation, logs, traces, customer reports, deploy correlation",
+  system: "This topic connects local implementation choices to system behavior, reliability, scalability, and ownership.",
+};
+
+function enrichmentFor(category) {
+  return enrichmentProfiles.find((profile) => profile.test.test(category)) ?? defaultEnrichment;
+}
+
 function subtopicFiles(category, topicName, subtopicName) {
+  const enrichment = enrichmentFor(category);
   return new Map([
+    [
+      "learning-objectives.md",
+      `# Learning Objectives: ${subtopicName}
+
+## By The End, You Should Be Able To
+
+- Define ${subtopicName} in the context of ${category} without relying on memorized wording.
+- Explain why ${subtopicName} belongs under ${topicName} and what dependency it creates for later topics.
+- Trace the normal flow, edge-case flow, and failure flow.
+- Recognize common production symptoms related to ${subtopicName}.
+- Choose between at least two implementation or architecture approaches and defend the trade-off.
+
+## Depth Targets
+
+- Beginner depth: explain what it is and where it appears.
+- Intermediate depth: describe how it works internally and show a small example.
+- Senior depth: identify failure modes, scaling pressure, debugging signals, and operational trade-offs.
+- Staff depth: connect the topic to system boundaries, ownership, migration strategy, and long-term maintainability.
+
+## Learning Artifacts To Produce
+
+- A short definition in your own words.
+- One diagram or text flow.
+- One code example or concrete production example.
+- One anti-pattern and its safer alternative.
+- Three interview questions with answers.
+`,
+    ],
     [
       "core-concepts.md",
       `# Core Concepts: ${subtopicName}
 
 ## Definition
 
-Describe what ${subtopicName} means in ${category}, what problem it solves, and what boundary it owns.
+${subtopicName} is a core part of ${category} that describes a specific behavior, boundary, or engineering decision inside ${topicName}.
+
+The practical goal is to understand what problem it solves, what assumptions it makes, and what can break when those assumptions are false.
+
+## Why It Exists
+
+- It gives engineers a shared vocabulary for reasoning about ${topicName}.
+- It makes hidden behavior explicit before it becomes a production bug.
+- It helps separate local implementation choices from system-level consequences.
+- It creates a foundation for deeper topics that depend on the same execution, data, or ownership model.
+
+## Concept Boundary
+
+Use ${subtopicName} to reason about:
+
+- Inputs and outputs.
+- State ownership.
+- Lifecycle timing.
+- Error and failure behavior.
+- Performance and scalability pressure.
+
+Do not treat it as isolated trivia. In real systems, it interacts with runtime behavior, framework defaults, data contracts, deployment strategy, and team ownership.
 
 ## Internal Working
 
@@ -481,12 +741,22 @@ Describe what ${subtopicName} means in ${category}, what problem it solves, and 
 - The ${topicName} layer decides which path should execute.
 - Side effects are isolated, observed, and made retry-safe where possible.
 
+## First-Principles Questions
+
+- What state exists before this operation starts?
+- Who owns that state?
+- What invariant must remain true after execution?
+- What assumptions are made about ordering, timing, identity, and dependencies?
+- What is observable when the behavior succeeds, fails, or partially succeeds?
+
 ## Key Principles
 
 - Make contracts explicit.
 - Keep ownership clear.
 - Prefer predictable degradation over hidden failure.
 - Design for testability and observability from the start.
+- Optimize only after identifying the real constraint.
+- Treat unclear boundaries as future production risk.
 `,
     ],
     [
@@ -498,6 +768,8 @@ Describe what ${subtopicName} means in ${category}, what problem it solves, and 
 - Framework defaults that change lifecycle, ordering, caching, retries, or error propagation.
 - Runtime behavior that only appears under concurrency, load, large input, or slow dependencies.
 - State that survives longer than expected through closures, caches, sessions, queues, or retained references.
+- Behavior that differs between local development, CI, staging, and production.
+- Implicit coupling through shared configuration, shared libraries, generated code, schemas, or deployment order.
 
 ## Edge Cases
 
@@ -505,14 +777,23 @@ Describe what ${subtopicName} means in ${category}, what problem it solves, and 
 - Partial success after one side effect commits and another fails.
 - Timeout, cancellation, retry, and race-condition paths.
 - Version mismatch between clients, services, schemas, or packages.
+- First request after deploy, cold start, cache miss, expired token, rotated secret, and rolling deployment overlap.
 
 ## Internal Mechanisms
 
-Identify the queues, buffers, schedulers, locks, indexes, render phases, network hops, or persistence paths behind the abstraction.
+Identify the queues, buffers, schedulers, locks, indexes, render phases, network hops, heap references, context boundaries, or persistence paths behind the abstraction.
 
 ## Performance Implications
 
 Measure latency, throughput, memory, CPU, I/O, payload size, bundle size, query cost, and p95/p99 behavior.
+
+## Senior Engineer Lens
+
+- Ask what happens when this path runs 10x more often.
+- Ask what happens when the dependency becomes slow but not fully down.
+- Ask what signal would prove the issue is here and not one layer above or below.
+- Ask whether the current abstraction makes migration easier or harder.
+- Ask whether the team that owns this path can operate it during an incident.
 `,
     ],
     [
@@ -529,6 +810,42 @@ Build a small ${category} example that demonstrates ${subtopicName} with:
 - Tests for happy path and edge cases.
 - Observability at important decisions.
 
+## Implementation Skeleton
+
+\`\`\`ts
+type Input = {
+  id: string;
+  payload: unknown;
+};
+
+type Result =
+  | { ok: true; value: unknown }
+  | { ok: false; error: string; retryable: boolean };
+
+export function handle(input: Input): Result {
+  if (!input.id) {
+    return { ok: false, error: "missing_id", retryable: false };
+  }
+
+  try {
+    // Replace this block with a concrete ${subtopicName} example.
+    const value = input.payload;
+    return { ok: true, value };
+  } catch (error) {
+    return { ok: false, error: "unexpected_failure", retryable: true };
+  }
+}
+\`\`\`
+
+## Test Cases To Add
+
+- Happy path with valid input.
+- Invalid input at the boundary.
+- Duplicate or repeated input.
+- Slow dependency or timeout path.
+- Partial failure or rollback path.
+- Large input or high-frequency execution.
+
 ## Anti-Patterns
 
 - Hidden global state.
@@ -544,6 +861,8 @@ Build a small ${category} example that demonstrates ${subtopicName} with:
 - Model failure as part of the design.
 - Add tests around contracts and invariants.
 - Prefer clear code over clever code.
+- Make idempotency, timeout, and cleanup behavior explicit when side effects exist.
+- Add logs and metrics at decision points, not only at the outermost handler.
 `,
     ],
     [
@@ -553,6 +872,14 @@ Build a small ${category} example that demonstrates ${subtopicName} with:
 ## Production Uses
 
 ${subtopicName} matters anywhere ${category} needs predictable behavior across teams, releases, traffic spikes, and dependency failures.
+
+## Why Production Makes It Harder
+
+- Data arrives from older clients, newer clients, retries, imports, scripts, and background jobs.
+- Multiple deploy versions may run at the same time.
+- Dependencies can be degraded without being fully unavailable.
+- Observability may show symptoms far away from the root cause.
+- Ownership can be split across frontend, backend, platform, security, and data teams.
 
 ## Example Systems
 
@@ -571,6 +898,9 @@ ${subtopicName} matters anywhere ${category} needs predictable behavior across t
 - What happens during partial failure?
 - How is the path observed and alerted?
 - How does this change at 10x traffic or 10x data?
+- What rollback or mitigation exists if this path breaks?
+- What customer-facing symptom appears first?
+- What operational dashboard would reveal the problem?
 `,
     ],
     [
@@ -596,6 +926,24 @@ ${subtopicName} matters anywhere ${category} needs predictable behavior across t
 ## Decision Rule
 
 Use the simplest approach that satisfies current correctness and scale needs. Move complexity behind stable interfaces only when pressure is proven by production evidence.
+
+## Decision Matrix
+
+| Pressure | Prefer | Avoid |
+|---|---|---|
+| Low scale, low risk | Simple local implementation | Premature platform abstraction |
+| High correctness risk | Explicit validation and contracts | Implicit conventions |
+| High traffic | Bounded queues, caching, batching, measurement | Unbounded fan-out |
+| Many teams | Stable interfaces and ownership docs | Shared mutable behavior |
+| Frequent change | Reversible decisions and feature flags | Big-bang migrations |
+
+## Architecture Review Prompts
+
+- What decision is hard to reverse?
+- What does this couple us to?
+- What is the blast radius of a bad deploy?
+- How will future teams discover the intended pattern?
+- Which metric tells us the decision stopped being good?
 `,
     ],
     [
@@ -622,6 +970,25 @@ Use the simplest approach that satisfies current correctness and scale needs. Mo
 ## Follow-Up Depth
 
 Be ready to discuss instrumentation, rollback plans, migration strategy, data consistency, operational ownership, and design changes at 10x scale.
+
+## Answer Structure
+
+Use this structure in interviews:
+
+1. Define the topic precisely.
+2. Explain the internal flow.
+3. Show a small example.
+4. Name edge cases and failure modes.
+5. Discuss trade-offs.
+6. Explain how you would debug it in production.
+7. Describe how the design changes at scale.
+
+## Strong Signals
+
+- You can separate language/framework behavior from application architecture.
+- You mention p95/p99, memory, ownership, rollout, and rollback where relevant.
+- You do not answer only the happy path.
+- You can explain when a simpler approach is better than an advanced one.
 `,
     ],
     [
@@ -645,6 +1012,30 @@ Input / trigger
 - Which operations are synchronous vs asynchronous?
 - Which side effects must be idempotent?
 - Where should logs, metrics, and traces be emitted?
+
+## Expanded Flow
+
+\`\`\`text
+Caller intent
+  -> input construction
+  -> boundary validation
+  -> authorization / policy check when applicable
+  -> current state lookup
+  -> decision branch
+  -> core ${subtopicName} behavior
+  -> side effect execution
+  -> result mapping
+  -> telemetry emission
+  -> retry, rollback, compensation, or user-visible response
+\`\`\`
+
+## Flow Review Checklist
+
+- Every state transition has a named owner.
+- Every external call has a timeout.
+- Every retryable operation is safe to retry.
+- Every failure mode has a visible signal.
+- Every expensive operation has a known limit.
 `,
     ],
     [
@@ -666,6 +1057,24 @@ Input / trigger
 - Retry with backoff and jitter.
 - Circuit breakers or load shedding.
 - Rollback, compensation, or replay strategy.
+
+## Failure Drill
+
+Simulate these conditions:
+
+- Dependency latency increases by 5x.
+- Input arrives twice.
+- A deploy runs old and new versions together.
+- The cache is empty or contains stale data.
+- A downstream write succeeds but the response is lost.
+- Observability is delayed or incomplete.
+
+For each condition, answer:
+
+- What breaks first?
+- What metric changes first?
+- What log or trace field identifies the affected path?
+- What mitigation can be applied without a full redeploy?
 `,
     ],
     [
@@ -689,6 +1098,23 @@ Input / trigger
 - Network captures.
 - Query plans.
 - Browser performance recordings where applicable.
+
+## Debugging Checklist
+
+- Confirm the exact symptom and affected scope.
+- Compare a healthy request/path with an unhealthy one.
+- Check recent deploys, config changes, data migrations, traffic shifts, and dependency incidents.
+- Reduce the problem to one failing invariant.
+- Reproduce with the smallest input that still fails.
+- Add instrumentation before changing behavior if the cause is uncertain.
+
+## Common False Leads
+
+- Blaming the nearest stack trace frame instead of the root cause.
+- Debugging averages while the issue is in p99.
+- Ignoring retries that multiply traffic during incidents.
+- Assuming local reproduction proves production behavior.
+- Treating missing logs as proof that nothing happened.
 `,
     ],
     [
@@ -712,6 +1138,507 @@ Input / trigger
 - Bundle splitting or lazy loading.
 - Connection pooling and concurrency limits.
 - Precomputation for stable expensive work.
+
+## Measurement Plan
+
+- Define the target metric before optimizing.
+- Capture baseline p50, p95, p99, error rate, and resource usage.
+- Change one variable at a time.
+- Re-measure under realistic load.
+- Document the trade-off introduced by the optimization.
+
+## When Not To Optimize
+
+- The path is not on the critical user or system journey.
+- The bottleneck is outside this layer.
+- The optimization hides correctness problems.
+- The added complexity has no owner.
+- The expected gain is smaller than measurement noise.
+`,
+    ],
+    [
+      "mental-models.md",
+      `# Mental Models: ${subtopicName}
+
+## Core Model
+
+Think of ${subtopicName} as a contract between intent, state, execution, and observation.
+
+\`\`\`text
+Intent -> Boundary -> State -> Decision -> Effect -> Signal
+\`\`\`
+
+## First-Principles Frame
+
+- What is the invariant?
+- What is allowed to change?
+- What must never happen?
+- What is the smallest useful abstraction?
+- What does the system do when reality violates assumptions?
+
+## Staff-Level Frame
+
+- Who owns this behavior?
+- How does another team safely depend on it?
+- How does it fail during deploys, migrations, or incidents?
+- What is the cost of changing it later?
+- What evidence would make us revisit the design?
+`,
+    ],
+    [
+      "practice-drills.md",
+      `# Practice Drills: ${subtopicName}
+
+## Drill 1: Explain
+
+Explain ${subtopicName} in five sentences:
+
+1. What it is.
+2. Why it exists.
+3. How it works internally.
+4. What goes wrong.
+5. How to debug or design around it.
+
+## Drill 2: Trace
+
+Draw or write a flow for:
+
+\`\`\`text
+input -> validation -> decision -> state change -> output -> telemetry
+\`\`\`
+
+## Drill 3: Break It
+
+List what happens when:
+
+- Input is missing.
+- Input is duplicated.
+- A dependency is slow.
+- A retry happens.
+- Two callers act concurrently.
+- The system is mid-deploy.
+
+## Drill 4: Teach It
+
+Teach this to another engineer using:
+
+- One simple example.
+- One production example.
+- One anti-pattern.
+- One debugging technique.
+`,
+    ],
+    [
+      "validation-questions.md",
+      `# Validation Questions: ${subtopicName}
+
+## Conceptual Questions
+
+1. What problem does ${subtopicName} solve in ${category}?
+2. What internal mechanism or flow makes it work?
+3. What assumptions does it rely on?
+4. What edge cases are most likely to appear in production?
+5. What is the difference between a local implementation concern and an architecture concern for this topic?
+
+## Scenario Questions
+
+1. A production issue appears only under high traffic. How would you investigate ${subtopicName}?
+2. A retry causes duplicated work. What safeguards should exist?
+3. A deploy changes behavior for only some users. What compatibility or rollout issue might explain it?
+
+## Prediction Questions
+
+1. What output, state change, or user-visible behavior do you expect when input is empty, duplicated, or stale?
+2. What metric would move first if ${subtopicName} became the bottleneck?
+
+## Mastery Prompt
+
+Explain ${subtopicName} from beginner level to staff level in under five minutes, including one code-level detail and one production trade-off.
+`,
+    ],
+    [
+      "mastery-checklist.md",
+      `# Mastery Checklist: ${subtopicName}
+
+## Understanding
+
+- [ ] I can define the topic clearly.
+- [ ] I can explain why it belongs under ${topicName}.
+- [ ] I can identify the main invariant.
+- [ ] I can draw the internal flow.
+- [ ] I can name at least five edge cases.
+
+## Implementation
+
+- [ ] I can build a minimal example.
+- [ ] I can write tests for happy path and failure path.
+- [ ] I can identify anti-patterns.
+- [ ] I can add observability at useful points.
+- [ ] I can reason about cleanup, cancellation, or rollback.
+
+## Production
+
+- [ ] I can describe how this fails under load.
+- [ ] I can debug it with logs, metrics, traces, or profiles.
+- [ ] I can explain the scalability limit.
+- [ ] I can compare at least two architecture approaches.
+- [ ] I can explain the operational owner and blast radius.
+
+## Interview Readiness
+
+- [ ] I can answer common questions.
+- [ ] I can handle tricky scenarios.
+- [ ] I can explain trade-offs.
+- [ ] I can connect the topic to system design.
+- [ ] I can teach it simply without losing depth.
+`,
+    ],
+    [
+      "revision-notes.md",
+      `# Revision Notes: ${subtopicName}
+
+## One-Line Summary
+
+${subtopicName} is a ${category} topic that must be understood through definition, internal flow, failure behavior, production usage, and trade-offs.
+
+## Remember
+
+- Start with the invariant.
+- Name the boundary.
+- Trace the flow.
+- Stress the edge cases.
+- Measure before optimizing.
+- Design rollback and observability before production incidents.
+
+## Quick Review
+
+- Definition:
+- Internal mechanism:
+- Example:
+- Anti-pattern:
+- Failure mode:
+- Debugging signal:
+- Optimization:
+- Trade-off:
+
+## Spaced Repetition Prompts
+
+- Review after 1 day: explain the concept without notes.
+- Review after 3 days: solve one scenario question.
+- Review after 7 days: teach the topic and add one production example.
+- Review after 14 days: connect it to a system design problem.
+`,
+    ],
+    [
+      "domain-specific-examples.md",
+      `# Domain-Specific Examples: ${subtopicName}
+
+## Domain Lens
+
+Category domain: ${enrichment.domain}
+
+Use ${subtopicName} to reason about ${enrichment.example}.
+
+## Concrete Example
+
+\`\`\`ts
+${enrichment.code}
+\`\`\`
+
+## How To Study The Example
+
+- Identify the input boundary.
+- Name the invariant being protected.
+- Trace the happy path.
+- Add one invalid input.
+- Add one high-scale or high-concurrency condition.
+- Decide what telemetry would prove the behavior is correct.
+
+## Production Translation
+
+In ${category}, this example should translate into:
+
+- clearer contracts,
+- safer defaults,
+- explicit failure behavior,
+- better debugging evidence,
+- and a stronger explanation during interviews or architecture reviews.
+`,
+    ],
+    [
+      "common-misconceptions.md",
+      `# Common Misconceptions: ${subtopicName}
+
+## Misconception 1
+
+${enrichment.misconception}
+
+Correction: learn the underlying mechanism, then connect it to production behavior and team ownership.
+
+## Misconception 2
+
+"If it works locally, the concept is understood."
+
+Correction: local behavior rarely includes production traffic shape, old clients, retries, slow dependencies, partial deploys, or operational constraints.
+
+## Misconception 3
+
+"The best answer is the most advanced pattern."
+
+Correction: the best answer is the simplest design that protects the required invariant and can evolve when evidence justifies complexity.
+
+## Misconception 4
+
+"This is only an implementation detail."
+
+Correction: implementation details become architecture concerns when they affect contracts, data ownership, reliability, security, cost, or cross-team dependencies.
+
+## Review Prompt
+
+Write one sentence explaining what you used to believe about ${subtopicName}, then rewrite it with the production constraint included.
+`,
+    ],
+    [
+      "hands-on-lab.md",
+      `# Hands-On Lab: ${subtopicName}
+
+## Goal
+
+Practice ${subtopicName} through a concrete ${enrichment.domain} exercise.
+
+## Lab Task
+
+${enrichment.lab}
+
+## Steps
+
+1. Write the smallest working example.
+2. Add one boundary validation.
+3. Add one failure path.
+4. Add one test or manual verification case.
+5. Add one metric, log field, trace label, or checklist item.
+6. Explain the architecture trade-off in three sentences.
+
+## Stretch Goals
+
+- Run the example with duplicated input.
+- Run the example with delayed or missing dependency behavior.
+- Measure before and after one optimization.
+- Write a rollback or mitigation note.
+
+## Completion Criteria
+
+- You can explain the result without reading the code.
+- You can name what would break in production.
+- You can describe what signal would reveal the breakage.
+- You can state when you would not use this approach.
+`,
+    ],
+    [
+      "production-incident-review.md",
+      `# Production Incident Review: ${subtopicName}
+
+## Scenario
+
+${enrichment.incident}
+
+## First Symptoms
+
+- User-visible issue appears intermittently.
+- Error or latency increases for one path before the whole system looks unhealthy.
+- The failure is correlated with traffic, deploy timing, data shape, or dependency behavior.
+
+## Likely Signals
+
+${enrichment.signals}
+
+## Triage Flow
+
+1. Confirm customer impact and affected scope.
+2. Check recent deploys, config changes, data migrations, and traffic shifts.
+3. Compare healthy and unhealthy examples.
+4. Identify the first broken invariant.
+5. Mitigate before root-causing if user impact is active.
+6. Preserve evidence for post-incident learning.
+
+## Post-Incident Questions
+
+- Which assumption failed?
+- Which alert should have fired earlier?
+- Which dashboard was missing?
+- Which test or validation would have caught this before deploy?
+- Which ownership or process gap made recovery slower?
+`,
+    ],
+    [
+      "system-design-connections.md",
+      `# System Design Connections: ${subtopicName}
+
+## Connection
+
+${enrichment.system}
+
+## Design Dimensions
+
+- Boundary: where does ${subtopicName} start and stop?
+- State: who owns the state and how is it changed?
+- Consistency: what must be immediately true, eventually true, or explicitly best-effort?
+- Scale: what bottleneck appears first?
+- Failure: what happens during timeout, retry, cancellation, or partial success?
+- Observability: what must be logged, measured, traced, or audited?
+
+## Architecture Review Questions
+
+- Does this topic affect service boundaries?
+- Does it change client or downstream contracts?
+- Does it introduce shared state or shared ownership?
+- Does it need a migration plan?
+- Does it require a rollback path?
+- Does it affect cost, latency, reliability, or security posture?
+
+## Trade-Off Template
+
+\`\`\`text
+Option A:
+  Benefits:
+  Costs:
+  Failure modes:
+
+Option B:
+  Benefits:
+  Costs:
+  Failure modes:
+
+Decision:
+  Choose:
+  Because:
+  Revisit when:
+\`\`\`
+`,
+    ],
+    [
+      "interview-answer-framework.md",
+      `# Interview Answer Framework: ${subtopicName}
+
+## Short Answer
+
+${subtopicName} in ${category} is about protecting a specific behavior or decision inside ${topicName}. A strong answer explains the mechanism, the edge cases, and how it behaves in production.
+
+## Senior Answer Structure
+
+1. Define it.
+2. Explain why it exists.
+3. Describe the internal mechanism.
+4. Give a small example.
+5. Name edge cases.
+6. Discuss production failure modes.
+7. Compare two approaches.
+8. Explain debugging and observability.
+9. Close with how the design changes at scale.
+
+## Staff-Level Upgrade
+
+Add:
+
+- ownership boundaries,
+- migration risk,
+- rollback strategy,
+- cross-team impact,
+- operational burden,
+- and the metric that would make you revisit the decision.
+
+## Practice Prompt
+
+"Teach me ${subtopicName} as if I am strong at coding but new to ${category}. Then explain what changes when this runs in production."
+`,
+    ],
+    [
+      "debugging-playbook.md",
+      `# Debugging Playbook: ${subtopicName}
+
+## Start Here
+
+Debug ${subtopicName} by moving from symptom to invariant, not from stack trace to guess.
+
+## Evidence To Gather
+
+- Exact user or system symptom.
+- Affected percentage and segment.
+- Recent deploys or configuration changes.
+- Logs with correlation IDs.
+- Metrics by percentile, not only averages.
+- Traces across boundaries.
+- Resource saturation signals.
+- Data shape or input examples.
+
+## Domain Signals
+
+${enrichment.signals}
+
+## Investigation Path
+
+1. Reproduce with the smallest failing case.
+2. Compare a passing case and failing case.
+3. Identify where expected state diverges.
+4. Check hidden defaults and lifecycle timing.
+5. Add targeted instrumentation if evidence is missing.
+6. Mitigate user impact.
+7. Write the regression test or runbook update.
+
+## Avoid
+
+- Changing behavior before understanding the invariant.
+- Debugging only the happy path.
+- Trusting averages during tail-latency issues.
+- Ignoring retries, caching, and partial deploys.
+- Treating missing logs as proof that nothing happened.
+`,
+    ],
+    [
+      "staff-engineer-notes.md",
+      `# Staff Engineer Notes: ${subtopicName}
+
+## What Staff Engineers Look For
+
+- Is the boundary explicit?
+- Is the invariant named?
+- Is the failure behavior designed?
+- Is the operational owner clear?
+- Is the design reversible?
+- Is there a migration path?
+- Is the complexity justified by evidence?
+
+## Review Lens
+
+For ${subtopicName}, review the design across:
+
+- correctness,
+- operability,
+- scalability,
+- security,
+- cost,
+- developer experience,
+- and long-term maintainability.
+
+## Coaching Notes
+
+- Ask juniors to explain the happy path.
+- Ask mid-level engineers to explain edge cases.
+- Ask seniors to explain production failures and debugging.
+- Ask staff-level engineers to explain ownership, trade-offs, migration, and governance.
+
+## Decision Record Prompt
+
+\`\`\`text
+Context:
+Decision:
+Options considered:
+Trade-offs:
+Risks:
+Mitigations:
+Revisit when:
+Owner:
+\`\`\`
 `,
     ],
   ]);
@@ -724,14 +1651,14 @@ function generateSubdirectories(directory, category, categoryNumber = null) {
   for (const [topicIndex, [topicName, subtopics]] of topics.entries()) {
     const topicNumber = topicIndex + 1;
     const topicId = categoryNumber ? `${categoryNumber}.${topicNumber}` : `${topicNumber}`;
-    const topicPath = join(categoryPath, numberedName(topicId, topicName));
+    const topicPath = join(categoryPath, numberedName(topicId, topicName, Boolean(categoryNumber)));
     mkdirSync(topicPath, { recursive: true });
     writeFileSync(join(topicPath, "README.md"), topicReadmeFor(category, categoryNumber, topicNumber, topicName, subtopics));
 
     for (const [subtopicIndex, subtopicName] of subtopics.entries()) {
       const subtopicNumber = subtopicIndex + 1;
       const id = categoryNumber ? `${categoryNumber}.${topicNumber}.${subtopicNumber}` : `${topicNumber}.${subtopicNumber}`;
-      const subtopicPath = join(topicPath, numberedName(id, subtopicName));
+      const subtopicPath = join(topicPath, numberedName(id, subtopicName, Boolean(categoryNumber)));
       mkdirSync(subtopicPath, { recursive: true });
       writeFileSync(join(subtopicPath, "README.md"), subtopicReadmeFor(category, categoryNumber, topicNumber, subtopicNumber, topicName, subtopicName));
 

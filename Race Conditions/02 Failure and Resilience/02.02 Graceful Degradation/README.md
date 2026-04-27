@@ -6,6 +6,7 @@ Topic: Failure and Resilience
 
 ## Files
 
+- [Learning Objectives](./learning-objectives.md)
 - [Core Concepts](./core-concepts.md)
 - [Deep Concepts](./deep-concepts.md)
 - [Code-Level Understanding](./code-level-understanding.md)
@@ -16,7 +17,29 @@ Topic: Failure and Resilience
 - [Failure Scenarios](./failure-scenarios.md)
 - [Debugging Strategies](./debugging-strategies.md)
 - [Optimization Techniques](./optimization-techniques.md)
+- [Mental Models](./mental-models.md)
+- [Practice Drills](./practice-drills.md)
+- [Validation Questions](./validation-questions.md)
+- [Mastery Checklist](./mastery-checklist.md)
+- [Revision Notes](./revision-notes.md)
+- [Domain-Specific Examples](./domain-specific-examples.md)
+- [Common Misconceptions](./common-misconceptions.md)
+- [Hands-On Lab](./hands-on-lab.md)
+- [Production Incident Review](./production-incident-review.md)
+- [System Design Connections](./system-design-connections.md)
+- [Interview Answer Framework](./interview-answer-framework.md)
+- [Debugging Playbook](./debugging-playbook.md)
+- [Staff Engineer Notes](./staff-engineer-notes.md)
 
 ## Outcome
 
 Use this folder to build interview-ready depth for Graceful Degradation: definition, internals, implementation, production behavior, debugging, and trade-offs.
+
+## Recommended Study Order
+
+1. Start with learning objectives and core concepts.
+2. Move into deep concepts and internal flow.
+3. Write or inspect code-level examples.
+4. Connect the idea to real-world systems and architecture decisions.
+5. Stress the topic with failure scenarios, debugging, and optimization.
+6. Answer validation questions before marking the topic complete.

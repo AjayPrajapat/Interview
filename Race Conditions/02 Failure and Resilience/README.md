@@ -4,9 +4,9 @@ Category: Race Conditions
 
 ## Subtopics
 
-- [002.01 Failure Modes](./002.01 Failure Modes/README.md)
-- [002.02 Graceful Degradation](./002.02 Graceful Degradation/README.md)
-- [002.03 Recovery Patterns](./002.03 Recovery Patterns/README.md)
+- [02.01 Failure Modes](./02.01 Failure Modes/README.md)
+- [02.02 Graceful Degradation](./02.02 Graceful Degradation/README.md)
+- [02.03 Recovery Patterns](./02.03 Recovery Patterns/README.md)
 
 ## Study Checklist
 
