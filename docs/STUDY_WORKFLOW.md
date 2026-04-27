@@ -14,6 +14,8 @@
 10. Build a debugging checklist from `debugging-strategies.md` and `debugging-playbook.md`.
 11. Capture measurable improvements from `optimization-techniques.md`.
 12. Finish with `common-misconceptions.md`, `staff-engineer-notes.md`, `validation-questions.md`, and `mastery-checklist.md`.
+13. Use `quick-reference.md`, `question-bank.md`, and `answer-rubric.md` for recall and self-assessment.
+14. Complete `capstone-exercise.md` and teach the topic using `teaching-notes.md`.
 
 ## Mastery Gate
 
@@ -27,3 +29,5 @@ Before moving to the next subtopic, you should be able to:
 - Discuss trade-offs at small scale and large scale.
 - Explain one domain-specific incident and one mitigation.
 - Answer the staff-level ownership, migration, and operability questions.
+- Score at least 4/5 on the answer rubric.
+- Complete one capstone deliverable set.

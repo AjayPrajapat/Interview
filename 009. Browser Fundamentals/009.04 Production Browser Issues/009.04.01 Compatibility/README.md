@@ -30,6 +30,14 @@ Topic: Production Browser Issues
 - [Interview Answer Framework](./interview-answer-framework.md)
 - [Debugging Playbook](./debugging-playbook.md)
 - [Staff Engineer Notes](./staff-engineer-notes.md)
+- [Quick Reference](./quick-reference.md)
+- [Question Bank](./question-bank.md)
+- [Answer Rubric](./answer-rubric.md)
+- [Compare And Contrast](./compare-and-contrast.md)
+- [Capstone Exercise](./capstone-exercise.md)
+- [Study Plan](./study-plan.md)
+- [Teaching Notes](./teaching-notes.md)
+- [Real Interview Prompts](./real-interview-prompts.md)
 
 ## Outcome
 
@@ -42,4 +50,5 @@ Use this folder to build interview-ready depth for Compatibility: definition, in
 3. Write or inspect code-level examples.
 4. Connect the idea to real-world systems and architecture decisions.
 5. Stress the topic with failure scenarios, debugging, and optimization.
-6. Answer validation questions before marking the topic complete.
+6. Use quick reference, question bank, and answer rubric for self-testing.
+7. Complete the capstone exercise before marking the topic complete.

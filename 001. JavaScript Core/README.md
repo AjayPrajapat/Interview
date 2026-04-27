@@ -2,10 +2,10 @@
 
 ## 001.01 Language Fundamentals
 
-### 001.01.01 Values and Types
+### 001.01.01 Variables & Declarations
 
 #### 🔹 Core Concepts
-- Definition: Understand Values and Types as it applies to JavaScript Core, including the problem it solves and the boundary it owns.
+- Definition: Understand Variables & Declarations as it applies to JavaScript Core, including the problem it solves and the boundary it owns.
 - Internal working: Trace the flow from input to processing to output, naming the state transitions, contracts, and dependencies involved.
 - Key principles: Prefer explicit contracts, measurable behavior, isolated responsibilities, and designs that degrade predictably under stress.
 
@@ -16,12 +16,12 @@
 - Performance implications: Measure latency, throughput, memory, CPU, I/O, bundle size, query cost, and tail behavior instead of trusting average-case intuition.
 
 #### 🔹 Code-Level Understanding
-- Example: Implement a small JavaScript Core scenario where Values and Types has a visible contract, typed inputs, explicit error handling, and test coverage.
+- Example: Implement a small JavaScript Core scenario where Variables & Declarations has a visible contract, typed inputs, explicit error handling, and test coverage.
 - Anti-patterns: Leaky abstraction, over-broad shared state, hidden global configuration, unbounded retries, missing cancellation, and logging without correlation IDs.
 - Best practices: Keep interfaces narrow, validate at boundaries, model failures explicitly, add observability at decision points, and make behavior reproducible in tests.
 
 #### 🔹 Real-World Usage
-- Where used in production: Values and Types appears in systems that need predictable behavior across deploys, teams, and traffic patterns.
+- Where used in production: Variables & Declarations appears in systems that need predictable behavior across deploys, teams, and traffic patterns.
 - Example systems: Payments, chat, SaaS workspaces, dashboards, notification systems, search, audit trails, developer platforms, and internal admin tools.
 
 #### 🔹 Architecture Decisions
@@ -30,7 +30,7 @@
 - When to use what: Use the simplest option that satisfies current scale and correctness needs, then move complexity behind stable interfaces when pressure is proven.
 
 #### 🔹 Interview Focus
-- Common questions: Explain Values and Types, describe how it works internally, and show how you would implement or operate it in JavaScript Core.
+- Common questions: Explain Variables & Declarations, describe how it works internally, and show how you would implement or operate it in JavaScript Core.
 - Tricky scenarios: Debug intermittent failures, high tail latency, duplicated work, stale data, memory growth, or behavior that changes only under load.
 - Follow-up depth: Be ready to discuss instrumentation, rollback plans, migration strategy, data consistency, and how the design changes at 10x scale.
 
@@ -39,7 +39,7 @@
 Input / trigger
   -> boundary validation
   -> Language Fundamentals decision point
-  -> Values and Types execution path
+  -> Variables & Declarations execution path
   -> side effects / state change
   -> observable result
   -> retry, rollback, or compensation if needed

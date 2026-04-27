@@ -34,6 +34,14 @@ Every subtopic now includes these additional learning files:
 - `interview-answer-framework.md`
 - `debugging-playbook.md`
 - `staff-engineer-notes.md`
+- `quick-reference.md`
+- `question-bank.md`
+- `answer-rubric.md`
+- `compare-and-contrast.md`
+- `capstone-exercise.md`
+- `study-plan.md`
+- `teaching-notes.md`
+- `real-interview-prompts.md`
 
 Existing subtopic files were also expanded with:
 
@@ -50,6 +58,7 @@ Existing subtopic files were also expanded with:
 - Measurement plans.
 - Domain-aware examples for language/runtime, frontend, backend/API, distributed systems, data, security, platform/ops, testing/performance, AI, and leadership topics.
 - Incident review prompts and staff-level review notes.
+- Assessment rubrics, question banks, quick references, compare/contrast prompts, capstone exercises, teaching notes, and interview prompt sets.
 
 ## Quality Gates
 
@@ -62,7 +71,7 @@ Use these checks after future changes:
 
 ## Current Improvement Pass
 
-This pass adds domain-specific enrichment across JavaScript, TypeScript, React, Node.js, distributed systems, databases, security, cloud, testing, AI tooling, and leadership categories.
+This pass adds domain-specific enrichment and a complete teach-practice-assess loop across JavaScript, TypeScript, React, Node.js, distributed systems, databases, security, cloud, testing, AI tooling, and leadership categories.
 
 ## Next Improvement Pass
 

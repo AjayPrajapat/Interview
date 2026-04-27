@@ -4,7 +4,7 @@ Category: JavaScript Core
 
 ## Subtopics
 
-- [001.01.01 Values and Types](./001.01.01 Values and Types/README.md)
+- [001.01.01 Variables & Declarations](./001.01.01 Variables & Declarations/README.md)
 - [001.01.02 Scope, Closures, and Hoisting](./001.01.02 Scope, Closures, and Hoisting/README.md)
 - [001.01.03 Prototypes and Object Model](./001.01.03 Prototypes and Object Model/README.md)
 

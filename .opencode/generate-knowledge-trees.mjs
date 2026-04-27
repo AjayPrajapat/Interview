@@ -43,7 +43,7 @@ const profileRules = [
   {
     test: /JavaScript Core/i,
     topics: [
-      ["Language Fundamentals", ["Values and Types", "Scope, Closures, and Hoisting", "Prototypes and Object Model"]],
+      ["Language Fundamentals", ["Variables & Declarations", "Scope, Closures, and Hoisting", "Prototypes and Object Model"]],
       ["Execution Model", ["Call Stack", "Event Loop and Tasks", "Promises and Async/Await"]],
       ["Advanced Runtime Behavior", ["Equality and Coercion", "Memory and Garbage Collection", "Modules and Bundling Boundaries"]],
       ["Production JavaScript", ["Error Handling", "Performance Profiling", "Maintainability at Scale"]],
@@ -480,6 +480,14 @@ Topic: ${topicName}
 - [Interview Answer Framework](./interview-answer-framework.md)
 - [Debugging Playbook](./debugging-playbook.md)
 - [Staff Engineer Notes](./staff-engineer-notes.md)
+- [Quick Reference](./quick-reference.md)
+- [Question Bank](./question-bank.md)
+- [Answer Rubric](./answer-rubric.md)
+- [Compare And Contrast](./compare-and-contrast.md)
+- [Capstone Exercise](./capstone-exercise.md)
+- [Study Plan](./study-plan.md)
+- [Teaching Notes](./teaching-notes.md)
+- [Real Interview Prompts](./real-interview-prompts.md)
 
 ## Outcome
 
@@ -492,7 +500,8 @@ Use this folder to build interview-ready depth for ${subtopicName}: definition, 
 3. Write or inspect code-level examples.
 4. Connect the idea to real-world systems and architecture decisions.
 5. Stress the topic with failure scenarios, debugging, and optimization.
-6. Answer validation questions before marking the topic complete.
+6. Use quick reference, question bank, and answer rubric for self-testing.
+7. Complete the capstone exercise before marking the topic complete.
 `;
 }
 
@@ -1639,6 +1648,317 @@ Mitigations:
 Revisit when:
 Owner:
 \`\`\`
+`,
+    ],
+    [
+      "quick-reference.md",
+      `# Quick Reference: ${subtopicName}
+
+## Core Definition
+
+${subtopicName} is a ${category} concept inside ${topicName} that should be understood through its boundary, invariant, execution flow, failure behavior, and trade-offs.
+
+## Remember These Five Things
+
+1. Boundary: where the behavior starts and stops.
+2. Invariant: what must remain true.
+3. Mechanism: how it works internally.
+4. Failure: what breaks under bad input, load, retries, or partial deploys.
+5. Signal: what evidence proves the behavior is healthy or unhealthy.
+
+## Fast Mental Flow
+
+\`\`\`text
+Define -> Trace -> Break -> Debug -> Optimize -> Explain trade-off
+\`\`\`
+
+## Red Flags
+
+- You can define it but cannot show an example.
+- You know the happy path but not the failure path.
+- You cannot name the metric or log that would reveal a production issue.
+- You cannot compare a simple approach with a more scalable approach.
+- You cannot explain ownership or rollback.
+
+## One-Minute Review
+
+- What is ${subtopicName}?
+- Why does it matter in ${category}?
+- What is one hidden edge case?
+- How would you debug it?
+- What would change at scale?
+`,
+    ],
+    [
+      "question-bank.md",
+      `# Question Bank: ${subtopicName}
+
+## Level 1: Foundation
+
+1. Define ${subtopicName} in your own words.
+2. Why does ${subtopicName} belong under ${topicName}?
+3. What are the main inputs and outputs?
+4. What is the key invariant?
+5. What is the simplest example?
+
+## Level 2: Internal Mechanics
+
+1. What internal mechanism makes this work?
+2. What lifecycle, ordering, or state behavior matters?
+3. What hidden default can change behavior?
+4. What happens with empty, malformed, duplicated, or stale input?
+5. What is different between local and production behavior?
+
+## Level 3: Code And Design
+
+1. How would you implement a minimal version?
+2. What tests would you write first?
+3. What anti-pattern would you avoid?
+4. Where would you add validation?
+5. Where would you add logging, metrics, or tracing?
+
+## Level 4: Production
+
+1. What breaks first under load?
+2. What happens during timeout, retry, or cancellation?
+3. What is the rollback or mitigation path?
+4. What dashboard or alert should exist?
+5. Who owns this behavior during an incident?
+
+## Level 5: Staff-Level
+
+1. What trade-off would you document in an RFC?
+2. What migration risk exists?
+3. What cross-team dependency does this create?
+4. What metric would make you revisit the design?
+5. How would you teach this to three experience levels?
+`,
+    ],
+    [
+      "answer-rubric.md",
+      `# Answer Rubric: ${subtopicName}
+
+## Weak Answer
+
+- Gives only a definition.
+- Explains only the happy path.
+- Has no edge cases.
+- Has no production symptoms.
+- Uses vague phrases like "it depends" without naming the dependency.
+
+## Good Answer
+
+- Defines ${subtopicName} clearly.
+- Explains the mechanism.
+- Gives a concrete example.
+- Names common edge cases.
+- Mentions at least one debugging signal.
+
+## Strong Senior Answer
+
+- Connects ${subtopicName} to ${enrichment.domain}.
+- Explains failure behavior under load, retry, cancellation, or partial deploy.
+- Compares two approaches and trade-offs.
+- Mentions tests, observability, and rollback.
+- Explains what changes at 10x scale.
+
+## Staff-Level Answer
+
+- Names ownership and blast radius.
+- Explains migration and compatibility risk.
+- Connects local design to system design.
+- Discusses operational burden and cost.
+- Defines the metric or incident pattern that would trigger redesign.
+
+## Self-Score
+
+| Score | Meaning |
+|---:|---|
+| 1 | I recognize the term. |
+| 2 | I can explain the happy path. |
+| 3 | I can implement and test it. |
+| 4 | I can debug production failures. |
+| 5 | I can make architecture decisions and teach others. |
+`,
+    ],
+    [
+      "compare-and-contrast.md",
+      `# Compare And Contrast: ${subtopicName}
+
+## Compare With Simpler Alternatives
+
+- Local implementation vs shared abstraction.
+- Synchronous handling vs asynchronous workflow.
+- Runtime validation vs compile-time constraints.
+- Fail-fast behavior vs graceful degradation.
+- Manual operation vs automated guardrails.
+
+## Comparison Questions
+
+- Which approach has the fewest moving parts?
+- Which approach protects the invariant best?
+- Which approach is easiest to operate during an incident?
+- Which approach is easiest to migrate away from?
+- Which approach creates the least cross-team coupling?
+
+## Trade-Off Table
+
+| Option | Best When | Risk | Operational Cost |
+|---|---|---|---|
+| Simple local approach | Scope is small and risk is low | Can duplicate logic | Low |
+| Shared library or framework | Many consumers need consistency | Versioning and coupling | Medium |
+| Platform or managed service | Scale or governance pressure is high | Vendor or platform dependency | Medium to high |
+| Custom infrastructure | Requirements are specialized | Complexity and ownership burden | High |
+
+## Decision Prompt
+
+For ${subtopicName}, choose the simplest approach that protects correctness today and leaves a clear path to evolve tomorrow.
+`,
+    ],
+    [
+      "capstone-exercise.md",
+      `# Capstone Exercise: ${subtopicName}
+
+## Scenario
+
+You own ${enrichment.example}. You must design, implement, test, operate, and explain ${subtopicName} for a production system.
+
+## Deliverables
+
+1. A one-paragraph concept explanation.
+2. A minimal code or architecture example.
+3. A failure-mode table.
+4. A debugging checklist.
+5. A test plan.
+6. A rollback or mitigation plan.
+7. A short interview answer.
+8. A staff-level review note.
+
+## Constraints
+
+- Assume at least one dependency can be slow.
+- Assume input can be duplicated or malformed.
+- Assume deploys are rolling, not instantaneous.
+- Assume another team will depend on this behavior.
+- Assume observability must be useful during an incident.
+
+## Evaluation
+
+Your solution is strong if:
+
+- The invariant is explicit.
+- The design is observable.
+- Failure behavior is intentional.
+- The implementation is testable.
+- The trade-off is documented.
+- The design can evolve without a rewrite.
+`,
+    ],
+    [
+      "study-plan.md",
+      `# Study Plan: ${subtopicName}
+
+## 30-Minute Pass
+
+- Read quick reference.
+- Read core concepts.
+- Answer three foundation questions.
+- Write a one-sentence summary.
+
+## 60-Minute Pass
+
+- Read deep concepts and internal flow.
+- Work through the domain-specific example.
+- Complete one practice drill.
+- Answer one scenario question.
+
+## 90-Minute Pass
+
+- Complete the hands-on lab.
+- Write the debugging playbook in your own words.
+- Fill the mastery checklist.
+- Compare two architecture approaches.
+
+## Review Cadence
+
+- Day 1: define and explain.
+- Day 3: solve a scenario.
+- Day 7: teach it.
+- Day 14: connect it to system design.
+- Day 30: revisit with a production incident lens.
+`,
+    ],
+    [
+      "teaching-notes.md",
+      `# Teaching Notes: ${subtopicName}
+
+## Teach To A Beginner
+
+Start with the problem ${subtopicName} solves. Avoid jargon until the learner can explain the basic behavior.
+
+## Teach To An Intermediate Engineer
+
+Focus on internal mechanisms, edge cases, and implementation patterns. Ask them to predict behavior before showing the answer.
+
+## Teach To A Senior Engineer
+
+Discuss production failure modes, observability, tests, and trade-offs. Ask what breaks at scale.
+
+## Teach To A Staff Engineer
+
+Discuss ownership, migration, compatibility, operational burden, cross-team contracts, and governance.
+
+## Teaching Sequence
+
+1. Concrete example.
+2. Internal mechanism.
+3. Edge case.
+4. Production failure.
+5. Architecture trade-off.
+6. Interview framing.
+
+## Check For Understanding
+
+- Can they explain it without copying your words?
+- Can they predict a failure?
+- Can they debug a symptom?
+- Can they choose between two designs?
+`,
+    ],
+    [
+      "real-interview-prompts.md",
+      `# Real Interview Prompts: ${subtopicName}
+
+## Warm-Up
+
+"Explain ${subtopicName} and why it matters in ${category}."
+
+## Deep Dive
+
+"Walk me through the internal flow. What state exists before and after execution?"
+
+## Coding Or Design
+
+"Design a minimal implementation that handles invalid input, duplicated input, and one failure path."
+
+## Production Debugging
+
+"This works in staging but fails intermittently in production. What do you check first?"
+
+## Scale-Up
+
+"Traffic grows by 10x. What bottleneck appears first and how do you prove it?"
+
+## Staff-Level
+
+"Write the trade-off summary you would put in an RFC. Include ownership, rollback, observability, and when to revisit the decision."
+
+## Follow-Up Challenges
+
+- What hidden assumption did you make?
+- What metric would validate your answer?
+- What would you simplify?
+- What would you refuse to build yet?
 `,
     ],
   ]);

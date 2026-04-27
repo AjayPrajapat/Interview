@@ -62,3 +62,11 @@ Each subtopic should contain:
 - `interview-answer-framework.md`
 - `debugging-playbook.md`
 - `staff-engineer-notes.md`
+- `quick-reference.md`
+- `question-bank.md`
+- `answer-rubric.md`
+- `compare-and-contrast.md`
+- `capstone-exercise.md`
+- `study-plan.md`
+- `teaching-notes.md`
+- `real-interview-prompts.md`

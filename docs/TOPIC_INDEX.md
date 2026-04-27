@@ -8,7 +8,7 @@ This file is generated from the repository folder structure.
 
 ### [001.01 Language Fundamentals](<../001. JavaScript Core/001.01 Language Fundamentals>)
 
-  - [001.01.01 Values and Types](<../001. JavaScript Core/001.01 Language Fundamentals/001.01.01 Values and Types>)
+  - [001.01.01 Variables & Declarations](<../001. JavaScript Core/001.01 Language Fundamentals/001.01.01 Variables & Declarations>)
   - [001.01.02 Scope, Closures, and Hoisting](<../001. JavaScript Core/001.01 Language Fundamentals/001.01.02 Scope, Closures, and Hoisting>)
   - [001.01.03 Prototypes and Object Model](<../001. JavaScript Core/001.01 Language Fundamentals/001.01.03 Prototypes and Object Model>)
 

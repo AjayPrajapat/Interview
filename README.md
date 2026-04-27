@@ -9,7 +9,7 @@ This repository is designed as a GitHub-native study system: every category has 
 ```text
 001. JavaScript Core/
   001.01 Language Fundamentals/
-    001.01.01 Values and Types/
+    001.01.01 Variables & Declarations/
       core-concepts.md
       deep-concepts.md
       code-level-understanding.md
