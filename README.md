@@ -2,105 +2,105 @@ Yes — this is a strong **10+ years JavaScript/TypeScript Fullstack + Tech Lead
 
 ## Complete Master Categories
 
-1. JavaScript Core
-2. JavaScript Internals
-3. TypeScript
-4. Angular
-5. React Basics + Advanced React
-6. Node.js
-7. NestJS
-8. Express.js
-9. Browser Fundamentals
-10. HTML/CSS Core
-11. Web Performance
-12. Frontend Architecture
-13. Frontend System Design
-14. Design System
-15. UI Engineering
-16. State Management
-17. RxJS
-18. API Design
-19. REST
-20. GraphQL
-21. WebSocket / Realtime Systems
-22. Authentication & Authorization
-23. Security
-24. OWASP Top 10
-25. System Design
-26. Distributed Systems
-27. Microservices
-28. Event-Driven Architecture
-29. Kafka / RabbitMQ
-30. Caching
-31. Redis
-32. Database Design
-33. SQL
-34. NoSQL
-35. Indexing & Query Optimization
-36. Transactions
-37. DSA
-38. LLD
-39. OOP
-40. Functional Programming
-41. Design Patterns
-42. Architecture Patterns
-43. Cloud
-44. DevOps
-45. Docker
-46. Kubernetes
-47. CI/CD
-48. Infrastructure as Code
-49. Observability
-50. Logging
-51. Monitoring
-52. Tracing
-53. Testing
-54. Unit Testing
-55. Integration Testing
-56. E2E Testing
-57. Contract Testing
-58. Performance Engineering
-59. Scalability
-60. Reliability Engineering
-61. Production Debugging
-62. Incident Management
-63. Code Quality
-64. Refactoring
-65. Clean Architecture
-66. SOLID Principles
-67. Monorepo Architecture
-68. Package Management
-69. Build Tools
-70. Webpack / Vite / Nx
-71. SSR / CSR / SSG / Hydration
-72. Accessibility
-73. SEO for Frontend
-74. Internationalization
-75. Analytics & Experimentation
-76. Feature Flags
-77. API Gateway
-78. BFF Pattern
-79. Multi-Tenant Architecture
-80. SaaS Architecture
-81. Payment / Notification / Search Systems
-82. Queue-Based Systems
-83. Background Jobs
-84. Rate Limiting
-85. Idempotency
-86. Data Modeling
-87. Domain-Driven Design
-88. CQRS
-89. Event Sourcing
-90. LLM / AI Tools
-91. Prompt Engineering
-92. AI-Assisted Development
-93. GitHub Copilot / Cursor / Claude / ChatGPT
-94. AI Code Review
-95. RAG Basics
-96. Agentic Workflows
-97. Leadership
-98. Mentoring
-99. Technical Decision Making
+001. JavaScript Core
+002. JavaScript Internals
+003. TypeScript
+004. Angular
+005. React Basics + Advanced React
+006. Node.js
+007. NestJS
+008. Express.js
+009. Browser Fundamentals
+010. HTML/CSS Core
+011. Web Performance
+012. Frontend Architecture
+013. Frontend System Design
+014. Design System
+015. UI Engineering
+016. State Management
+017. RxJS
+018. API Design
+019. REST
+020. GraphQL
+021. WebSocket / Realtime Systems
+022. Authentication & Authorization
+023. Security
+024. OWASP Top 10
+025. System Design
+026. Distributed Systems
+027. Microservices
+028. Event-Driven Architecture
+029. Kafka / RabbitMQ
+030. Caching
+031. Redis
+032. Database Design
+033. SQL
+034. NoSQL
+035. Indexing & Query Optimization
+036. Transactions
+037. DSA
+038. LLD
+039. OOP
+040. Functional Programming
+041. Design Patterns
+042. Architecture Patterns
+043. Cloud
+044. DevOps
+045. Docker
+046. Kubernetes
+047. CI/CD
+048. Infrastructure as Code
+049. Observability
+050. Logging
+051. Monitoring
+052. Tracing
+053. Testing
+054. Unit Testing
+055. Integration Testing
+056. E2E Testing
+057. Contract Testing
+058. Performance Engineering
+059. Scalability
+060. Reliability Engineering
+061. Production Debugging
+062. Incident Management
+063. Code Quality
+064. Refactoring
+065. Clean Architecture
+066. SOLID Principles
+067. Monorepo Architecture
+068. Package Management
+069. Build Tools
+070. Webpack / Vite / Nx
+071. SSR / CSR / SSG / Hydration
+072. Accessibility
+073. SEO for Frontend
+074. Internationalization
+075. Analytics & Experimentation
+076. Feature Flags
+077. API Gateway
+078. BFF Pattern
+079. Multi-Tenant Architecture
+080. SaaS Architecture
+081. Payment / Notification / Search Systems
+082. Queue-Based Systems
+083. Background Jobs
+084. Rate Limiting
+085. Idempotency
+086. Data Modeling
+087. Domain-Driven Design
+088. CQRS
+089. Event Sourcing
+090. LLM / AI Tools
+091. Prompt Engineering
+092. AI-Assisted Development
+093. GitHub Copilot / Cursor / Claude / ChatGPT
+094. AI Code Review
+095. RAG Basics
+096. Agentic Workflows
+097. Leadership
+098. Mentoring
+099. Technical Decision Making
 100. Architecture Review
 101. Stakeholder Communication
 102. Estimation & Planning
@@ -117,21 +117,21 @@ Yes — this is a strong **10+ years JavaScript/TypeScript Fullstack + Tech Lead
 
 Add these also:
 
-1. **Production Readiness**
-2. **Operational Excellence**
-3. **Resilience Patterns**
-4. **Failure Handling**
-5. **Backpressure**
-6. **Memory Leaks**
-7. **Concurrency**
-8. **Race Conditions**
-9. **Load Testing**
-10. **Capacity Planning**
-11. **Cost Optimization**
-12. **Compliance Basics**
-13. **Data Privacy**
-14. **Threat Modeling**
-15. **Architecture Governance**
+001. **Production Readiness**
+002. **Operational Excellence**
+003. **Resilience Patterns**
+004. **Failure Handling**
+005. **Backpressure**
+006. **Memory Leaks**
+007. **Concurrency**
+008. **Race Conditions**
+009. **Load Testing**
+010. **Capacity Planning**
+011. **Cost Optimization**
+012. **Compliance Basics**
+013. **Data Privacy**
+014. **Threat Modeling**
+015. **Architecture Governance**
 
 ## Final Master Track
 

@@ -1,8 +1,8 @@
 # 📚 CATEGORY: Hiring & Interviewing
 
-## 1️⃣ Technical Leadership
+## 001. Technical Leadership
 
-### 1.1 Problem Framing
+### 001.001 Problem Framing
 
 #### 🔹 Core Concepts
 - Definition: Understand Problem Framing as it applies to Hiring & Interviewing, including the problem it solves and the boundary it owns.
@@ -66,7 +66,7 @@ Input / trigger
 
 ---
 
-### 1.2 Decision Making
+### 001.002 Decision Making
 
 #### 🔹 Core Concepts
 - Definition: Understand Decision Making as it applies to Hiring & Interviewing, including the problem it solves and the boundary it owns.
@@ -130,7 +130,7 @@ Input / trigger
 
 ---
 
-### 1.3 Influence Without Authority
+### 001.003 Influence Without Authority
 
 #### 🔹 Core Concepts
 - Definition: Understand Influence Without Authority as it applies to Hiring & Interviewing, including the problem it solves and the boundary it owns.
@@ -194,9 +194,9 @@ Input / trigger
 
 ---
 
-## 2️⃣ Execution Systems
+## 002. Execution Systems
 
-### 2.1 Planning
+### 002.001 Planning
 
 #### 🔹 Core Concepts
 - Definition: Understand Planning as it applies to Hiring & Interviewing, including the problem it solves and the boundary it owns.
@@ -260,7 +260,7 @@ Input / trigger
 
 ---
 
-### 2.2 Risk Management
+### 002.002 Risk Management
 
 #### 🔹 Core Concepts
 - Definition: Understand Risk Management as it applies to Hiring & Interviewing, including the problem it solves and the boundary it owns.
@@ -324,7 +324,7 @@ Input / trigger
 
 ---
 
-### 2.3 Delivery Cadence
+### 002.003 Delivery Cadence
 
 #### 🔹 Core Concepts
 - Definition: Understand Delivery Cadence as it applies to Hiring & Interviewing, including the problem it solves and the boundary it owns.
@@ -388,9 +388,9 @@ Input / trigger
 
 ---
 
-## 3️⃣ Communication
+## 003. Communication
 
-### 3.1 RFCs
+### 003.001 RFCs
 
 #### 🔹 Core Concepts
 - Definition: Understand RFCs as it applies to Hiring & Interviewing, including the problem it solves and the boundary it owns.
@@ -454,7 +454,7 @@ Input / trigger
 
 ---
 
-### 3.2 Stakeholder Alignment
+### 003.002 Stakeholder Alignment
 
 #### 🔹 Core Concepts
 - Definition: Understand Stakeholder Alignment as it applies to Hiring & Interviewing, including the problem it solves and the boundary it owns.
@@ -518,7 +518,7 @@ Input / trigger
 
 ---
 
-### 3.3 Trade-off Narratives
+### 003.003 Trade-off Narratives
 
 #### 🔹 Core Concepts
 - Definition: Understand Trade-off Narratives as it applies to Hiring & Interviewing, including the problem it solves and the boundary it owns.
@@ -582,9 +582,9 @@ Input / trigger
 
 ---
 
-## 4️⃣ Org-Level Engineering
+## 004. Org-Level Engineering
 
-### 4.1 Mentorship
+### 004.001 Mentorship
 
 #### 🔹 Core Concepts
 - Definition: Understand Mentorship as it applies to Hiring & Interviewing, including the problem it solves and the boundary it owns.
@@ -648,7 +648,7 @@ Input / trigger
 
 ---
 
-### 4.2 Hiring Bar
+### 004.002 Hiring Bar
 
 #### 🔹 Core Concepts
 - Definition: Understand Hiring Bar as it applies to Hiring & Interviewing, including the problem it solves and the boundary it owns.
@@ -712,7 +712,7 @@ Input / trigger
 
 ---
 
-### 4.3 Engineering Productivity
+### 004.003 Engineering Productivity
 
 #### 🔹 Core Concepts
 - Definition: Understand Engineering Productivity as it applies to Hiring & Interviewing, including the problem it solves and the boundary it owns.

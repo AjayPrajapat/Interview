@@ -8,17 +8,17 @@ const directories = readdirSync(root)
   .sort((a, b) => Number(a.match(/^\d+/)[0]) - Number(b.match(/^\d+/)[0]));
 
 const displayNames = new Map([
-  ["10. HTML-CSS Core", "HTML/CSS Core"],
-  ["21. WebSocket - Realtime Systems", "WebSocket / Realtime Systems"],
-  ["29. Kafka - RabbitMQ", "Kafka / RabbitMQ"],
-  ["47. CI-CD", "CI/CD"],
-  ["70. Webpack - Vite - Nx", "Webpack / Vite / Nx"],
-  ["71. SSR - CSR - SSG - Hydration", "SSR / CSR / SSG / Hydration"],
-  ["81. Payment - Notification - Search Systems", "Payment / Notification / Search Systems"],
-  ["90. LLM - AI Tools", "LLM / AI Tools"],
-  ["93. GitHub Copilot - Cursor - Claude - ChatGPT", "GitHub Copilot / Cursor / Claude / ChatGPT"],
-  ["103. Agile - Scrum - Delivery", "Agile / Scrum / Delivery"],
-  ["110. Staff-Principal Engineer Mindset", "Staff/Principal Engineer Mindset"],
+  ["HTML-CSS Core", "HTML/CSS Core"],
+  ["WebSocket - Realtime Systems", "WebSocket / Realtime Systems"],
+  ["Kafka - RabbitMQ", "Kafka / RabbitMQ"],
+  ["CI-CD", "CI/CD"],
+  ["Webpack - Vite - Nx", "Webpack / Vite / Nx"],
+  ["SSR - CSR - SSG - Hydration", "SSR / CSR / SSG / Hydration"],
+  ["Payment - Notification - Search Systems", "Payment / Notification / Search Systems"],
+  ["LLM - AI Tools", "LLM / AI Tools"],
+  ["GitHub Copilot - Cursor - Claude - ChatGPT", "GitHub Copilot / Cursor / Claude / ChatGPT"],
+  ["Agile - Scrum - Delivery", "Agile / Scrum / Delivery"],
+  ["Staff-Principal Engineer Mindset", "Staff/Principal Engineer Mindset"],
 ]);
 
 const profileRules = [
@@ -203,7 +203,8 @@ const defaultTopics = [
 ];
 
 function categoryName(directory) {
-  return displayNames.get(directory) ?? directory.replace(/^\d+\.\s*/, "");
+  const safeCategoryName = directory.replace(/^\d+\.\s*/, "");
+  return displayNames.get(safeCategoryName) ?? safeCategoryName;
 }
 
 function topicsFor(name) {
@@ -225,12 +226,23 @@ function safeName(text) {
     .trim();
 }
 
+function padNumber(value) {
+  return String(value).padStart(3, "0");
+}
+
+function paddedId(value) {
+  return String(value)
+    .split(".")
+    .map((part) => padNumber(part))
+    .join(".");
+}
+
 function numberedName(number, name) {
-  return `${number}. ${safeName(name)}`;
+  return `${paddedId(number)}. ${safeName(name)}`;
 }
 
 function subtopicBlock(category, topicNumber, subtopicNumber, topicName, subtopicName) {
-  const id = `${topicNumber}.${subtopicNumber}`;
+  const id = paddedId(`${topicNumber}.${subtopicNumber}`);
   return `### ${id} ${subtopicName}
 
 #### 🔹 Core Concepts
@@ -306,7 +318,7 @@ function readmeFor(category) {
         )
         .join("\n---\n\n");
 
-      return `## ${topicNumber}️⃣ ${slugText(topicName)}
+      return `## ${paddedId(topicNumber)}. ${slugText(topicName)}
 
 ${blocks}`;
     })
@@ -356,12 +368,12 @@ ${body}
 function topicReadmeFor(category, topicNumber, topicName, subtopics) {
   const links = subtopics
     .map((subtopicName, index) => {
-      const id = `${topicNumber}.${index + 1}`;
+      const id = paddedId(`${topicNumber}.${index + 1}`);
       return `- [${id} ${subtopicName}](./${numberedName(id, subtopicName)}/README.md)`;
     })
     .join("\n");
 
-  return `# ${topicNumber}. ${topicName}
+  return `# ${paddedId(topicNumber)}. ${topicName}
 
 Category: ${category}
 
@@ -380,7 +392,7 @@ ${links}
 }
 
 function subtopicReadmeFor(category, topicNumber, subtopicNumber, topicName, subtopicName) {
-  const id = `${topicNumber}.${subtopicNumber}`;
+  const id = paddedId(`${topicNumber}.${subtopicNumber}`);
   return `# ${id} ${subtopicName}
 
 Category: ${category}
