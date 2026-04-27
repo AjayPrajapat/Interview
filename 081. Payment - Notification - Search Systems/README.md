@@ -1,8 +1,8 @@
 # 📚 CATEGORY: Payment / Notification / Search Systems
 
-## 001. Foundations
+## 081.01 Foundations
 
-### 001.001 Definitions
+### 081.01.01 Definitions
 
 #### 🔹 Core Concepts
 - Definition: Understand Definitions as it applies to Payment / Notification / Search Systems, including the problem it solves and the boundary it owns.
@@ -66,7 +66,7 @@ Input / trigger
 
 ---
 
-### 001.002 Core Principles
+### 081.01.02 Core Principles
 
 #### 🔹 Core Concepts
 - Definition: Understand Core Principles as it applies to Payment / Notification / Search Systems, including the problem it solves and the boundary it owns.
@@ -130,7 +130,7 @@ Input / trigger
 
 ---
 
-### 001.003 Conceptual Model
+### 081.01.03 Conceptual Model
 
 #### 🔹 Core Concepts
 - Definition: Understand Conceptual Model as it applies to Payment / Notification / Search Systems, including the problem it solves and the boundary it owns.
@@ -194,9 +194,9 @@ Input / trigger
 
 ---
 
-## 002. Deep Mechanics
+## 081.02 Deep Mechanics
 
-### 002.001 Internal Flow
+### 081.02.01 Internal Flow
 
 #### 🔹 Core Concepts
 - Definition: Understand Internal Flow as it applies to Payment / Notification / Search Systems, including the problem it solves and the boundary it owns.
@@ -260,7 +260,7 @@ Input / trigger
 
 ---
 
-### 002.002 Edge Cases
+### 081.02.02 Edge Cases
 
 #### 🔹 Core Concepts
 - Definition: Understand Edge Cases as it applies to Payment / Notification / Search Systems, including the problem it solves and the boundary it owns.
@@ -324,7 +324,7 @@ Input / trigger
 
 ---
 
-### 002.003 Failure Modes
+### 081.02.03 Failure Modes
 
 #### 🔹 Core Concepts
 - Definition: Understand Failure Modes as it applies to Payment / Notification / Search Systems, including the problem it solves and the boundary it owns.
@@ -388,9 +388,9 @@ Input / trigger
 
 ---
 
-## 003. Production Usage
+## 081.03 Production Usage
 
-### 003.001 Real Systems
+### 081.03.01 Real Systems
 
 #### 🔹 Core Concepts
 - Definition: Understand Real Systems as it applies to Payment / Notification / Search Systems, including the problem it solves and the boundary it owns.
@@ -454,7 +454,7 @@ Input / trigger
 
 ---
 
-### 003.002 Operational Concerns
+### 081.03.02 Operational Concerns
 
 #### 🔹 Core Concepts
 - Definition: Understand Operational Concerns as it applies to Payment / Notification / Search Systems, including the problem it solves and the boundary it owns.
@@ -518,7 +518,7 @@ Input / trigger
 
 ---
 
-### 003.003 Scaling Constraints
+### 081.03.03 Scaling Constraints
 
 #### 🔹 Core Concepts
 - Definition: Understand Scaling Constraints as it applies to Payment / Notification / Search Systems, including the problem it solves and the boundary it owns.
@@ -582,9 +582,9 @@ Input / trigger
 
 ---
 
-## 004. Engineering Decisions
+## 081.04 Engineering Decisions
 
-### 004.001 Trade-offs
+### 081.04.01 Trade-offs
 
 #### 🔹 Core Concepts
 - Definition: Understand Trade-offs as it applies to Payment / Notification / Search Systems, including the problem it solves and the boundary it owns.
@@ -648,7 +648,7 @@ Input / trigger
 
 ---
 
-### 004.002 Debugging
+### 081.04.02 Debugging
 
 #### 🔹 Core Concepts
 - Definition: Understand Debugging as it applies to Payment / Notification / Search Systems, including the problem it solves and the boundary it owns.
@@ -712,7 +712,7 @@ Input / trigger
 
 ---
 
-### 004.003 Optimization
+### 081.04.03 Optimization
 
 #### 🔹 Core Concepts
 - Definition: Understand Optimization as it applies to Payment / Notification / Search Systems, including the problem it solves and the boundary it owns.

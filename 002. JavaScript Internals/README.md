@@ -1,8 +1,8 @@
 # 📚 CATEGORY: JavaScript Internals
 
-## 001. Engine Architecture
+## 002.01 Engine Architecture
 
-### 001.001 Parsing and AST
+### 002.01.01 Parsing and AST
 
 #### 🔹 Core Concepts
 - Definition: Understand Parsing and AST as it applies to JavaScript Internals, including the problem it solves and the boundary it owns.
@@ -66,7 +66,7 @@ Input / trigger
 
 ---
 
-### 001.002 Bytecode and JIT
+### 002.01.02 Bytecode and JIT
 
 #### 🔹 Core Concepts
 - Definition: Understand Bytecode and JIT as it applies to JavaScript Internals, including the problem it solves and the boundary it owns.
@@ -130,7 +130,7 @@ Input / trigger
 
 ---
 
-### 001.003 Inline Caches and Hidden Classes
+### 002.01.03 Inline Caches and Hidden Classes
 
 #### 🔹 Core Concepts
 - Definition: Understand Inline Caches and Hidden Classes as it applies to JavaScript Internals, including the problem it solves and the boundary it owns.
@@ -194,9 +194,9 @@ Input / trigger
 
 ---
 
-## 002. Runtime Semantics
+## 002.02 Runtime Semantics
 
-### 002.001 Execution Contexts
+### 002.02.01 Execution Contexts
 
 #### 🔹 Core Concepts
 - Definition: Understand Execution Contexts as it applies to JavaScript Internals, including the problem it solves and the boundary it owns.
@@ -260,7 +260,7 @@ Input / trigger
 
 ---
 
-### 002.002 Lexical Environments
+### 002.02.02 Lexical Environments
 
 #### 🔹 Core Concepts
 - Definition: Understand Lexical Environments as it applies to JavaScript Internals, including the problem it solves and the boundary it owns.
@@ -324,7 +324,7 @@ Input / trigger
 
 ---
 
-### 002.003 Microtasks and Macrotasks
+### 002.02.03 Microtasks and Macrotasks
 
 #### 🔹 Core Concepts
 - Definition: Understand Microtasks and Macrotasks as it applies to JavaScript Internals, including the problem it solves and the boundary it owns.
@@ -388,9 +388,9 @@ Input / trigger
 
 ---
 
-## 003. Memory Internals
+## 002.03 Memory Internals
 
-### 003.001 Heap Layout
+### 002.03.01 Heap Layout
 
 #### 🔹 Core Concepts
 - Definition: Understand Heap Layout as it applies to JavaScript Internals, including the problem it solves and the boundary it owns.
@@ -454,7 +454,7 @@ Input / trigger
 
 ---
 
-### 003.002 Garbage Collection
+### 002.03.02 Garbage Collection
 
 #### 🔹 Core Concepts
 - Definition: Understand Garbage Collection as it applies to JavaScript Internals, including the problem it solves and the boundary it owns.
@@ -518,7 +518,7 @@ Input / trigger
 
 ---
 
-### 003.003 Leaks and Retainers
+### 002.03.03 Leaks and Retainers
 
 #### 🔹 Core Concepts
 - Definition: Understand Leaks and Retainers as it applies to JavaScript Internals, including the problem it solves and the boundary it owns.
@@ -582,9 +582,9 @@ Input / trigger
 
 ---
 
-## 004. Optimization Boundaries
+## 002.04 Optimization Boundaries
 
-### 004.001 Deoptimization
+### 002.04.01 Deoptimization
 
 #### 🔹 Core Concepts
 - Definition: Understand Deoptimization as it applies to JavaScript Internals, including the problem it solves and the boundary it owns.
@@ -648,7 +648,7 @@ Input / trigger
 
 ---
 
-### 004.002 Shape Changes
+### 002.04.02 Shape Changes
 
 #### 🔹 Core Concepts
 - Definition: Understand Shape Changes as it applies to JavaScript Internals, including the problem it solves and the boundary it owns.
@@ -712,7 +712,7 @@ Input / trigger
 
 ---
 
-### 004.003 Benchmarking Pitfalls
+### 002.04.03 Benchmarking Pitfalls
 
 #### 🔹 Core Concepts
 - Definition: Understand Benchmarking Pitfalls as it applies to JavaScript Internals, including the problem it solves and the boundary it owns.

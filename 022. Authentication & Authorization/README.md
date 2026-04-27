@@ -1,8 +1,8 @@
 # 📚 CATEGORY: Authentication & Authorization
 
-## 001. Security Foundations
+## 022.01 Security Foundations
 
-### 001.001 Threat Modeling
+### 022.01.01 Threat Modeling
 
 #### 🔹 Core Concepts
 - Definition: Understand Threat Modeling as it applies to Authentication & Authorization, including the problem it solves and the boundary it owns.
@@ -66,7 +66,7 @@ Input / trigger
 
 ---
 
-### 001.002 Trust Boundaries
+### 022.01.02 Trust Boundaries
 
 #### 🔹 Core Concepts
 - Definition: Understand Trust Boundaries as it applies to Authentication & Authorization, including the problem it solves and the boundary it owns.
@@ -130,7 +130,7 @@ Input / trigger
 
 ---
 
-### 001.003 Defense in Depth
+### 022.01.03 Defense in Depth
 
 #### 🔹 Core Concepts
 - Definition: Understand Defense in Depth as it applies to Authentication & Authorization, including the problem it solves and the boundary it owns.
@@ -194,9 +194,9 @@ Input / trigger
 
 ---
 
-## 002. Identity and Access
+## 022.02 Identity and Access
 
-### 002.001 Authentication Flows
+### 022.02.01 Authentication Flows
 
 #### 🔹 Core Concepts
 - Definition: Understand Authentication Flows as it applies to Authentication & Authorization, including the problem it solves and the boundary it owns.
@@ -260,7 +260,7 @@ Input / trigger
 
 ---
 
-### 002.002 Authorization Models
+### 022.02.02 Authorization Models
 
 #### 🔹 Core Concepts
 - Definition: Understand Authorization Models as it applies to Authentication & Authorization, including the problem it solves and the boundary it owns.
@@ -324,7 +324,7 @@ Input / trigger
 
 ---
 
-### 002.003 Session and Token Security
+### 022.02.03 Session and Token Security
 
 #### 🔹 Core Concepts
 - Definition: Understand Session and Token Security as it applies to Authentication & Authorization, including the problem it solves and the boundary it owns.
@@ -388,9 +388,9 @@ Input / trigger
 
 ---
 
-## 003. Application Security
+## 022.03 Application Security
 
-### 003.001 Input Validation
+### 022.03.01 Input Validation
 
 #### 🔹 Core Concepts
 - Definition: Understand Input Validation as it applies to Authentication & Authorization, including the problem it solves and the boundary it owns.
@@ -454,7 +454,7 @@ Input / trigger
 
 ---
 
-### 003.002 Injection and XSS
+### 022.03.02 Injection and XSS
 
 #### 🔹 Core Concepts
 - Definition: Understand Injection and XSS as it applies to Authentication & Authorization, including the problem it solves and the boundary it owns.
@@ -518,7 +518,7 @@ Input / trigger
 
 ---
 
-### 003.003 Secrets and Configuration
+### 022.03.03 Secrets and Configuration
 
 #### 🔹 Core Concepts
 - Definition: Understand Secrets and Configuration as it applies to Authentication & Authorization, including the problem it solves and the boundary it owns.
@@ -582,9 +582,9 @@ Input / trigger
 
 ---
 
-## 004. Production Security
+## 022.04 Production Security
 
-### 004.001 Detection
+### 022.04.01 Detection
 
 #### 🔹 Core Concepts
 - Definition: Understand Detection as it applies to Authentication & Authorization, including the problem it solves and the boundary it owns.
@@ -648,7 +648,7 @@ Input / trigger
 
 ---
 
-### 004.002 Incident Response
+### 022.04.02 Incident Response
 
 #### 🔹 Core Concepts
 - Definition: Understand Incident Response as it applies to Authentication & Authorization, including the problem it solves and the boundary it owns.
@@ -712,7 +712,7 @@ Input / trigger
 
 ---
 
-### 004.003 Compliance and Auditability
+### 022.04.03 Compliance and Auditability
 
 #### 🔹 Core Concepts
 - Definition: Understand Compliance and Auditability as it applies to Authentication & Authorization, including the problem it solves and the boundary it owns.

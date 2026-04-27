@@ -7,6 +7,24 @@ const directories = readdirSync(root)
   .filter((name) => /^\d+\.\s/.test(name) && statSync(join(root, name)).isDirectory())
   .sort((a, b) => Number(a.match(/^\d+/)[0]) - Number(b.match(/^\d+/)[0]));
 
+const extraDirectories = [
+  "Production Readiness",
+  "Operational Excellence",
+  "Resilience Patterns",
+  "Failure Handling",
+  "Backpressure",
+  "Memory Leaks",
+  "Concurrency",
+  "Race Conditions",
+  "Load Testing",
+  "Capacity Planning",
+  "Cost Optimization",
+  "Compliance Basics",
+  "Data Privacy",
+  "Threat Modeling",
+  "Architecture Governance",
+];
+
 const displayNames = new Map([
   ["HTML-CSS Core", "HTML/CSS Core"],
   ["WebSocket - Realtime Systems", "WebSocket / Realtime Systems"],
@@ -122,12 +140,30 @@ const profileRules = [
     ],
   },
   {
+    test: /Production Readiness|Operational Excellence|Resilience Patterns|Failure Handling|Backpressure|Memory Leaks|Concurrency|Race Conditions|Load Testing|Capacity Planning|Cost Optimization/i,
+    topics: [
+      ["Readiness Foundations", ["Service Health", "Operational Ownership", "Release Safety"]],
+      ["Failure and Resilience", ["Failure Modes", "Graceful Degradation", "Recovery Patterns"]],
+      ["Runtime Pressure", ["Resource Saturation", "Concurrency Limits", "Backpressure Signals"]],
+      ["Operational Strategy", ["Load Validation", "Capacity Forecasting", "Cost and Reliability Trade-offs"]],
+    ],
+  },
+  {
     test: /Security|OWASP|Authentication|Authorization/i,
     topics: [
       ["Security Foundations", ["Threat Modeling", "Trust Boundaries", "Defense in Depth"]],
       ["Identity and Access", ["Authentication Flows", "Authorization Models", "Session and Token Security"]],
       ["Application Security", ["Input Validation", "Injection and XSS", "Secrets and Configuration"]],
       ["Production Security", ["Detection", "Incident Response", "Compliance and Auditability"]],
+    ],
+  },
+  {
+    test: /Compliance Basics|Data Privacy|Threat Modeling|Architecture Governance/i,
+    topics: [
+      ["Governance Foundations", ["Policies and Standards", "Risk Classification", "Ownership Model"]],
+      ["Security and Privacy Design", ["Threat Modeling", "Data Classification", "Access Controls"]],
+      ["Auditability", ["Evidence Collection", "Change Tracking", "Exception Handling"]],
+      ["Production Governance", ["Architecture Reviews", "Compliance Drift", "Continuous Control Monitoring"]],
     ],
   },
   {
@@ -227,22 +263,30 @@ function safeName(text) {
 }
 
 function padNumber(value) {
-  return String(value).padStart(3, "0");
+  return String(value).padStart(2, "0");
 }
 
 function paddedId(value) {
-  return String(value)
-    .split(".")
-    .map((part) => padNumber(part))
+  const parts = String(value).split(".");
+  return parts
+    .map((part, index) => String(part).padStart(parts.length > 1 && index === 0 ? 3 : 2, "0"))
     .join(".");
 }
 
 function numberedName(number, name) {
-  return `${paddedId(number)}. ${safeName(name)}`;
+  return `${paddedId(number)} ${safeName(name)}`;
 }
 
-function subtopicBlock(category, topicNumber, subtopicNumber, topicName, subtopicName) {
-  const id = paddedId(`${topicNumber}.${subtopicNumber}`);
+function categoryFolderName(number, name) {
+  return `${String(number).padStart(3, "0")}. ${safeName(name)}`;
+}
+
+function prefixedName(prefix, number, name) {
+  return prefix ? `${prefix}.${padNumber(number)} ${safeName(name)}` : numberedName(number, name);
+}
+
+function subtopicBlock(category, categoryNumber, topicNumber, subtopicNumber, topicName, subtopicName) {
+  const id = categoryNumber ? paddedId(`${categoryNumber}.${topicNumber}.${subtopicNumber}`) : paddedId(`${topicNumber}.${subtopicNumber}`);
   return `### ${id} ${subtopicName}
 
 #### 🔹 Core Concepts
@@ -307,18 +351,19 @@ Input / trigger
 `;
 }
 
-function readmeFor(category) {
+function readmeFor(category, categoryNumber = null) {
   const topics = topicsFor(category);
   const body = topics
     .map(([topicName, subtopics], topicIndex) => {
       const topicNumber = topicIndex + 1;
       const blocks = subtopics
         .map((subtopicName, subtopicIndex) =>
-          subtopicBlock(category, topicNumber, subtopicIndex + 1, topicName, subtopicName),
+          subtopicBlock(category, categoryNumber, topicNumber, subtopicIndex + 1, topicName, subtopicName),
         )
         .join("\n---\n\n");
 
-      return `## ${paddedId(topicNumber)}. ${slugText(topicName)}
+      const id = categoryNumber ? paddedId(`${categoryNumber}.${topicNumber}`) : paddedId(topicNumber);
+      return `## ${id} ${slugText(topicName)}
 
 ${blocks}`;
     })
@@ -365,15 +410,16 @@ ${body}
 `;
 }
 
-function topicReadmeFor(category, topicNumber, topicName, subtopics) {
+function topicReadmeFor(category, categoryNumber, topicNumber, topicName, subtopics) {
+  const topicId = categoryNumber ? paddedId(`${categoryNumber}.${topicNumber}`) : paddedId(topicNumber);
   const links = subtopics
     .map((subtopicName, index) => {
-      const id = paddedId(`${topicNumber}.${index + 1}`);
+      const id = categoryNumber ? paddedId(`${categoryNumber}.${topicNumber}.${index + 1}`) : paddedId(`${topicNumber}.${index + 1}`);
       return `- [${id} ${subtopicName}](./${numberedName(id, subtopicName)}/README.md)`;
     })
     .join("\n");
 
-  return `# ${paddedId(topicNumber)}. ${topicName}
+  return `# ${topicId} ${topicName}
 
 Category: ${category}
 
@@ -391,8 +437,8 @@ ${links}
 `;
 }
 
-function subtopicReadmeFor(category, topicNumber, subtopicNumber, topicName, subtopicName) {
-  const id = paddedId(`${topicNumber}.${subtopicNumber}`);
+function subtopicReadmeFor(category, categoryNumber, topicNumber, subtopicNumber, topicName, subtopicName) {
+  const id = categoryNumber ? paddedId(`${categoryNumber}.${topicNumber}.${subtopicNumber}`) : paddedId(`${topicNumber}.${subtopicNumber}`);
   return `# ${id} ${subtopicName}
 
 Category: ${category}
@@ -671,22 +717,23 @@ Input / trigger
   ]);
 }
 
-function generateSubdirectories(directory, category) {
+function generateSubdirectories(directory, category, categoryNumber = null) {
   const categoryPath = join(root, directory);
   const topics = topicsFor(category);
 
   for (const [topicIndex, [topicName, subtopics]] of topics.entries()) {
     const topicNumber = topicIndex + 1;
-    const topicPath = join(categoryPath, numberedName(topicNumber, topicName));
+    const topicId = categoryNumber ? `${categoryNumber}.${topicNumber}` : `${topicNumber}`;
+    const topicPath = join(categoryPath, numberedName(topicId, topicName));
     mkdirSync(topicPath, { recursive: true });
-    writeFileSync(join(topicPath, "README.md"), topicReadmeFor(category, topicNumber, topicName, subtopics));
+    writeFileSync(join(topicPath, "README.md"), topicReadmeFor(category, categoryNumber, topicNumber, topicName, subtopics));
 
     for (const [subtopicIndex, subtopicName] of subtopics.entries()) {
       const subtopicNumber = subtopicIndex + 1;
-      const id = `${topicNumber}.${subtopicNumber}`;
+      const id = categoryNumber ? `${categoryNumber}.${topicNumber}.${subtopicNumber}` : `${topicNumber}.${subtopicNumber}`;
       const subtopicPath = join(topicPath, numberedName(id, subtopicName));
       mkdirSync(subtopicPath, { recursive: true });
-      writeFileSync(join(subtopicPath, "README.md"), subtopicReadmeFor(category, topicNumber, subtopicNumber, topicName, subtopicName));
+      writeFileSync(join(subtopicPath, "README.md"), subtopicReadmeFor(category, categoryNumber, topicNumber, subtopicNumber, topicName, subtopicName));
 
       for (const [fileName, content] of subtopicFiles(category, topicName, subtopicName)) {
         writeFileSync(join(subtopicPath, fileName), content);
@@ -695,10 +742,17 @@ function generateSubdirectories(directory, category) {
   }
 }
 
-for (const directory of directories) {
+for (const [categoryIndex, directory] of directories.entries()) {
   const category = categoryName(directory);
-  writeFileSync(join(root, directory, "README.md"), readmeFor(category));
-  generateSubdirectories(directory, category);
+  const categoryNumber = categoryIndex + 1;
+  writeFileSync(join(root, directory, "README.md"), readmeFor(category, categoryNumber));
+  generateSubdirectories(directory, category, categoryNumber);
 }
 
-console.log(`Generated ${directories.length} knowledge-tree README files and nested study directories.`);
+for (const directory of extraDirectories) {
+  mkdirSync(join(root, directory), { recursive: true });
+  writeFileSync(join(root, directory, "README.md"), readmeFor(directory));
+  generateSubdirectories(directory, directory);
+}
+
+console.log(`Generated ${directories.length} numbered and ${extraDirectories.length} extra knowledge-tree directories.`);

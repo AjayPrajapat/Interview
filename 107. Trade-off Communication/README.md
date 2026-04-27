@@ -1,8 +1,8 @@
 # 📚 CATEGORY: Trade-off Communication
 
-## 001. Technical Leadership
+## 107.01 Technical Leadership
 
-### 001.001 Problem Framing
+### 107.01.01 Problem Framing
 
 #### 🔹 Core Concepts
 - Definition: Understand Problem Framing as it applies to Trade-off Communication, including the problem it solves and the boundary it owns.
@@ -66,7 +66,7 @@ Input / trigger
 
 ---
 
-### 001.002 Decision Making
+### 107.01.02 Decision Making
 
 #### 🔹 Core Concepts
 - Definition: Understand Decision Making as it applies to Trade-off Communication, including the problem it solves and the boundary it owns.
@@ -130,7 +130,7 @@ Input / trigger
 
 ---
 
-### 001.003 Influence Without Authority
+### 107.01.03 Influence Without Authority
 
 #### 🔹 Core Concepts
 - Definition: Understand Influence Without Authority as it applies to Trade-off Communication, including the problem it solves and the boundary it owns.
@@ -194,9 +194,9 @@ Input / trigger
 
 ---
 
-## 002. Execution Systems
+## 107.02 Execution Systems
 
-### 002.001 Planning
+### 107.02.01 Planning
 
 #### 🔹 Core Concepts
 - Definition: Understand Planning as it applies to Trade-off Communication, including the problem it solves and the boundary it owns.
@@ -260,7 +260,7 @@ Input / trigger
 
 ---
 
-### 002.002 Risk Management
+### 107.02.02 Risk Management
 
 #### 🔹 Core Concepts
 - Definition: Understand Risk Management as it applies to Trade-off Communication, including the problem it solves and the boundary it owns.
@@ -324,7 +324,7 @@ Input / trigger
 
 ---
 
-### 002.003 Delivery Cadence
+### 107.02.03 Delivery Cadence
 
 #### 🔹 Core Concepts
 - Definition: Understand Delivery Cadence as it applies to Trade-off Communication, including the problem it solves and the boundary it owns.
@@ -388,9 +388,9 @@ Input / trigger
 
 ---
 
-## 003. Communication
+## 107.03 Communication
 
-### 003.001 RFCs
+### 107.03.01 RFCs
 
 #### 🔹 Core Concepts
 - Definition: Understand RFCs as it applies to Trade-off Communication, including the problem it solves and the boundary it owns.
@@ -454,7 +454,7 @@ Input / trigger
 
 ---
 
-### 003.002 Stakeholder Alignment
+### 107.03.02 Stakeholder Alignment
 
 #### 🔹 Core Concepts
 - Definition: Understand Stakeholder Alignment as it applies to Trade-off Communication, including the problem it solves and the boundary it owns.
@@ -518,7 +518,7 @@ Input / trigger
 
 ---
 
-### 003.003 Trade-off Narratives
+### 107.03.03 Trade-off Narratives
 
 #### 🔹 Core Concepts
 - Definition: Understand Trade-off Narratives as it applies to Trade-off Communication, including the problem it solves and the boundary it owns.
@@ -582,9 +582,9 @@ Input / trigger
 
 ---
 
-## 004. Org-Level Engineering
+## 107.04 Org-Level Engineering
 
-### 004.001 Mentorship
+### 107.04.01 Mentorship
 
 #### 🔹 Core Concepts
 - Definition: Understand Mentorship as it applies to Trade-off Communication, including the problem it solves and the boundary it owns.
@@ -648,7 +648,7 @@ Input / trigger
 
 ---
 
-### 004.002 Hiring Bar
+### 107.04.02 Hiring Bar
 
 #### 🔹 Core Concepts
 - Definition: Understand Hiring Bar as it applies to Trade-off Communication, including the problem it solves and the boundary it owns.
@@ -712,7 +712,7 @@ Input / trigger
 
 ---
 
-### 004.003 Engineering Productivity
+### 107.04.03 Engineering Productivity
 
 #### 🔹 Core Concepts
 - Definition: Understand Engineering Productivity as it applies to Trade-off Communication, including the problem it solves and the boundary it owns.

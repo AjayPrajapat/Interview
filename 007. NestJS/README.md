@@ -1,8 +1,8 @@
 # 📚 CATEGORY: NestJS
 
-## 001. Nest Architecture
+## 007.01 Nest Architecture
 
-### 001.001 Modules and Providers
+### 007.01.01 Modules and Providers
 
 #### 🔹 Core Concepts
 - Definition: Understand Modules and Providers as it applies to NestJS, including the problem it solves and the boundary it owns.
@@ -66,7 +66,7 @@ Input / trigger
 
 ---
 
-### 001.002 Dependency Injection
+### 007.01.02 Dependency Injection
 
 #### 🔹 Core Concepts
 - Definition: Understand Dependency Injection as it applies to NestJS, including the problem it solves and the boundary it owns.
@@ -130,7 +130,7 @@ Input / trigger
 
 ---
 
-### 001.003 Controllers and Pipes
+### 007.01.03 Controllers and Pipes
 
 #### 🔹 Core Concepts
 - Definition: Understand Controllers and Pipes as it applies to NestJS, including the problem it solves and the boundary it owns.
@@ -194,9 +194,9 @@ Input / trigger
 
 ---
 
-## 002. Request Lifecycle
+## 007.02 Request Lifecycle
 
-### 002.001 Guards
+### 007.02.01 Guards
 
 #### 🔹 Core Concepts
 - Definition: Understand Guards as it applies to NestJS, including the problem it solves and the boundary it owns.
@@ -260,7 +260,7 @@ Input / trigger
 
 ---
 
-### 002.002 Interceptors
+### 007.02.02 Interceptors
 
 #### 🔹 Core Concepts
 - Definition: Understand Interceptors as it applies to NestJS, including the problem it solves and the boundary it owns.
@@ -324,7 +324,7 @@ Input / trigger
 
 ---
 
-### 002.003 Filters
+### 007.02.03 Filters
 
 #### 🔹 Core Concepts
 - Definition: Understand Filters as it applies to NestJS, including the problem it solves and the boundary it owns.
@@ -388,9 +388,9 @@ Input / trigger
 
 ---
 
-## 003. Backend Patterns
+## 007.03 Backend Patterns
 
-### 003.001 CQRS
+### 007.03.01 CQRS
 
 #### 🔹 Core Concepts
 - Definition: Understand CQRS as it applies to NestJS, including the problem it solves and the boundary it owns.
@@ -454,7 +454,7 @@ Input / trigger
 
 ---
 
-### 003.002 Event Emitters
+### 007.03.02 Event Emitters
 
 #### 🔹 Core Concepts
 - Definition: Understand Event Emitters as it applies to NestJS, including the problem it solves and the boundary it owns.
@@ -518,7 +518,7 @@ Input / trigger
 
 ---
 
-### 003.003 Database Integration
+### 007.03.03 Database Integration
 
 #### 🔹 Core Concepts
 - Definition: Understand Database Integration as it applies to NestJS, including the problem it solves and the boundary it owns.
@@ -582,9 +582,9 @@ Input / trigger
 
 ---
 
-## 004. Production NestJS
+## 007.04 Production NestJS
 
-### 004.001 Testing Modules
+### 007.04.01 Testing Modules
 
 #### 🔹 Core Concepts
 - Definition: Understand Testing Modules as it applies to NestJS, including the problem it solves and the boundary it owns.
@@ -648,7 +648,7 @@ Input / trigger
 
 ---
 
-### 004.002 Performance
+### 007.04.02 Performance
 
 #### 🔹 Core Concepts
 - Definition: Understand Performance as it applies to NestJS, including the problem it solves and the boundary it owns.
@@ -712,7 +712,7 @@ Input / trigger
 
 ---
 
-### 004.003 Operational Hardening
+### 007.04.03 Operational Hardening
 
 #### 🔹 Core Concepts
 - Definition: Understand Operational Hardening as it applies to NestJS, including the problem it solves and the boundary it owns.

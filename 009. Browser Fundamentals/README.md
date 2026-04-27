@@ -1,8 +1,8 @@
 # 📚 CATEGORY: Browser Fundamentals
 
-## 001. Browser Architecture
+## 009.01 Browser Architecture
 
-### 001.001 Processes and Threads
+### 009.01.01 Processes and Threads
 
 #### 🔹 Core Concepts
 - Definition: Understand Processes and Threads as it applies to Browser Fundamentals, including the problem it solves and the boundary it owns.
@@ -66,7 +66,7 @@ Input / trigger
 
 ---
 
-### 001.002 Navigation Pipeline
+### 009.01.02 Navigation Pipeline
 
 #### 🔹 Core Concepts
 - Definition: Understand Navigation Pipeline as it applies to Browser Fundamentals, including the problem it solves and the boundary it owns.
@@ -130,7 +130,7 @@ Input / trigger
 
 ---
 
-### 001.003 Rendering Engine
+### 009.01.03 Rendering Engine
 
 #### 🔹 Core Concepts
 - Definition: Understand Rendering Engine as it applies to Browser Fundamentals, including the problem it solves and the boundary it owns.
@@ -194,9 +194,9 @@ Input / trigger
 
 ---
 
-## 002. Web Platform APIs
+## 009.02 Web Platform APIs
 
-### 002.001 DOM and Events
+### 009.02.01 DOM and Events
 
 #### 🔹 Core Concepts
 - Definition: Understand DOM and Events as it applies to Browser Fundamentals, including the problem it solves and the boundary it owns.
@@ -260,7 +260,7 @@ Input / trigger
 
 ---
 
-### 002.002 Storage APIs
+### 009.02.02 Storage APIs
 
 #### 🔹 Core Concepts
 - Definition: Understand Storage APIs as it applies to Browser Fundamentals, including the problem it solves and the boundary it owns.
@@ -324,7 +324,7 @@ Input / trigger
 
 ---
 
-### 002.003 Network APIs
+### 009.02.03 Network APIs
 
 #### 🔹 Core Concepts
 - Definition: Understand Network APIs as it applies to Browser Fundamentals, including the problem it solves and the boundary it owns.
@@ -388,9 +388,9 @@ Input / trigger
 
 ---
 
-## 003. Rendering Pipeline
+## 009.03 Rendering Pipeline
 
-### 003.001 Style Calculation
+### 009.03.01 Style Calculation
 
 #### 🔹 Core Concepts
 - Definition: Understand Style Calculation as it applies to Browser Fundamentals, including the problem it solves and the boundary it owns.
@@ -454,7 +454,7 @@ Input / trigger
 
 ---
 
-### 003.002 Layout and Paint
+### 009.03.02 Layout and Paint
 
 #### 🔹 Core Concepts
 - Definition: Understand Layout and Paint as it applies to Browser Fundamentals, including the problem it solves and the boundary it owns.
@@ -518,7 +518,7 @@ Input / trigger
 
 ---
 
-### 003.003 Compositing
+### 009.03.03 Compositing
 
 #### 🔹 Core Concepts
 - Definition: Understand Compositing as it applies to Browser Fundamentals, including the problem it solves and the boundary it owns.
@@ -582,9 +582,9 @@ Input / trigger
 
 ---
 
-## 004. Production Browser Issues
+## 009.04 Production Browser Issues
 
-### 004.001 Compatibility
+### 009.04.01 Compatibility
 
 #### 🔹 Core Concepts
 - Definition: Understand Compatibility as it applies to Browser Fundamentals, including the problem it solves and the boundary it owns.
@@ -648,7 +648,7 @@ Input / trigger
 
 ---
 
-### 004.002 Memory Pressure
+### 009.04.02 Memory Pressure
 
 #### 🔹 Core Concepts
 - Definition: Understand Memory Pressure as it applies to Browser Fundamentals, including the problem it solves and the boundary it owns.
@@ -712,7 +712,7 @@ Input / trigger
 
 ---
 
-### 004.003 Performance Debugging
+### 009.04.03 Performance Debugging
 
 #### 🔹 Core Concepts
 - Definition: Understand Performance Debugging as it applies to Browser Fundamentals, including the problem it solves and the boundary it owns.

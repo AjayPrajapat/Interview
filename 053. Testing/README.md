@@ -1,8 +1,8 @@
 # 📚 CATEGORY: Testing
 
-## 001. Testing Strategy
+## 053.01 Testing Strategy
 
-### 001.001 Test Pyramid
+### 053.01.01 Test Pyramid
 
 #### 🔹 Core Concepts
 - Definition: Understand Test Pyramid as it applies to Testing, including the problem it solves and the boundary it owns.
@@ -66,7 +66,7 @@ Input / trigger
 
 ---
 
-### 001.002 Risk-Based Coverage
+### 053.01.02 Risk-Based Coverage
 
 #### 🔹 Core Concepts
 - Definition: Understand Risk-Based Coverage as it applies to Testing, including the problem it solves and the boundary it owns.
@@ -130,7 +130,7 @@ Input / trigger
 
 ---
 
-### 001.003 Test Data
+### 053.01.03 Test Data
 
 #### 🔹 Core Concepts
 - Definition: Understand Test Data as it applies to Testing, including the problem it solves and the boundary it owns.
@@ -194,9 +194,9 @@ Input / trigger
 
 ---
 
-## 002. Test Design
+## 053.02 Test Design
 
-### 002.001 Mocks and Fakes
+### 053.02.01 Mocks and Fakes
 
 #### 🔹 Core Concepts
 - Definition: Understand Mocks and Fakes as it applies to Testing, including the problem it solves and the boundary it owns.
@@ -260,7 +260,7 @@ Input / trigger
 
 ---
 
-### 002.002 Boundaries
+### 053.02.02 Boundaries
 
 #### 🔹 Core Concepts
 - Definition: Understand Boundaries as it applies to Testing, including the problem it solves and the boundary it owns.
@@ -324,7 +324,7 @@ Input / trigger
 
 ---
 
-### 002.003 Determinism
+### 053.02.03 Determinism
 
 #### 🔹 Core Concepts
 - Definition: Understand Determinism as it applies to Testing, including the problem it solves and the boundary it owns.
@@ -388,9 +388,9 @@ Input / trigger
 
 ---
 
-## 003. Automation
+## 053.03 Automation
 
-### 003.001 CI Integration
+### 053.03.01 CI Integration
 
 #### 🔹 Core Concepts
 - Definition: Understand CI Integration as it applies to Testing, including the problem it solves and the boundary it owns.
@@ -454,7 +454,7 @@ Input / trigger
 
 ---
 
-### 003.002 Flaky Test Control
+### 053.03.02 Flaky Test Control
 
 #### 🔹 Core Concepts
 - Definition: Understand Flaky Test Control as it applies to Testing, including the problem it solves and the boundary it owns.
@@ -518,7 +518,7 @@ Input / trigger
 
 ---
 
-### 003.003 Parallelization
+### 053.03.03 Parallelization
 
 #### 🔹 Core Concepts
 - Definition: Understand Parallelization as it applies to Testing, including the problem it solves and the boundary it owns.
@@ -582,9 +582,9 @@ Input / trigger
 
 ---
 
-## 004. Production Confidence
+## 053.04 Production Confidence
 
-### 004.001 Regression Detection
+### 053.04.01 Regression Detection
 
 #### 🔹 Core Concepts
 - Definition: Understand Regression Detection as it applies to Testing, including the problem it solves and the boundary it owns.
@@ -648,7 +648,7 @@ Input / trigger
 
 ---
 
-### 004.002 Contract Safety
+### 053.04.02 Contract Safety
 
 #### 🔹 Core Concepts
 - Definition: Understand Contract Safety as it applies to Testing, including the problem it solves and the boundary it owns.
@@ -712,7 +712,7 @@ Input / trigger
 
 ---
 
-### 004.003 Release Gates
+### 053.04.03 Release Gates
 
 #### 🔹 Core Concepts
 - Definition: Understand Release Gates as it applies to Testing, including the problem it solves and the boundary it owns.

@@ -1,8 +1,8 @@
 # 📚 CATEGORY: HTML/CSS Core
 
-## 001. HTML Foundations
+## 010.01 HTML Foundations
 
-### 001.001 Semantic Markup
+### 010.01.01 Semantic Markup
 
 #### 🔹 Core Concepts
 - Definition: Understand Semantic Markup as it applies to HTML/CSS Core, including the problem it solves and the boundary it owns.
@@ -66,7 +66,7 @@ Input / trigger
 
 ---
 
-### 001.002 Forms
+### 010.01.02 Forms
 
 #### 🔹 Core Concepts
 - Definition: Understand Forms as it applies to HTML/CSS Core, including the problem it solves and the boundary it owns.
@@ -130,7 +130,7 @@ Input / trigger
 
 ---
 
-### 001.003 Document Metadata
+### 010.01.03 Document Metadata
 
 #### 🔹 Core Concepts
 - Definition: Understand Document Metadata as it applies to HTML/CSS Core, including the problem it solves and the boundary it owns.
@@ -194,9 +194,9 @@ Input / trigger
 
 ---
 
-## 002. CSS Architecture
+## 010.02 CSS Architecture
 
-### 002.001 Cascade and Specificity
+### 010.02.01 Cascade and Specificity
 
 #### 🔹 Core Concepts
 - Definition: Understand Cascade and Specificity as it applies to HTML/CSS Core, including the problem it solves and the boundary it owns.
@@ -260,7 +260,7 @@ Input / trigger
 
 ---
 
-### 002.002 Layout Systems
+### 010.02.02 Layout Systems
 
 #### 🔹 Core Concepts
 - Definition: Understand Layout Systems as it applies to HTML/CSS Core, including the problem it solves and the boundary it owns.
@@ -324,7 +324,7 @@ Input / trigger
 
 ---
 
-### 002.003 Responsive Design
+### 010.02.03 Responsive Design
 
 #### 🔹 Core Concepts
 - Definition: Understand Responsive Design as it applies to HTML/CSS Core, including the problem it solves and the boundary it owns.
@@ -388,9 +388,9 @@ Input / trigger
 
 ---
 
-## 003. Rendering and Accessibility
+## 010.03 Rendering and Accessibility
 
-### 003.001 Accessible Names
+### 010.03.01 Accessible Names
 
 #### 🔹 Core Concepts
 - Definition: Understand Accessible Names as it applies to HTML/CSS Core, including the problem it solves and the boundary it owns.
@@ -454,7 +454,7 @@ Input / trigger
 
 ---
 
-### 003.002 Focus Management
+### 010.03.02 Focus Management
 
 #### 🔹 Core Concepts
 - Definition: Understand Focus Management as it applies to HTML/CSS Core, including the problem it solves and the boundary it owns.
@@ -518,7 +518,7 @@ Input / trigger
 
 ---
 
-### 003.003 Visual Stability
+### 010.03.03 Visual Stability
 
 #### 🔹 Core Concepts
 - Definition: Understand Visual Stability as it applies to HTML/CSS Core, including the problem it solves and the boundary it owns.
@@ -582,9 +582,9 @@ Input / trigger
 
 ---
 
-## 004. Production Styling
+## 010.04 Production Styling
 
-### 004.001 Design Tokens
+### 010.04.01 Design Tokens
 
 #### 🔹 Core Concepts
 - Definition: Understand Design Tokens as it applies to HTML/CSS Core, including the problem it solves and the boundary it owns.
@@ -648,7 +648,7 @@ Input / trigger
 
 ---
 
-### 004.002 CSS Performance
+### 010.04.02 CSS Performance
 
 #### 🔹 Core Concepts
 - Definition: Understand CSS Performance as it applies to HTML/CSS Core, including the problem it solves and the boundary it owns.
@@ -712,7 +712,7 @@ Input / trigger
 
 ---
 
-### 004.003 Maintainability
+### 010.04.03 Maintainability
 
 #### 🔹 Core Concepts
 - Definition: Understand Maintainability as it applies to HTML/CSS Core, including the problem it solves and the boundary it owns.

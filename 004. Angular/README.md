@@ -1,8 +1,8 @@
 # 📚 CATEGORY: Angular
 
-## 001. Angular Architecture
+## 004.01 Angular Architecture
 
-### 001.001 Modules and Standalone Components
+### 004.01.01 Modules and Standalone Components
 
 #### 🔹 Core Concepts
 - Definition: Understand Modules and Standalone Components as it applies to Angular, including the problem it solves and the boundary it owns.
@@ -66,7 +66,7 @@ Input / trigger
 
 ---
 
-### 001.002 Dependency Injection
+### 004.01.02 Dependency Injection
 
 #### 🔹 Core Concepts
 - Definition: Understand Dependency Injection as it applies to Angular, including the problem it solves and the boundary it owns.
@@ -130,7 +130,7 @@ Input / trigger
 
 ---
 
-### 001.003 Routing and Lazy Loading
+### 004.01.03 Routing and Lazy Loading
 
 #### 🔹 Core Concepts
 - Definition: Understand Routing and Lazy Loading as it applies to Angular, including the problem it solves and the boundary it owns.
@@ -194,9 +194,9 @@ Input / trigger
 
 ---
 
-## 002. Rendering and Reactivity
+## 004.02 Rendering and Reactivity
 
-### 002.001 Change Detection
+### 004.02.01 Change Detection
 
 #### 🔹 Core Concepts
 - Definition: Understand Change Detection as it applies to Angular, including the problem it solves and the boundary it owns.
@@ -260,7 +260,7 @@ Input / trigger
 
 ---
 
-### 002.002 Signals and RxJS
+### 004.02.02 Signals and RxJS
 
 #### 🔹 Core Concepts
 - Definition: Understand Signals and RxJS as it applies to Angular, including the problem it solves and the boundary it owns.
@@ -324,7 +324,7 @@ Input / trigger
 
 ---
 
-### 002.003 Template Performance
+### 004.02.03 Template Performance
 
 #### 🔹 Core Concepts
 - Definition: Understand Template Performance as it applies to Angular, including the problem it solves and the boundary it owns.
@@ -388,9 +388,9 @@ Input / trigger
 
 ---
 
-## 003. State and Forms
+## 004.03 State and Forms
 
-### 003.001 Reactive Forms
+### 004.03.01 Reactive Forms
 
 #### 🔹 Core Concepts
 - Definition: Understand Reactive Forms as it applies to Angular, including the problem it solves and the boundary it owns.
@@ -454,7 +454,7 @@ Input / trigger
 
 ---
 
-### 003.002 Component State
+### 004.03.02 Component State
 
 #### 🔹 Core Concepts
 - Definition: Understand Component State as it applies to Angular, including the problem it solves and the boundary it owns.
@@ -518,7 +518,7 @@ Input / trigger
 
 ---
 
-### 003.003 Global State Patterns
+### 004.03.03 Global State Patterns
 
 #### 🔹 Core Concepts
 - Definition: Understand Global State Patterns as it applies to Angular, including the problem it solves and the boundary it owns.
@@ -582,9 +582,9 @@ Input / trigger
 
 ---
 
-## 004. Production Angular
+## 004.04 Production Angular
 
-### 004.001 Testing Strategy
+### 004.04.01 Testing Strategy
 
 #### 🔹 Core Concepts
 - Definition: Understand Testing Strategy as it applies to Angular, including the problem it solves and the boundary it owns.
@@ -648,7 +648,7 @@ Input / trigger
 
 ---
 
-### 004.002 Bundle Optimization
+### 004.04.02 Bundle Optimization
 
 #### 🔹 Core Concepts
 - Definition: Understand Bundle Optimization as it applies to Angular, including the problem it solves and the boundary it owns.
@@ -712,7 +712,7 @@ Input / trigger
 
 ---
 
-### 004.003 Enterprise Maintainability
+### 004.04.03 Enterprise Maintainability
 
 #### 🔹 Core Concepts
 - Definition: Understand Enterprise Maintainability as it applies to Angular, including the problem it solves and the boundary it owns.

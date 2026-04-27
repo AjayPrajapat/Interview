@@ -1,8 +1,8 @@
 # 📚 CATEGORY: Express.js
 
-## 001. Express Fundamentals
+## 008.01 Express Fundamentals
 
-### 001.001 Middleware Chain
+### 008.01.01 Middleware Chain
 
 #### 🔹 Core Concepts
 - Definition: Understand Middleware Chain as it applies to Express.js, including the problem it solves and the boundary it owns.
@@ -66,7 +66,7 @@ Input / trigger
 
 ---
 
-### 001.002 Routing
+### 008.01.02 Routing
 
 #### 🔹 Core Concepts
 - Definition: Understand Routing as it applies to Express.js, including the problem it solves and the boundary it owns.
@@ -130,7 +130,7 @@ Input / trigger
 
 ---
 
-### 001.003 Request and Response Objects
+### 008.01.03 Request and Response Objects
 
 #### 🔹 Core Concepts
 - Definition: Understand Request and Response Objects as it applies to Express.js, including the problem it solves and the boundary it owns.
@@ -194,9 +194,9 @@ Input / trigger
 
 ---
 
-## 002. API Engineering
+## 008.02 API Engineering
 
-### 002.001 Validation
+### 008.02.01 Validation
 
 #### 🔹 Core Concepts
 - Definition: Understand Validation as it applies to Express.js, including the problem it solves and the boundary it owns.
@@ -260,7 +260,7 @@ Input / trigger
 
 ---
 
-### 002.002 Error Handling
+### 008.02.02 Error Handling
 
 #### 🔹 Core Concepts
 - Definition: Understand Error Handling as it applies to Express.js, including the problem it solves and the boundary it owns.
@@ -324,7 +324,7 @@ Input / trigger
 
 ---
 
-### 002.003 Versioning
+### 008.02.03 Versioning
 
 #### 🔹 Core Concepts
 - Definition: Understand Versioning as it applies to Express.js, including the problem it solves and the boundary it owns.
@@ -388,9 +388,9 @@ Input / trigger
 
 ---
 
-## 003. Security and Reliability
+## 008.03 Security and Reliability
 
-### 003.001 Auth Middleware
+### 008.03.01 Auth Middleware
 
 #### 🔹 Core Concepts
 - Definition: Understand Auth Middleware as it applies to Express.js, including the problem it solves and the boundary it owns.
@@ -454,7 +454,7 @@ Input / trigger
 
 ---
 
-### 003.002 Rate Limiting
+### 008.03.02 Rate Limiting
 
 #### 🔹 Core Concepts
 - Definition: Understand Rate Limiting as it applies to Express.js, including the problem it solves and the boundary it owns.
@@ -518,7 +518,7 @@ Input / trigger
 
 ---
 
-### 003.003 Input Sanitization
+### 008.03.03 Input Sanitization
 
 #### 🔹 Core Concepts
 - Definition: Understand Input Sanitization as it applies to Express.js, including the problem it solves and the boundary it owns.
@@ -582,9 +582,9 @@ Input / trigger
 
 ---
 
-## 004. Production Express
+## 008.04 Production Express
 
-### 004.001 Process Lifecycle
+### 008.04.01 Process Lifecycle
 
 #### 🔹 Core Concepts
 - Definition: Understand Process Lifecycle as it applies to Express.js, including the problem it solves and the boundary it owns.
@@ -648,7 +648,7 @@ Input / trigger
 
 ---
 
-### 004.002 Observability
+### 008.04.02 Observability
 
 #### 🔹 Core Concepts
 - Definition: Understand Observability as it applies to Express.js, including the problem it solves and the boundary it owns.
@@ -712,7 +712,7 @@ Input / trigger
 
 ---
 
-### 004.003 Performance Tuning
+### 008.04.03 Performance Tuning
 
 #### 🔹 Core Concepts
 - Definition: Understand Performance Tuning as it applies to Express.js, including the problem it solves and the boundary it owns.

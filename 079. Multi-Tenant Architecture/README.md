@@ -1,8 +1,8 @@
 # 📚 CATEGORY: Multi-Tenant Architecture
 
-## 001. System Fundamentals
+## 079.01 System Fundamentals
 
-### 001.001 Requirements and Constraints
+### 079.01.01 Requirements and Constraints
 
 #### 🔹 Core Concepts
 - Definition: Understand Requirements and Constraints as it applies to Multi-Tenant Architecture, including the problem it solves and the boundary it owns.
@@ -66,7 +66,7 @@ Input / trigger
 
 ---
 
-### 001.002 Data Flow
+### 079.01.02 Data Flow
 
 #### 🔹 Core Concepts
 - Definition: Understand Data Flow as it applies to Multi-Tenant Architecture, including the problem it solves and the boundary it owns.
@@ -130,7 +130,7 @@ Input / trigger
 
 ---
 
-### 001.003 Service Boundaries
+### 079.01.03 Service Boundaries
 
 #### 🔹 Core Concepts
 - Definition: Understand Service Boundaries as it applies to Multi-Tenant Architecture, including the problem it solves and the boundary it owns.
@@ -194,9 +194,9 @@ Input / trigger
 
 ---
 
-## 002. Distributed Behavior
+## 079.02 Distributed Behavior
 
-### 002.001 Consistency
+### 079.02.01 Consistency
 
 #### 🔹 Core Concepts
 - Definition: Understand Consistency as it applies to Multi-Tenant Architecture, including the problem it solves and the boundary it owns.
@@ -260,7 +260,7 @@ Input / trigger
 
 ---
 
-### 002.002 Replication
+### 079.02.02 Replication
 
 #### 🔹 Core Concepts
 - Definition: Understand Replication as it applies to Multi-Tenant Architecture, including the problem it solves and the boundary it owns.
@@ -324,7 +324,7 @@ Input / trigger
 
 ---
 
-### 002.003 Failure Modes
+### 079.02.03 Failure Modes
 
 #### 🔹 Core Concepts
 - Definition: Understand Failure Modes as it applies to Multi-Tenant Architecture, including the problem it solves and the boundary it owns.
@@ -388,9 +388,9 @@ Input / trigger
 
 ---
 
-## 003. Communication Patterns
+## 079.03 Communication Patterns
 
-### 003.001 Synchronous APIs
+### 079.03.01 Synchronous APIs
 
 #### 🔹 Core Concepts
 - Definition: Understand Synchronous APIs as it applies to Multi-Tenant Architecture, including the problem it solves and the boundary it owns.
@@ -454,7 +454,7 @@ Input / trigger
 
 ---
 
-### 003.002 Asynchronous Messaging
+### 079.03.02 Asynchronous Messaging
 
 #### 🔹 Core Concepts
 - Definition: Understand Asynchronous Messaging as it applies to Multi-Tenant Architecture, including the problem it solves and the boundary it owns.
@@ -518,7 +518,7 @@ Input / trigger
 
 ---
 
-### 003.003 Event Contracts
+### 079.03.03 Event Contracts
 
 #### 🔹 Core Concepts
 - Definition: Understand Event Contracts as it applies to Multi-Tenant Architecture, including the problem it solves and the boundary it owns.
@@ -582,9 +582,9 @@ Input / trigger
 
 ---
 
-## 004. Production Architecture
+## 079.04 Production Architecture
 
-### 004.001 Scalability
+### 079.04.01 Scalability
 
 #### 🔹 Core Concepts
 - Definition: Understand Scalability as it applies to Multi-Tenant Architecture, including the problem it solves and the boundary it owns.
@@ -648,7 +648,7 @@ Input / trigger
 
 ---
 
-### 004.002 Resilience
+### 079.04.02 Resilience
 
 #### 🔹 Core Concepts
 - Definition: Understand Resilience as it applies to Multi-Tenant Architecture, including the problem it solves and the boundary it owns.
@@ -712,7 +712,7 @@ Input / trigger
 
 ---
 
-### 004.003 Operability
+### 079.04.03 Operability
 
 #### 🔹 Core Concepts
 - Definition: Understand Operability as it applies to Multi-Tenant Architecture, including the problem it solves and the boundary it owns.

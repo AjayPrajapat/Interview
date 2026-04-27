@@ -1,8 +1,8 @@
 # 📚 CATEGORY: React Basics + Advanced React
 
-## 001. React Mental Model
+## 005.01 React Mental Model
 
-### 001.001 Components and Props
+### 005.01.01 Components and Props
 
 #### 🔹 Core Concepts
 - Definition: Understand Components and Props as it applies to React Basics + Advanced React, including the problem it solves and the boundary it owns.
@@ -66,7 +66,7 @@ Input / trigger
 
 ---
 
-### 001.002 State and Effects
+### 005.01.02 State and Effects
 
 #### 🔹 Core Concepts
 - Definition: Understand State and Effects as it applies to React Basics + Advanced React, including the problem it solves and the boundary it owns.
@@ -130,7 +130,7 @@ Input / trigger
 
 ---
 
-### 001.003 Rendering and Reconciliation
+### 005.01.03 Rendering and Reconciliation
 
 #### 🔹 Core Concepts
 - Definition: Understand Rendering and Reconciliation as it applies to React Basics + Advanced React, including the problem it solves and the boundary it owns.
@@ -194,9 +194,9 @@ Input / trigger
 
 ---
 
-## 002. Advanced React
+## 005.02 Advanced React
 
-### 002.001 Concurrent Rendering
+### 005.02.01 Concurrent Rendering
 
 #### 🔹 Core Concepts
 - Definition: Understand Concurrent Rendering as it applies to React Basics + Advanced React, including the problem it solves and the boundary it owns.
@@ -260,7 +260,7 @@ Input / trigger
 
 ---
 
-### 002.002 Suspense and Data Fetching
+### 005.02.02 Suspense and Data Fetching
 
 #### 🔹 Core Concepts
 - Definition: Understand Suspense and Data Fetching as it applies to React Basics + Advanced React, including the problem it solves and the boundary it owns.
@@ -324,7 +324,7 @@ Input / trigger
 
 ---
 
-### 002.003 Hooks Internals
+### 005.02.03 Hooks Internals
 
 #### 🔹 Core Concepts
 - Definition: Understand Hooks Internals as it applies to React Basics + Advanced React, including the problem it solves and the boundary it owns.
@@ -388,9 +388,9 @@ Input / trigger
 
 ---
 
-## 003. Frontend Architecture
+## 005.03 Frontend Architecture
 
-### 003.001 Component Boundaries
+### 005.03.01 Component Boundaries
 
 #### 🔹 Core Concepts
 - Definition: Understand Component Boundaries as it applies to React Basics + Advanced React, including the problem it solves and the boundary it owns.
@@ -454,7 +454,7 @@ Input / trigger
 
 ---
 
-### 003.002 State Placement
+### 005.03.02 State Placement
 
 #### 🔹 Core Concepts
 - Definition: Understand State Placement as it applies to React Basics + Advanced React, including the problem it solves and the boundary it owns.
@@ -518,7 +518,7 @@ Input / trigger
 
 ---
 
-### 003.003 Server Components and Hydration
+### 005.03.03 Server Components and Hydration
 
 #### 🔹 Core Concepts
 - Definition: Understand Server Components and Hydration as it applies to React Basics + Advanced React, including the problem it solves and the boundary it owns.
@@ -582,9 +582,9 @@ Input / trigger
 
 ---
 
-## 004. Production React
+## 005.04 Production React
 
-### 004.001 Performance Profiling
+### 005.04.01 Performance Profiling
 
 #### 🔹 Core Concepts
 - Definition: Understand Performance Profiling as it applies to React Basics + Advanced React, including the problem it solves and the boundary it owns.
@@ -648,7 +648,7 @@ Input / trigger
 
 ---
 
-### 004.002 Testing Strategy
+### 005.04.02 Testing Strategy
 
 #### 🔹 Core Concepts
 - Definition: Understand Testing Strategy as it applies to React Basics + Advanced React, including the problem it solves and the boundary it owns.
@@ -712,7 +712,7 @@ Input / trigger
 
 ---
 
-### 004.003 Design System Integration
+### 005.04.03 Design System Integration
 
 #### 🔹 Core Concepts
 - Definition: Understand Design System Integration as it applies to React Basics + Advanced React, including the problem it solves and the boundary it owns.

@@ -1,8 +1,8 @@
 # 📚 CATEGORY: TypeScript
 
-## 001. Type System Foundations
+## 003.01 Type System Foundations
 
-### 001.001 Structural Typing
+### 003.01.01 Structural Typing
 
 #### 🔹 Core Concepts
 - Definition: Understand Structural Typing as it applies to TypeScript, including the problem it solves and the boundary it owns.
@@ -66,7 +66,7 @@ Input / trigger
 
 ---
 
-### 001.002 Narrowing and Control Flow
+### 003.01.02 Narrowing and Control Flow
 
 #### 🔹 Core Concepts
 - Definition: Understand Narrowing and Control Flow as it applies to TypeScript, including the problem it solves and the boundary it owns.
@@ -130,7 +130,7 @@ Input / trigger
 
 ---
 
-### 001.003 Generics and Constraints
+### 003.01.03 Generics and Constraints
 
 #### 🔹 Core Concepts
 - Definition: Understand Generics and Constraints as it applies to TypeScript, including the problem it solves and the boundary it owns.
@@ -194,9 +194,9 @@ Input / trigger
 
 ---
 
-## 002. Advanced Types
+## 003.02 Advanced Types
 
-### 002.001 Conditional Types
+### 003.02.01 Conditional Types
 
 #### 🔹 Core Concepts
 - Definition: Understand Conditional Types as it applies to TypeScript, including the problem it solves and the boundary it owns.
@@ -260,7 +260,7 @@ Input / trigger
 
 ---
 
-### 002.002 Mapped and Template Literal Types
+### 003.02.02 Mapped and Template Literal Types
 
 #### 🔹 Core Concepts
 - Definition: Understand Mapped and Template Literal Types as it applies to TypeScript, including the problem it solves and the boundary it owns.
@@ -324,7 +324,7 @@ Input / trigger
 
 ---
 
-### 002.003 Variance and Inference
+### 003.02.03 Variance and Inference
 
 #### 🔹 Core Concepts
 - Definition: Understand Variance and Inference as it applies to TypeScript, including the problem it solves and the boundary it owns.
@@ -388,9 +388,9 @@ Input / trigger
 
 ---
 
-## 003. Application Architecture
+## 003.03 Application Architecture
 
-### 003.001 API Contracts
+### 003.03.01 API Contracts
 
 #### 🔹 Core Concepts
 - Definition: Understand API Contracts as it applies to TypeScript, including the problem it solves and the boundary it owns.
@@ -454,7 +454,7 @@ Input / trigger
 
 ---
 
-### 003.002 Domain Modeling
+### 003.03.02 Domain Modeling
 
 #### 🔹 Core Concepts
 - Definition: Understand Domain Modeling as it applies to TypeScript, including the problem it solves and the boundary it owns.
@@ -518,7 +518,7 @@ Input / trigger
 
 ---
 
-### 003.003 Monorepo Type Boundaries
+### 003.03.03 Monorepo Type Boundaries
 
 #### 🔹 Core Concepts
 - Definition: Understand Monorepo Type Boundaries as it applies to TypeScript, including the problem it solves and the boundary it owns.
@@ -582,9 +582,9 @@ Input / trigger
 
 ---
 
-## 004. Compiler and Tooling
+## 003.04 Compiler and Tooling
 
-### 004.001 tsconfig Strategy
+### 003.04.01 tsconfig Strategy
 
 #### 🔹 Core Concepts
 - Definition: Understand tsconfig Strategy as it applies to TypeScript, including the problem it solves and the boundary it owns.
@@ -648,7 +648,7 @@ Input / trigger
 
 ---
 
-### 004.002 Declaration Files
+### 003.04.02 Declaration Files
 
 #### 🔹 Core Concepts
 - Definition: Understand Declaration Files as it applies to TypeScript, including the problem it solves and the boundary it owns.
@@ -712,7 +712,7 @@ Input / trigger
 
 ---
 
-### 004.003 Build Performance
+### 003.04.03 Build Performance
 
 #### 🔹 Core Concepts
 - Definition: Understand Build Performance as it applies to TypeScript, including the problem it solves and the boundary it owns.

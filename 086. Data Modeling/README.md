@@ -1,8 +1,8 @@
 # 📚 CATEGORY: Data Modeling
 
-## 001. Data Modeling
+## 086.01 Data Modeling
 
-### 001.001 Entities and Relationships
+### 086.01.01 Entities and Relationships
 
 #### 🔹 Core Concepts
 - Definition: Understand Entities and Relationships as it applies to Data Modeling, including the problem it solves and the boundary it owns.
@@ -66,7 +66,7 @@ Input / trigger
 
 ---
 
-### 001.002 Access Patterns
+### 086.01.02 Access Patterns
 
 #### 🔹 Core Concepts
 - Definition: Understand Access Patterns as it applies to Data Modeling, including the problem it solves and the boundary it owns.
@@ -130,7 +130,7 @@ Input / trigger
 
 ---
 
-### 001.003 Normalization and Denormalization
+### 086.01.03 Normalization and Denormalization
 
 #### 🔹 Core Concepts
 - Definition: Understand Normalization and Denormalization as it applies to Data Modeling, including the problem it solves and the boundary it owns.
@@ -194,9 +194,9 @@ Input / trigger
 
 ---
 
-## 002. Query Execution
+## 086.02 Query Execution
 
-### 002.001 Indexes
+### 086.02.01 Indexes
 
 #### 🔹 Core Concepts
 - Definition: Understand Indexes as it applies to Data Modeling, including the problem it solves and the boundary it owns.
@@ -260,7 +260,7 @@ Input / trigger
 
 ---
 
-### 002.002 Query Plans
+### 086.02.02 Query Plans
 
 #### 🔹 Core Concepts
 - Definition: Understand Query Plans as it applies to Data Modeling, including the problem it solves and the boundary it owns.
@@ -324,7 +324,7 @@ Input / trigger
 
 ---
 
-### 002.003 Locking and Isolation
+### 086.02.03 Locking and Isolation
 
 #### 🔹 Core Concepts
 - Definition: Understand Locking and Isolation as it applies to Data Modeling, including the problem it solves and the boundary it owns.
@@ -388,9 +388,9 @@ Input / trigger
 
 ---
 
-## 003. Distributed Data
+## 086.03 Distributed Data
 
-### 003.001 Replication
+### 086.03.01 Replication
 
 #### 🔹 Core Concepts
 - Definition: Understand Replication as it applies to Data Modeling, including the problem it solves and the boundary it owns.
@@ -454,7 +454,7 @@ Input / trigger
 
 ---
 
-### 003.002 Sharding
+### 086.03.02 Sharding
 
 #### 🔹 Core Concepts
 - Definition: Understand Sharding as it applies to Data Modeling, including the problem it solves and the boundary it owns.
@@ -518,7 +518,7 @@ Input / trigger
 
 ---
 
-### 003.003 Consistency Trade-offs
+### 086.03.03 Consistency Trade-offs
 
 #### 🔹 Core Concepts
 - Definition: Understand Consistency Trade-offs as it applies to Data Modeling, including the problem it solves and the boundary it owns.
@@ -582,9 +582,9 @@ Input / trigger
 
 ---
 
-## 004. Production Data
+## 086.04 Production Data
 
-### 004.001 Migrations
+### 086.04.01 Migrations
 
 #### 🔹 Core Concepts
 - Definition: Understand Migrations as it applies to Data Modeling, including the problem it solves and the boundary it owns.
@@ -648,7 +648,7 @@ Input / trigger
 
 ---
 
-### 004.002 Backups
+### 086.04.02 Backups
 
 #### 🔹 Core Concepts
 - Definition: Understand Backups as it applies to Data Modeling, including the problem it solves and the boundary it owns.
@@ -712,7 +712,7 @@ Input / trigger
 
 ---
 
-### 004.003 Performance Debugging
+### 086.04.03 Performance Debugging
 
 #### 🔹 Core Concepts
 - Definition: Understand Performance Debugging as it applies to Data Modeling, including the problem it solves and the boundary it owns.

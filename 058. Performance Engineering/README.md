@@ -1,8 +1,8 @@
 # 📚 CATEGORY: Performance Engineering
 
-## 001. Foundations
+## 058.01 Foundations
 
-### 001.001 Metrics and SLIs
+### 058.01.01 Metrics and SLIs
 
 #### 🔹 Core Concepts
 - Definition: Understand Metrics and SLIs as it applies to Performance Engineering, including the problem it solves and the boundary it owns.
@@ -66,7 +66,7 @@ Input / trigger
 
 ---
 
-### 001.002 Latency and Throughput
+### 058.01.02 Latency and Throughput
 
 #### 🔹 Core Concepts
 - Definition: Understand Latency and Throughput as it applies to Performance Engineering, including the problem it solves and the boundary it owns.
@@ -130,7 +130,7 @@ Input / trigger
 
 ---
 
-### 001.003 Capacity Limits
+### 058.01.03 Capacity Limits
 
 #### 🔹 Core Concepts
 - Definition: Understand Capacity Limits as it applies to Performance Engineering, including the problem it solves and the boundary it owns.
@@ -194,9 +194,9 @@ Input / trigger
 
 ---
 
-## 002. Runtime Behavior
+## 058.02 Runtime Behavior
 
-### 002.001 Bottlenecks
+### 058.02.01 Bottlenecks
 
 #### 🔹 Core Concepts
 - Definition: Understand Bottlenecks as it applies to Performance Engineering, including the problem it solves and the boundary it owns.
@@ -260,7 +260,7 @@ Input / trigger
 
 ---
 
-### 002.002 Resource Contention
+### 058.02.02 Resource Contention
 
 #### 🔹 Core Concepts
 - Definition: Understand Resource Contention as it applies to Performance Engineering, including the problem it solves and the boundary it owns.
@@ -324,7 +324,7 @@ Input / trigger
 
 ---
 
-### 002.003 Backpressure
+### 058.02.03 Backpressure
 
 #### 🔹 Core Concepts
 - Definition: Understand Backpressure as it applies to Performance Engineering, including the problem it solves and the boundary it owns.
@@ -388,9 +388,9 @@ Input / trigger
 
 ---
 
-## 003. Production Operations
+## 058.03 Production Operations
 
-### 003.001 Alerting
+### 058.03.01 Alerting
 
 #### 🔹 Core Concepts
 - Definition: Understand Alerting as it applies to Performance Engineering, including the problem it solves and the boundary it owns.
@@ -454,7 +454,7 @@ Input / trigger
 
 ---
 
-### 003.002 Incident Diagnosis
+### 058.03.02 Incident Diagnosis
 
 #### 🔹 Core Concepts
 - Definition: Understand Incident Diagnosis as it applies to Performance Engineering, including the problem it solves and the boundary it owns.
@@ -518,7 +518,7 @@ Input / trigger
 
 ---
 
-### 003.003 Safe Rollouts
+### 058.03.03 Safe Rollouts
 
 #### 🔹 Core Concepts
 - Definition: Understand Safe Rollouts as it applies to Performance Engineering, including the problem it solves and the boundary it owns.
@@ -582,9 +582,9 @@ Input / trigger
 
 ---
 
-## 004. Optimization Strategy
+## 058.04 Optimization Strategy
 
-### 004.001 Profiling
+### 058.04.01 Profiling
 
 #### 🔹 Core Concepts
 - Definition: Understand Profiling as it applies to Performance Engineering, including the problem it solves and the boundary it owns.
@@ -648,7 +648,7 @@ Input / trigger
 
 ---
 
-### 004.002 Load Testing
+### 058.04.02 Load Testing
 
 #### 🔹 Core Concepts
 - Definition: Understand Load Testing as it applies to Performance Engineering, including the problem it solves and the boundary it owns.
@@ -712,7 +712,7 @@ Input / trigger
 
 ---
 
-### 004.003 Cost and Complexity Trade-offs
+### 058.04.03 Cost and Complexity Trade-offs
 
 #### 🔹 Core Concepts
 - Definition: Understand Cost and Complexity Trade-offs as it applies to Performance Engineering, including the problem it solves and the boundary it owns.

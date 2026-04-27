@@ -1,8 +1,8 @@
 # 📚 CATEGORY: Functional Programming
 
-## 001. Core Principles
+## 040.01 Core Principles
 
-### 001.001 Abstraction
+### 040.01.01 Abstraction
 
 #### 🔹 Core Concepts
 - Definition: Understand Abstraction as it applies to Functional Programming, including the problem it solves and the boundary it owns.
@@ -66,7 +66,7 @@ Input / trigger
 
 ---
 
-### 001.002 Encapsulation
+### 040.01.02 Encapsulation
 
 #### 🔹 Core Concepts
 - Definition: Understand Encapsulation as it applies to Functional Programming, including the problem it solves and the boundary it owns.
@@ -130,7 +130,7 @@ Input / trigger
 
 ---
 
-### 001.003 Composition
+### 040.01.03 Composition
 
 #### 🔹 Core Concepts
 - Definition: Understand Composition as it applies to Functional Programming, including the problem it solves and the boundary it owns.
@@ -194,9 +194,9 @@ Input / trigger
 
 ---
 
-## 002. Design Techniques
+## 040.02 Design Techniques
 
-### 002.001 Modeling
+### 040.02.01 Modeling
 
 #### 🔹 Core Concepts
 - Definition: Understand Modeling as it applies to Functional Programming, including the problem it solves and the boundary it owns.
@@ -260,7 +260,7 @@ Input / trigger
 
 ---
 
-### 002.002 Pattern Selection
+### 040.02.02 Pattern Selection
 
 #### 🔹 Core Concepts
 - Definition: Understand Pattern Selection as it applies to Functional Programming, including the problem it solves and the boundary it owns.
@@ -324,7 +324,7 @@ Input / trigger
 
 ---
 
-### 002.003 Dependency Management
+### 040.02.03 Dependency Management
 
 #### 🔹 Core Concepts
 - Definition: Understand Dependency Management as it applies to Functional Programming, including the problem it solves and the boundary it owns.
@@ -388,9 +388,9 @@ Input / trigger
 
 ---
 
-## 003. Correctness and Complexity
+## 040.03 Correctness and Complexity
 
-### 003.001 Time and Space Complexity
+### 040.03.01 Time and Space Complexity
 
 #### 🔹 Core Concepts
 - Definition: Understand Time and Space Complexity as it applies to Functional Programming, including the problem it solves and the boundary it owns.
@@ -454,7 +454,7 @@ Input / trigger
 
 ---
 
-### 003.002 Invariants
+### 040.03.02 Invariants
 
 #### 🔹 Core Concepts
 - Definition: Understand Invariants as it applies to Functional Programming, including the problem it solves and the boundary it owns.
@@ -518,7 +518,7 @@ Input / trigger
 
 ---
 
-### 003.003 Edge Cases
+### 040.03.03 Edge Cases
 
 #### 🔹 Core Concepts
 - Definition: Understand Edge Cases as it applies to Functional Programming, including the problem it solves and the boundary it owns.
@@ -582,9 +582,9 @@ Input / trigger
 
 ---
 
-## 004. Production Design
+## 040.04 Production Design
 
-### 004.001 Maintainability
+### 040.04.01 Maintainability
 
 #### 🔹 Core Concepts
 - Definition: Understand Maintainability as it applies to Functional Programming, including the problem it solves and the boundary it owns.
@@ -648,7 +648,7 @@ Input / trigger
 
 ---
 
-### 004.002 Extensibility
+### 040.04.02 Extensibility
 
 #### 🔹 Core Concepts
 - Definition: Understand Extensibility as it applies to Functional Programming, including the problem it solves and the boundary it owns.
@@ -712,7 +712,7 @@ Input / trigger
 
 ---
 
-### 004.003 Refactoring Safety
+### 040.04.03 Refactoring Safety
 
 #### 🔹 Core Concepts
 - Definition: Understand Refactoring Safety as it applies to Functional Programming, including the problem it solves and the boundary it owns.

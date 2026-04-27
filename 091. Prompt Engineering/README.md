@@ -1,8 +1,8 @@
 # 📚 CATEGORY: Prompt Engineering
 
-## 001. AI Engineering Foundations
+## 091.01 AI Engineering Foundations
 
-### 001.001 Model Capabilities
+### 091.01.01 Model Capabilities
 
 #### 🔹 Core Concepts
 - Definition: Understand Model Capabilities as it applies to Prompt Engineering, including the problem it solves and the boundary it owns.
@@ -66,7 +66,7 @@ Input / trigger
 
 ---
 
-### 001.002 Context Windows
+### 091.01.02 Context Windows
 
 #### 🔹 Core Concepts
 - Definition: Understand Context Windows as it applies to Prompt Engineering, including the problem it solves and the boundary it owns.
@@ -130,7 +130,7 @@ Input / trigger
 
 ---
 
-### 001.003 Evaluation
+### 091.01.03 Evaluation
 
 #### 🔹 Core Concepts
 - Definition: Understand Evaluation as it applies to Prompt Engineering, including the problem it solves and the boundary it owns.
@@ -194,9 +194,9 @@ Input / trigger
 
 ---
 
-## 002. Prompt and Workflow Design
+## 091.02 Prompt and Workflow Design
 
-### 002.001 Instruction Hierarchy
+### 091.02.01 Instruction Hierarchy
 
 #### 🔹 Core Concepts
 - Definition: Understand Instruction Hierarchy as it applies to Prompt Engineering, including the problem it solves and the boundary it owns.
@@ -260,7 +260,7 @@ Input / trigger
 
 ---
 
-### 002.002 Tool Use
+### 091.02.02 Tool Use
 
 #### 🔹 Core Concepts
 - Definition: Understand Tool Use as it applies to Prompt Engineering, including the problem it solves and the boundary it owns.
@@ -324,7 +324,7 @@ Input / trigger
 
 ---
 
-### 002.003 Human Review
+### 091.02.03 Human Review
 
 #### 🔹 Core Concepts
 - Definition: Understand Human Review as it applies to Prompt Engineering, including the problem it solves and the boundary it owns.
@@ -388,9 +388,9 @@ Input / trigger
 
 ---
 
-## 003. RAG and Agents
+## 091.03 RAG and Agents
 
-### 003.001 Retrieval
+### 091.03.01 Retrieval
 
 #### 🔹 Core Concepts
 - Definition: Understand Retrieval as it applies to Prompt Engineering, including the problem it solves and the boundary it owns.
@@ -454,7 +454,7 @@ Input / trigger
 
 ---
 
-### 003.002 Grounding
+### 091.03.02 Grounding
 
 #### 🔹 Core Concepts
 - Definition: Understand Grounding as it applies to Prompt Engineering, including the problem it solves and the boundary it owns.
@@ -518,7 +518,7 @@ Input / trigger
 
 ---
 
-### 003.003 Planning and Execution
+### 091.03.03 Planning and Execution
 
 #### 🔹 Core Concepts
 - Definition: Understand Planning and Execution as it applies to Prompt Engineering, including the problem it solves and the boundary it owns.
@@ -582,9 +582,9 @@ Input / trigger
 
 ---
 
-## 004. Production AI Use
+## 091.04 Production AI Use
 
-### 004.001 Safety
+### 091.04.01 Safety
 
 #### 🔹 Core Concepts
 - Definition: Understand Safety as it applies to Prompt Engineering, including the problem it solves and the boundary it owns.
@@ -648,7 +648,7 @@ Input / trigger
 
 ---
 
-### 004.002 Cost and Latency
+### 091.04.02 Cost and Latency
 
 #### 🔹 Core Concepts
 - Definition: Understand Cost and Latency as it applies to Prompt Engineering, including the problem it solves and the boundary it owns.
@@ -712,7 +712,7 @@ Input / trigger
 
 ---
 
-### 004.003 Quality Control
+### 091.04.03 Quality Control
 
 #### 🔹 Core Concepts
 - Definition: Understand Quality Control as it applies to Prompt Engineering, including the problem it solves and the boundary it owns.

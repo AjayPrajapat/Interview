@@ -1,8 +1,8 @@
 # 📚 CATEGORY: Monorepo Architecture
 
-## 001. Platform Foundations
+## 067.01 Platform Foundations
 
-### 001.001 Runtime Packaging
+### 067.01.01 Runtime Packaging
 
 #### 🔹 Core Concepts
 - Definition: Understand Runtime Packaging as it applies to Monorepo Architecture, including the problem it solves and the boundary it owns.
@@ -66,7 +66,7 @@ Input / trigger
 
 ---
 
-### 001.002 Environment Strategy
+### 067.01.02 Environment Strategy
 
 #### 🔹 Core Concepts
 - Definition: Understand Environment Strategy as it applies to Monorepo Architecture, including the problem it solves and the boundary it owns.
@@ -130,7 +130,7 @@ Input / trigger
 
 ---
 
-### 001.003 Dependency Boundaries
+### 067.01.03 Dependency Boundaries
 
 #### 🔹 Core Concepts
 - Definition: Understand Dependency Boundaries as it applies to Monorepo Architecture, including the problem it solves and the boundary it owns.
@@ -194,9 +194,9 @@ Input / trigger
 
 ---
 
-## 002. Delivery Pipeline
+## 067.02 Delivery Pipeline
 
-### 002.001 Builds
+### 067.02.01 Builds
 
 #### 🔹 Core Concepts
 - Definition: Understand Builds as it applies to Monorepo Architecture, including the problem it solves and the boundary it owns.
@@ -260,7 +260,7 @@ Input / trigger
 
 ---
 
-### 002.002 Testing Gates
+### 067.02.02 Testing Gates
 
 #### 🔹 Core Concepts
 - Definition: Understand Testing Gates as it applies to Monorepo Architecture, including the problem it solves and the boundary it owns.
@@ -324,7 +324,7 @@ Input / trigger
 
 ---
 
-### 002.003 Deployment Strategies
+### 067.02.03 Deployment Strategies
 
 #### 🔹 Core Concepts
 - Definition: Understand Deployment Strategies as it applies to Monorepo Architecture, including the problem it solves and the boundary it owns.
@@ -388,9 +388,9 @@ Input / trigger
 
 ---
 
-## 003. Cloud Operations
+## 067.03 Cloud Operations
 
-### 003.001 Networking
+### 067.03.01 Networking
 
 #### 🔹 Core Concepts
 - Definition: Understand Networking as it applies to Monorepo Architecture, including the problem it solves and the boundary it owns.
@@ -454,7 +454,7 @@ Input / trigger
 
 ---
 
-### 003.002 Scaling
+### 067.03.02 Scaling
 
 #### 🔹 Core Concepts
 - Definition: Understand Scaling as it applies to Monorepo Architecture, including the problem it solves and the boundary it owns.
@@ -518,7 +518,7 @@ Input / trigger
 
 ---
 
-### 003.003 Cost Control
+### 067.03.03 Cost Control
 
 #### 🔹 Core Concepts
 - Definition: Understand Cost Control as it applies to Monorepo Architecture, including the problem it solves and the boundary it owns.
@@ -582,9 +582,9 @@ Input / trigger
 
 ---
 
-## 004. Production Platform
+## 067.04 Production Platform
 
-### 004.001 Reliability
+### 067.04.01 Reliability
 
 #### 🔹 Core Concepts
 - Definition: Understand Reliability as it applies to Monorepo Architecture, including the problem it solves and the boundary it owns.
@@ -648,7 +648,7 @@ Input / trigger
 
 ---
 
-### 004.002 Security
+### 067.04.02 Security
 
 #### 🔹 Core Concepts
 - Definition: Understand Security as it applies to Monorepo Architecture, including the problem it solves and the boundary it owns.
@@ -712,7 +712,7 @@ Input / trigger
 
 ---
 
-### 004.003 Developer Experience
+### 067.04.03 Developer Experience
 
 #### 🔹 Core Concepts
 - Definition: Understand Developer Experience as it applies to Monorepo Architecture, including the problem it solves and the boundary it owns.

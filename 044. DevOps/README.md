@@ -1,8 +1,8 @@
 # 📚 CATEGORY: DevOps
 
-## 001. Platform Foundations
+## 044.01 Platform Foundations
 
-### 001.001 Runtime Packaging
+### 044.01.01 Runtime Packaging
 
 #### 🔹 Core Concepts
 - Definition: Understand Runtime Packaging as it applies to DevOps, including the problem it solves and the boundary it owns.
@@ -66,7 +66,7 @@ Input / trigger
 
 ---
 
-### 001.002 Environment Strategy
+### 044.01.02 Environment Strategy
 
 #### 🔹 Core Concepts
 - Definition: Understand Environment Strategy as it applies to DevOps, including the problem it solves and the boundary it owns.
@@ -130,7 +130,7 @@ Input / trigger
 
 ---
 
-### 001.003 Dependency Boundaries
+### 044.01.03 Dependency Boundaries
 
 #### 🔹 Core Concepts
 - Definition: Understand Dependency Boundaries as it applies to DevOps, including the problem it solves and the boundary it owns.
@@ -194,9 +194,9 @@ Input / trigger
 
 ---
 
-## 002. Delivery Pipeline
+## 044.02 Delivery Pipeline
 
-### 002.001 Builds
+### 044.02.01 Builds
 
 #### 🔹 Core Concepts
 - Definition: Understand Builds as it applies to DevOps, including the problem it solves and the boundary it owns.
@@ -260,7 +260,7 @@ Input / trigger
 
 ---
 
-### 002.002 Testing Gates
+### 044.02.02 Testing Gates
 
 #### 🔹 Core Concepts
 - Definition: Understand Testing Gates as it applies to DevOps, including the problem it solves and the boundary it owns.
@@ -324,7 +324,7 @@ Input / trigger
 
 ---
 
-### 002.003 Deployment Strategies
+### 044.02.03 Deployment Strategies
 
 #### 🔹 Core Concepts
 - Definition: Understand Deployment Strategies as it applies to DevOps, including the problem it solves and the boundary it owns.
@@ -388,9 +388,9 @@ Input / trigger
 
 ---
 
-## 003. Cloud Operations
+## 044.03 Cloud Operations
 
-### 003.001 Networking
+### 044.03.01 Networking
 
 #### 🔹 Core Concepts
 - Definition: Understand Networking as it applies to DevOps, including the problem it solves and the boundary it owns.
@@ -454,7 +454,7 @@ Input / trigger
 
 ---
 
-### 003.002 Scaling
+### 044.03.02 Scaling
 
 #### 🔹 Core Concepts
 - Definition: Understand Scaling as it applies to DevOps, including the problem it solves and the boundary it owns.
@@ -518,7 +518,7 @@ Input / trigger
 
 ---
 
-### 003.003 Cost Control
+### 044.03.03 Cost Control
 
 #### 🔹 Core Concepts
 - Definition: Understand Cost Control as it applies to DevOps, including the problem it solves and the boundary it owns.
@@ -582,9 +582,9 @@ Input / trigger
 
 ---
 
-## 004. Production Platform
+## 044.04 Production Platform
 
-### 004.001 Reliability
+### 044.04.01 Reliability
 
 #### 🔹 Core Concepts
 - Definition: Understand Reliability as it applies to DevOps, including the problem it solves and the boundary it owns.
@@ -648,7 +648,7 @@ Input / trigger
 
 ---
 
-### 004.002 Security
+### 044.04.02 Security
 
 #### 🔹 Core Concepts
 - Definition: Understand Security as it applies to DevOps, including the problem it solves and the boundary it owns.
@@ -712,7 +712,7 @@ Input / trigger
 
 ---
 
-### 004.003 Developer Experience
+### 044.04.03 Developer Experience
 
 #### 🔹 Core Concepts
 - Definition: Understand Developer Experience as it applies to DevOps, including the problem it solves and the boundary it owns.

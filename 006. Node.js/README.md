@@ -1,8 +1,8 @@
 # 📚 CATEGORY: Node.js
 
-## 001. Node Runtime
+## 006.01 Node Runtime
 
-### 001.001 Event Loop
+### 006.01.01 Event Loop
 
 #### 🔹 Core Concepts
 - Definition: Understand Event Loop as it applies to Node.js, including the problem it solves and the boundary it owns.
@@ -66,7 +66,7 @@ Input / trigger
 
 ---
 
-### 001.002 Streams and Buffers
+### 006.01.02 Streams and Buffers
 
 #### 🔹 Core Concepts
 - Definition: Understand Streams and Buffers as it applies to Node.js, including the problem it solves and the boundary it owns.
@@ -130,7 +130,7 @@ Input / trigger
 
 ---
 
-### 001.003 Worker Threads and Clustering
+### 006.01.03 Worker Threads and Clustering
 
 #### 🔹 Core Concepts
 - Definition: Understand Worker Threads and Clustering as it applies to Node.js, including the problem it solves and the boundary it owns.
@@ -194,9 +194,9 @@ Input / trigger
 
 ---
 
-## 002. Backend Engineering
+## 006.02 Backend Engineering
 
-### 002.001 HTTP Servers
+### 006.02.01 HTTP Servers
 
 #### 🔹 Core Concepts
 - Definition: Understand HTTP Servers as it applies to Node.js, including the problem it solves and the boundary it owns.
@@ -260,7 +260,7 @@ Input / trigger
 
 ---
 
-### 002.002 Async Error Handling
+### 006.02.02 Async Error Handling
 
 #### 🔹 Core Concepts
 - Definition: Understand Async Error Handling as it applies to Node.js, including the problem it solves and the boundary it owns.
@@ -324,7 +324,7 @@ Input / trigger
 
 ---
 
-### 002.003 Configuration and Secrets
+### 006.02.03 Configuration and Secrets
 
 #### 🔹 Core Concepts
 - Definition: Understand Configuration and Secrets as it applies to Node.js, including the problem it solves and the boundary it owns.
@@ -388,9 +388,9 @@ Input / trigger
 
 ---
 
-## 003. Production Node
+## 006.03 Production Node
 
-### 003.001 Memory Leaks
+### 006.03.01 Memory Leaks
 
 #### 🔹 Core Concepts
 - Definition: Understand Memory Leaks as it applies to Node.js, including the problem it solves and the boundary it owns.
@@ -454,7 +454,7 @@ Input / trigger
 
 ---
 
-### 003.002 CPU Profiling
+### 006.03.02 CPU Profiling
 
 #### 🔹 Core Concepts
 - Definition: Understand CPU Profiling as it applies to Node.js, including the problem it solves and the boundary it owns.
@@ -518,7 +518,7 @@ Input / trigger
 
 ---
 
-### 003.003 Graceful Shutdown
+### 006.03.03 Graceful Shutdown
 
 #### 🔹 Core Concepts
 - Definition: Understand Graceful Shutdown as it applies to Node.js, including the problem it solves and the boundary it owns.
@@ -582,9 +582,9 @@ Input / trigger
 
 ---
 
-## 004. Service Architecture
+## 006.04 Service Architecture
 
-### 004.001 API Boundaries
+### 006.04.01 API Boundaries
 
 #### 🔹 Core Concepts
 - Definition: Understand API Boundaries as it applies to Node.js, including the problem it solves and the boundary it owns.
@@ -648,7 +648,7 @@ Input / trigger
 
 ---
 
-### 004.002 Background Work
+### 006.04.02 Background Work
 
 #### 🔹 Core Concepts
 - Definition: Understand Background Work as it applies to Node.js, including the problem it solves and the boundary it owns.
@@ -712,7 +712,7 @@ Input / trigger
 
 ---
 
-### 004.003 Observability
+### 006.04.03 Observability
 
 #### 🔹 Core Concepts
 - Definition: Understand Observability as it applies to Node.js, including the problem it solves and the boundary it owns.

@@ -1,0 +1,17 @@
+# 030.01 Foundations
+
+Category: Caching
+
+## Subtopics
+
+- [030.01.01 Metrics and SLIs](./030.01.01 Metrics and SLIs/README.md)
+- [030.01.02 Latency and Throughput](./030.01.02 Latency and Throughput/README.md)
+- [030.01.03 Capacity Limits](./030.01.03 Capacity Limits/README.md)
+
+## Study Checklist
+
+- Explain the topic from first principles.
+- Trace the internal flow without hand-waving.
+- Name edge cases, failure modes, and scaling limits.
+- Show code-level understanding where applicable.
+- Connect the topic to system design and production operations.

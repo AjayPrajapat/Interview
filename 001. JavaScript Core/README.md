@@ -1,8 +1,8 @@
 # 📚 CATEGORY: JavaScript Core
 
-## 001. Language Fundamentals
+## 001.01 Language Fundamentals
 
-### 001.001 Values and Types
+### 001.01.01 Values and Types
 
 #### 🔹 Core Concepts
 - Definition: Understand Values and Types as it applies to JavaScript Core, including the problem it solves and the boundary it owns.
@@ -66,7 +66,7 @@ Input / trigger
 
 ---
 
-### 001.002 Scope, Closures, and Hoisting
+### 001.01.02 Scope, Closures, and Hoisting
 
 #### 🔹 Core Concepts
 - Definition: Understand Scope, Closures, and Hoisting as it applies to JavaScript Core, including the problem it solves and the boundary it owns.
@@ -130,7 +130,7 @@ Input / trigger
 
 ---
 
-### 001.003 Prototypes and Object Model
+### 001.01.03 Prototypes and Object Model
 
 #### 🔹 Core Concepts
 - Definition: Understand Prototypes and Object Model as it applies to JavaScript Core, including the problem it solves and the boundary it owns.
@@ -194,9 +194,9 @@ Input / trigger
 
 ---
 
-## 002. Execution Model
+## 001.02 Execution Model
 
-### 002.001 Call Stack
+### 001.02.01 Call Stack
 
 #### 🔹 Core Concepts
 - Definition: Understand Call Stack as it applies to JavaScript Core, including the problem it solves and the boundary it owns.
@@ -260,7 +260,7 @@ Input / trigger
 
 ---
 
-### 002.002 Event Loop and Tasks
+### 001.02.02 Event Loop and Tasks
 
 #### 🔹 Core Concepts
 - Definition: Understand Event Loop and Tasks as it applies to JavaScript Core, including the problem it solves and the boundary it owns.
@@ -324,7 +324,7 @@ Input / trigger
 
 ---
 
-### 002.003 Promises and Async/Await
+### 001.02.03 Promises and Async/Await
 
 #### 🔹 Core Concepts
 - Definition: Understand Promises and Async/Await as it applies to JavaScript Core, including the problem it solves and the boundary it owns.
@@ -388,9 +388,9 @@ Input / trigger
 
 ---
 
-## 003. Advanced Runtime Behavior
+## 001.03 Advanced Runtime Behavior
 
-### 003.001 Equality and Coercion
+### 001.03.01 Equality and Coercion
 
 #### 🔹 Core Concepts
 - Definition: Understand Equality and Coercion as it applies to JavaScript Core, including the problem it solves and the boundary it owns.
@@ -454,7 +454,7 @@ Input / trigger
 
 ---
 
-### 003.002 Memory and Garbage Collection
+### 001.03.02 Memory and Garbage Collection
 
 #### 🔹 Core Concepts
 - Definition: Understand Memory and Garbage Collection as it applies to JavaScript Core, including the problem it solves and the boundary it owns.
@@ -518,7 +518,7 @@ Input / trigger
 
 ---
 
-### 003.003 Modules and Bundling Boundaries
+### 001.03.03 Modules and Bundling Boundaries
 
 #### 🔹 Core Concepts
 - Definition: Understand Modules and Bundling Boundaries as it applies to JavaScript Core, including the problem it solves and the boundary it owns.
@@ -582,9 +582,9 @@ Input / trigger
 
 ---
 
-## 004. Production JavaScript
+## 001.04 Production JavaScript
 
-### 004.001 Error Handling
+### 001.04.01 Error Handling
 
 #### 🔹 Core Concepts
 - Definition: Understand Error Handling as it applies to JavaScript Core, including the problem it solves and the boundary it owns.
@@ -648,7 +648,7 @@ Input / trigger
 
 ---
 
-### 004.002 Performance Profiling
+### 001.04.02 Performance Profiling
 
 #### 🔹 Core Concepts
 - Definition: Understand Performance Profiling as it applies to JavaScript Core, including the problem it solves and the boundary it owns.
@@ -712,7 +712,7 @@ Input / trigger
 
 ---
 
-### 004.003 Maintainability at Scale
+### 001.04.03 Maintainability at Scale
 
 #### 🔹 Core Concepts
 - Definition: Understand Maintainability at Scale as it applies to JavaScript Core, including the problem it solves and the boundary it owns.
