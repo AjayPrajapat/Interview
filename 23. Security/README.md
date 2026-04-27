@@ -1,0 +1,811 @@
+# 📚 CATEGORY: Security
+
+## 1️⃣ Security Foundations
+
+### 1.1 Threat Modeling
+
+#### 🔹 Core Concepts
+- Definition: Understand Threat Modeling as it applies to Security, including the problem it solves and the boundary it owns.
+- Internal working: Trace the flow from input to processing to output, naming the state transitions, contracts, and dependencies involved.
+- Key principles: Prefer explicit contracts, measurable behavior, isolated responsibilities, and designs that degrade predictably under stress.
+
+#### 🔹 Deep Concepts
+- Hidden behaviors: Watch for implicit defaults, lifecycle timing, ordering guarantees, cache state, retries, and framework/runtime abstractions that hide real cost.
+- Edge cases: Empty input, duplicate input, partial failure, timeout, cancellation, race conditions, version mismatch, clock skew, and inconsistent downstream state.
+- Internal mechanisms: Identify queues, buffers, schedulers, execution contexts, network boundaries, storage paths, locks, indexes, or render phases behind the abstraction.
+- Performance implications: Measure latency, throughput, memory, CPU, I/O, bundle size, query cost, and tail behavior instead of trusting average-case intuition.
+
+#### 🔹 Code-Level Understanding
+- Example: Implement a small Security scenario where Threat Modeling has a visible contract, typed inputs, explicit error handling, and test coverage.
+- Anti-patterns: Leaky abstraction, over-broad shared state, hidden global configuration, unbounded retries, missing cancellation, and logging without correlation IDs.
+- Best practices: Keep interfaces narrow, validate at boundaries, model failures explicitly, add observability at decision points, and make behavior reproducible in tests.
+
+#### 🔹 Real-World Usage
+- Where used in production: Threat Modeling appears in systems that need predictable behavior across deploys, teams, and traffic patterns.
+- Example systems: Payments, chat, SaaS workspaces, dashboards, notification systems, search, audit trails, developer platforms, and internal admin tools.
+
+#### 🔹 Architecture Decisions
+- Multiple approaches: Compare simple in-process handling, framework-provided primitives, external managed services, and custom infrastructure.
+- Trade-offs: Balance correctness, latency, cost, operational burden, team familiarity, release risk, and long-term maintainability.
+- When to use what: Use the simplest option that satisfies current scale and correctness needs, then move complexity behind stable interfaces when pressure is proven.
+
+#### 🔹 Interview Focus
+- Common questions: Explain Threat Modeling, describe how it works internally, and show how you would implement or operate it in Security.
+- Tricky scenarios: Debug intermittent failures, high tail latency, duplicated work, stale data, memory growth, or behavior that changes only under load.
+- Follow-up depth: Be ready to discuss instrumentation, rollback plans, migration strategy, data consistency, and how the design changes at 10x scale.
+
+#### 🔹 Internal Flow Diagram
+```text
+Input / trigger
+  -> boundary validation
+  -> Security Foundations decision point
+  -> Threat Modeling execution path
+  -> side effects / state change
+  -> observable result
+  -> retry, rollback, or compensation if needed
+```
+
+#### 🔹 Failure Scenarios
+- Dependency timeout or unavailable downstream service.
+- Invalid, duplicated, stale, or out-of-order input.
+- Configuration drift between environments.
+- Resource exhaustion: CPU, memory, network, database connections, queue depth, or browser main-thread time.
+- Partial success where one side effect commits and another fails.
+
+#### 🔹 Debugging Strategies
+- Reproduce with minimal inputs, then add concurrency, load, and failure injection.
+- Inspect logs, traces, metrics, heap snapshots, profiles, network captures, query plans, or rendered output depending on the layer.
+- Verify assumptions about ordering, ownership, retries, idempotency, caching, and lifecycle timing.
+- Compare healthy and unhealthy paths using correlation IDs and timestamps.
+
+#### 🔹 Optimization Techniques
+- Remove unnecessary work before adding infrastructure.
+- Batch, cache, debounce, stream, paginate, lazy-load, or precompute only where measurements show pressure.
+- Add backpressure, timeouts, circuit breakers, and bounded queues around expensive paths.
+- Optimize for p95/p99 behavior, not just happy-path averages.
+
+---
+
+### 1.2 Trust Boundaries
+
+#### 🔹 Core Concepts
+- Definition: Understand Trust Boundaries as it applies to Security, including the problem it solves and the boundary it owns.
+- Internal working: Trace the flow from input to processing to output, naming the state transitions, contracts, and dependencies involved.
+- Key principles: Prefer explicit contracts, measurable behavior, isolated responsibilities, and designs that degrade predictably under stress.
+
+#### 🔹 Deep Concepts
+- Hidden behaviors: Watch for implicit defaults, lifecycle timing, ordering guarantees, cache state, retries, and framework/runtime abstractions that hide real cost.
+- Edge cases: Empty input, duplicate input, partial failure, timeout, cancellation, race conditions, version mismatch, clock skew, and inconsistent downstream state.
+- Internal mechanisms: Identify queues, buffers, schedulers, execution contexts, network boundaries, storage paths, locks, indexes, or render phases behind the abstraction.
+- Performance implications: Measure latency, throughput, memory, CPU, I/O, bundle size, query cost, and tail behavior instead of trusting average-case intuition.
+
+#### 🔹 Code-Level Understanding
+- Example: Implement a small Security scenario where Trust Boundaries has a visible contract, typed inputs, explicit error handling, and test coverage.
+- Anti-patterns: Leaky abstraction, over-broad shared state, hidden global configuration, unbounded retries, missing cancellation, and logging without correlation IDs.
+- Best practices: Keep interfaces narrow, validate at boundaries, model failures explicitly, add observability at decision points, and make behavior reproducible in tests.
+
+#### 🔹 Real-World Usage
+- Where used in production: Trust Boundaries appears in systems that need predictable behavior across deploys, teams, and traffic patterns.
+- Example systems: Payments, chat, SaaS workspaces, dashboards, notification systems, search, audit trails, developer platforms, and internal admin tools.
+
+#### 🔹 Architecture Decisions
+- Multiple approaches: Compare simple in-process handling, framework-provided primitives, external managed services, and custom infrastructure.
+- Trade-offs: Balance correctness, latency, cost, operational burden, team familiarity, release risk, and long-term maintainability.
+- When to use what: Use the simplest option that satisfies current scale and correctness needs, then move complexity behind stable interfaces when pressure is proven.
+
+#### 🔹 Interview Focus
+- Common questions: Explain Trust Boundaries, describe how it works internally, and show how you would implement or operate it in Security.
+- Tricky scenarios: Debug intermittent failures, high tail latency, duplicated work, stale data, memory growth, or behavior that changes only under load.
+- Follow-up depth: Be ready to discuss instrumentation, rollback plans, migration strategy, data consistency, and how the design changes at 10x scale.
+
+#### 🔹 Internal Flow Diagram
+```text
+Input / trigger
+  -> boundary validation
+  -> Security Foundations decision point
+  -> Trust Boundaries execution path
+  -> side effects / state change
+  -> observable result
+  -> retry, rollback, or compensation if needed
+```
+
+#### 🔹 Failure Scenarios
+- Dependency timeout or unavailable downstream service.
+- Invalid, duplicated, stale, or out-of-order input.
+- Configuration drift between environments.
+- Resource exhaustion: CPU, memory, network, database connections, queue depth, or browser main-thread time.
+- Partial success where one side effect commits and another fails.
+
+#### 🔹 Debugging Strategies
+- Reproduce with minimal inputs, then add concurrency, load, and failure injection.
+- Inspect logs, traces, metrics, heap snapshots, profiles, network captures, query plans, or rendered output depending on the layer.
+- Verify assumptions about ordering, ownership, retries, idempotency, caching, and lifecycle timing.
+- Compare healthy and unhealthy paths using correlation IDs and timestamps.
+
+#### 🔹 Optimization Techniques
+- Remove unnecessary work before adding infrastructure.
+- Batch, cache, debounce, stream, paginate, lazy-load, or precompute only where measurements show pressure.
+- Add backpressure, timeouts, circuit breakers, and bounded queues around expensive paths.
+- Optimize for p95/p99 behavior, not just happy-path averages.
+
+---
+
+### 1.3 Defense in Depth
+
+#### 🔹 Core Concepts
+- Definition: Understand Defense in Depth as it applies to Security, including the problem it solves and the boundary it owns.
+- Internal working: Trace the flow from input to processing to output, naming the state transitions, contracts, and dependencies involved.
+- Key principles: Prefer explicit contracts, measurable behavior, isolated responsibilities, and designs that degrade predictably under stress.
+
+#### 🔹 Deep Concepts
+- Hidden behaviors: Watch for implicit defaults, lifecycle timing, ordering guarantees, cache state, retries, and framework/runtime abstractions that hide real cost.
+- Edge cases: Empty input, duplicate input, partial failure, timeout, cancellation, race conditions, version mismatch, clock skew, and inconsistent downstream state.
+- Internal mechanisms: Identify queues, buffers, schedulers, execution contexts, network boundaries, storage paths, locks, indexes, or render phases behind the abstraction.
+- Performance implications: Measure latency, throughput, memory, CPU, I/O, bundle size, query cost, and tail behavior instead of trusting average-case intuition.
+
+#### 🔹 Code-Level Understanding
+- Example: Implement a small Security scenario where Defense in Depth has a visible contract, typed inputs, explicit error handling, and test coverage.
+- Anti-patterns: Leaky abstraction, over-broad shared state, hidden global configuration, unbounded retries, missing cancellation, and logging without correlation IDs.
+- Best practices: Keep interfaces narrow, validate at boundaries, model failures explicitly, add observability at decision points, and make behavior reproducible in tests.
+
+#### 🔹 Real-World Usage
+- Where used in production: Defense in Depth appears in systems that need predictable behavior across deploys, teams, and traffic patterns.
+- Example systems: Payments, chat, SaaS workspaces, dashboards, notification systems, search, audit trails, developer platforms, and internal admin tools.
+
+#### 🔹 Architecture Decisions
+- Multiple approaches: Compare simple in-process handling, framework-provided primitives, external managed services, and custom infrastructure.
+- Trade-offs: Balance correctness, latency, cost, operational burden, team familiarity, release risk, and long-term maintainability.
+- When to use what: Use the simplest option that satisfies current scale and correctness needs, then move complexity behind stable interfaces when pressure is proven.
+
+#### 🔹 Interview Focus
+- Common questions: Explain Defense in Depth, describe how it works internally, and show how you would implement or operate it in Security.
+- Tricky scenarios: Debug intermittent failures, high tail latency, duplicated work, stale data, memory growth, or behavior that changes only under load.
+- Follow-up depth: Be ready to discuss instrumentation, rollback plans, migration strategy, data consistency, and how the design changes at 10x scale.
+
+#### 🔹 Internal Flow Diagram
+```text
+Input / trigger
+  -> boundary validation
+  -> Security Foundations decision point
+  -> Defense in Depth execution path
+  -> side effects / state change
+  -> observable result
+  -> retry, rollback, or compensation if needed
+```
+
+#### 🔹 Failure Scenarios
+- Dependency timeout or unavailable downstream service.
+- Invalid, duplicated, stale, or out-of-order input.
+- Configuration drift between environments.
+- Resource exhaustion: CPU, memory, network, database connections, queue depth, or browser main-thread time.
+- Partial success where one side effect commits and another fails.
+
+#### 🔹 Debugging Strategies
+- Reproduce with minimal inputs, then add concurrency, load, and failure injection.
+- Inspect logs, traces, metrics, heap snapshots, profiles, network captures, query plans, or rendered output depending on the layer.
+- Verify assumptions about ordering, ownership, retries, idempotency, caching, and lifecycle timing.
+- Compare healthy and unhealthy paths using correlation IDs and timestamps.
+
+#### 🔹 Optimization Techniques
+- Remove unnecessary work before adding infrastructure.
+- Batch, cache, debounce, stream, paginate, lazy-load, or precompute only where measurements show pressure.
+- Add backpressure, timeouts, circuit breakers, and bounded queues around expensive paths.
+- Optimize for p95/p99 behavior, not just happy-path averages.
+
+---
+
+## 2️⃣ Identity and Access
+
+### 2.1 Authentication Flows
+
+#### 🔹 Core Concepts
+- Definition: Understand Authentication Flows as it applies to Security, including the problem it solves and the boundary it owns.
+- Internal working: Trace the flow from input to processing to output, naming the state transitions, contracts, and dependencies involved.
+- Key principles: Prefer explicit contracts, measurable behavior, isolated responsibilities, and designs that degrade predictably under stress.
+
+#### 🔹 Deep Concepts
+- Hidden behaviors: Watch for implicit defaults, lifecycle timing, ordering guarantees, cache state, retries, and framework/runtime abstractions that hide real cost.
+- Edge cases: Empty input, duplicate input, partial failure, timeout, cancellation, race conditions, version mismatch, clock skew, and inconsistent downstream state.
+- Internal mechanisms: Identify queues, buffers, schedulers, execution contexts, network boundaries, storage paths, locks, indexes, or render phases behind the abstraction.
+- Performance implications: Measure latency, throughput, memory, CPU, I/O, bundle size, query cost, and tail behavior instead of trusting average-case intuition.
+
+#### 🔹 Code-Level Understanding
+- Example: Implement a small Security scenario where Authentication Flows has a visible contract, typed inputs, explicit error handling, and test coverage.
+- Anti-patterns: Leaky abstraction, over-broad shared state, hidden global configuration, unbounded retries, missing cancellation, and logging without correlation IDs.
+- Best practices: Keep interfaces narrow, validate at boundaries, model failures explicitly, add observability at decision points, and make behavior reproducible in tests.
+
+#### 🔹 Real-World Usage
+- Where used in production: Authentication Flows appears in systems that need predictable behavior across deploys, teams, and traffic patterns.
+- Example systems: Payments, chat, SaaS workspaces, dashboards, notification systems, search, audit trails, developer platforms, and internal admin tools.
+
+#### 🔹 Architecture Decisions
+- Multiple approaches: Compare simple in-process handling, framework-provided primitives, external managed services, and custom infrastructure.
+- Trade-offs: Balance correctness, latency, cost, operational burden, team familiarity, release risk, and long-term maintainability.
+- When to use what: Use the simplest option that satisfies current scale and correctness needs, then move complexity behind stable interfaces when pressure is proven.
+
+#### 🔹 Interview Focus
+- Common questions: Explain Authentication Flows, describe how it works internally, and show how you would implement or operate it in Security.
+- Tricky scenarios: Debug intermittent failures, high tail latency, duplicated work, stale data, memory growth, or behavior that changes only under load.
+- Follow-up depth: Be ready to discuss instrumentation, rollback plans, migration strategy, data consistency, and how the design changes at 10x scale.
+
+#### 🔹 Internal Flow Diagram
+```text
+Input / trigger
+  -> boundary validation
+  -> Identity and Access decision point
+  -> Authentication Flows execution path
+  -> side effects / state change
+  -> observable result
+  -> retry, rollback, or compensation if needed
+```
+
+#### 🔹 Failure Scenarios
+- Dependency timeout or unavailable downstream service.
+- Invalid, duplicated, stale, or out-of-order input.
+- Configuration drift between environments.
+- Resource exhaustion: CPU, memory, network, database connections, queue depth, or browser main-thread time.
+- Partial success where one side effect commits and another fails.
+
+#### 🔹 Debugging Strategies
+- Reproduce with minimal inputs, then add concurrency, load, and failure injection.
+- Inspect logs, traces, metrics, heap snapshots, profiles, network captures, query plans, or rendered output depending on the layer.
+- Verify assumptions about ordering, ownership, retries, idempotency, caching, and lifecycle timing.
+- Compare healthy and unhealthy paths using correlation IDs and timestamps.
+
+#### 🔹 Optimization Techniques
+- Remove unnecessary work before adding infrastructure.
+- Batch, cache, debounce, stream, paginate, lazy-load, or precompute only where measurements show pressure.
+- Add backpressure, timeouts, circuit breakers, and bounded queues around expensive paths.
+- Optimize for p95/p99 behavior, not just happy-path averages.
+
+---
+
+### 2.2 Authorization Models
+
+#### 🔹 Core Concepts
+- Definition: Understand Authorization Models as it applies to Security, including the problem it solves and the boundary it owns.
+- Internal working: Trace the flow from input to processing to output, naming the state transitions, contracts, and dependencies involved.
+- Key principles: Prefer explicit contracts, measurable behavior, isolated responsibilities, and designs that degrade predictably under stress.
+
+#### 🔹 Deep Concepts
+- Hidden behaviors: Watch for implicit defaults, lifecycle timing, ordering guarantees, cache state, retries, and framework/runtime abstractions that hide real cost.
+- Edge cases: Empty input, duplicate input, partial failure, timeout, cancellation, race conditions, version mismatch, clock skew, and inconsistent downstream state.
+- Internal mechanisms: Identify queues, buffers, schedulers, execution contexts, network boundaries, storage paths, locks, indexes, or render phases behind the abstraction.
+- Performance implications: Measure latency, throughput, memory, CPU, I/O, bundle size, query cost, and tail behavior instead of trusting average-case intuition.
+
+#### 🔹 Code-Level Understanding
+- Example: Implement a small Security scenario where Authorization Models has a visible contract, typed inputs, explicit error handling, and test coverage.
+- Anti-patterns: Leaky abstraction, over-broad shared state, hidden global configuration, unbounded retries, missing cancellation, and logging without correlation IDs.
+- Best practices: Keep interfaces narrow, validate at boundaries, model failures explicitly, add observability at decision points, and make behavior reproducible in tests.
+
+#### 🔹 Real-World Usage
+- Where used in production: Authorization Models appears in systems that need predictable behavior across deploys, teams, and traffic patterns.
+- Example systems: Payments, chat, SaaS workspaces, dashboards, notification systems, search, audit trails, developer platforms, and internal admin tools.
+
+#### 🔹 Architecture Decisions
+- Multiple approaches: Compare simple in-process handling, framework-provided primitives, external managed services, and custom infrastructure.
+- Trade-offs: Balance correctness, latency, cost, operational burden, team familiarity, release risk, and long-term maintainability.
+- When to use what: Use the simplest option that satisfies current scale and correctness needs, then move complexity behind stable interfaces when pressure is proven.
+
+#### 🔹 Interview Focus
+- Common questions: Explain Authorization Models, describe how it works internally, and show how you would implement or operate it in Security.
+- Tricky scenarios: Debug intermittent failures, high tail latency, duplicated work, stale data, memory growth, or behavior that changes only under load.
+- Follow-up depth: Be ready to discuss instrumentation, rollback plans, migration strategy, data consistency, and how the design changes at 10x scale.
+
+#### 🔹 Internal Flow Diagram
+```text
+Input / trigger
+  -> boundary validation
+  -> Identity and Access decision point
+  -> Authorization Models execution path
+  -> side effects / state change
+  -> observable result
+  -> retry, rollback, or compensation if needed
+```
+
+#### 🔹 Failure Scenarios
+- Dependency timeout or unavailable downstream service.
+- Invalid, duplicated, stale, or out-of-order input.
+- Configuration drift between environments.
+- Resource exhaustion: CPU, memory, network, database connections, queue depth, or browser main-thread time.
+- Partial success where one side effect commits and another fails.
+
+#### 🔹 Debugging Strategies
+- Reproduce with minimal inputs, then add concurrency, load, and failure injection.
+- Inspect logs, traces, metrics, heap snapshots, profiles, network captures, query plans, or rendered output depending on the layer.
+- Verify assumptions about ordering, ownership, retries, idempotency, caching, and lifecycle timing.
+- Compare healthy and unhealthy paths using correlation IDs and timestamps.
+
+#### 🔹 Optimization Techniques
+- Remove unnecessary work before adding infrastructure.
+- Batch, cache, debounce, stream, paginate, lazy-load, or precompute only where measurements show pressure.
+- Add backpressure, timeouts, circuit breakers, and bounded queues around expensive paths.
+- Optimize for p95/p99 behavior, not just happy-path averages.
+
+---
+
+### 2.3 Session and Token Security
+
+#### 🔹 Core Concepts
+- Definition: Understand Session and Token Security as it applies to Security, including the problem it solves and the boundary it owns.
+- Internal working: Trace the flow from input to processing to output, naming the state transitions, contracts, and dependencies involved.
+- Key principles: Prefer explicit contracts, measurable behavior, isolated responsibilities, and designs that degrade predictably under stress.
+
+#### 🔹 Deep Concepts
+- Hidden behaviors: Watch for implicit defaults, lifecycle timing, ordering guarantees, cache state, retries, and framework/runtime abstractions that hide real cost.
+- Edge cases: Empty input, duplicate input, partial failure, timeout, cancellation, race conditions, version mismatch, clock skew, and inconsistent downstream state.
+- Internal mechanisms: Identify queues, buffers, schedulers, execution contexts, network boundaries, storage paths, locks, indexes, or render phases behind the abstraction.
+- Performance implications: Measure latency, throughput, memory, CPU, I/O, bundle size, query cost, and tail behavior instead of trusting average-case intuition.
+
+#### 🔹 Code-Level Understanding
+- Example: Implement a small Security scenario where Session and Token Security has a visible contract, typed inputs, explicit error handling, and test coverage.
+- Anti-patterns: Leaky abstraction, over-broad shared state, hidden global configuration, unbounded retries, missing cancellation, and logging without correlation IDs.
+- Best practices: Keep interfaces narrow, validate at boundaries, model failures explicitly, add observability at decision points, and make behavior reproducible in tests.
+
+#### 🔹 Real-World Usage
+- Where used in production: Session and Token Security appears in systems that need predictable behavior across deploys, teams, and traffic patterns.
+- Example systems: Payments, chat, SaaS workspaces, dashboards, notification systems, search, audit trails, developer platforms, and internal admin tools.
+
+#### 🔹 Architecture Decisions
+- Multiple approaches: Compare simple in-process handling, framework-provided primitives, external managed services, and custom infrastructure.
+- Trade-offs: Balance correctness, latency, cost, operational burden, team familiarity, release risk, and long-term maintainability.
+- When to use what: Use the simplest option that satisfies current scale and correctness needs, then move complexity behind stable interfaces when pressure is proven.
+
+#### 🔹 Interview Focus
+- Common questions: Explain Session and Token Security, describe how it works internally, and show how you would implement or operate it in Security.
+- Tricky scenarios: Debug intermittent failures, high tail latency, duplicated work, stale data, memory growth, or behavior that changes only under load.
+- Follow-up depth: Be ready to discuss instrumentation, rollback plans, migration strategy, data consistency, and how the design changes at 10x scale.
+
+#### 🔹 Internal Flow Diagram
+```text
+Input / trigger
+  -> boundary validation
+  -> Identity and Access decision point
+  -> Session and Token Security execution path
+  -> side effects / state change
+  -> observable result
+  -> retry, rollback, or compensation if needed
+```
+
+#### 🔹 Failure Scenarios
+- Dependency timeout or unavailable downstream service.
+- Invalid, duplicated, stale, or out-of-order input.
+- Configuration drift between environments.
+- Resource exhaustion: CPU, memory, network, database connections, queue depth, or browser main-thread time.
+- Partial success where one side effect commits and another fails.
+
+#### 🔹 Debugging Strategies
+- Reproduce with minimal inputs, then add concurrency, load, and failure injection.
+- Inspect logs, traces, metrics, heap snapshots, profiles, network captures, query plans, or rendered output depending on the layer.
+- Verify assumptions about ordering, ownership, retries, idempotency, caching, and lifecycle timing.
+- Compare healthy and unhealthy paths using correlation IDs and timestamps.
+
+#### 🔹 Optimization Techniques
+- Remove unnecessary work before adding infrastructure.
+- Batch, cache, debounce, stream, paginate, lazy-load, or precompute only where measurements show pressure.
+- Add backpressure, timeouts, circuit breakers, and bounded queues around expensive paths.
+- Optimize for p95/p99 behavior, not just happy-path averages.
+
+---
+
+## 3️⃣ Application Security
+
+### 3.1 Input Validation
+
+#### 🔹 Core Concepts
+- Definition: Understand Input Validation as it applies to Security, including the problem it solves and the boundary it owns.
+- Internal working: Trace the flow from input to processing to output, naming the state transitions, contracts, and dependencies involved.
+- Key principles: Prefer explicit contracts, measurable behavior, isolated responsibilities, and designs that degrade predictably under stress.
+
+#### 🔹 Deep Concepts
+- Hidden behaviors: Watch for implicit defaults, lifecycle timing, ordering guarantees, cache state, retries, and framework/runtime abstractions that hide real cost.
+- Edge cases: Empty input, duplicate input, partial failure, timeout, cancellation, race conditions, version mismatch, clock skew, and inconsistent downstream state.
+- Internal mechanisms: Identify queues, buffers, schedulers, execution contexts, network boundaries, storage paths, locks, indexes, or render phases behind the abstraction.
+- Performance implications: Measure latency, throughput, memory, CPU, I/O, bundle size, query cost, and tail behavior instead of trusting average-case intuition.
+
+#### 🔹 Code-Level Understanding
+- Example: Implement a small Security scenario where Input Validation has a visible contract, typed inputs, explicit error handling, and test coverage.
+- Anti-patterns: Leaky abstraction, over-broad shared state, hidden global configuration, unbounded retries, missing cancellation, and logging without correlation IDs.
+- Best practices: Keep interfaces narrow, validate at boundaries, model failures explicitly, add observability at decision points, and make behavior reproducible in tests.
+
+#### 🔹 Real-World Usage
+- Where used in production: Input Validation appears in systems that need predictable behavior across deploys, teams, and traffic patterns.
+- Example systems: Payments, chat, SaaS workspaces, dashboards, notification systems, search, audit trails, developer platforms, and internal admin tools.
+
+#### 🔹 Architecture Decisions
+- Multiple approaches: Compare simple in-process handling, framework-provided primitives, external managed services, and custom infrastructure.
+- Trade-offs: Balance correctness, latency, cost, operational burden, team familiarity, release risk, and long-term maintainability.
+- When to use what: Use the simplest option that satisfies current scale and correctness needs, then move complexity behind stable interfaces when pressure is proven.
+
+#### 🔹 Interview Focus
+- Common questions: Explain Input Validation, describe how it works internally, and show how you would implement or operate it in Security.
+- Tricky scenarios: Debug intermittent failures, high tail latency, duplicated work, stale data, memory growth, or behavior that changes only under load.
+- Follow-up depth: Be ready to discuss instrumentation, rollback plans, migration strategy, data consistency, and how the design changes at 10x scale.
+
+#### 🔹 Internal Flow Diagram
+```text
+Input / trigger
+  -> boundary validation
+  -> Application Security decision point
+  -> Input Validation execution path
+  -> side effects / state change
+  -> observable result
+  -> retry, rollback, or compensation if needed
+```
+
+#### 🔹 Failure Scenarios
+- Dependency timeout or unavailable downstream service.
+- Invalid, duplicated, stale, or out-of-order input.
+- Configuration drift between environments.
+- Resource exhaustion: CPU, memory, network, database connections, queue depth, or browser main-thread time.
+- Partial success where one side effect commits and another fails.
+
+#### 🔹 Debugging Strategies
+- Reproduce with minimal inputs, then add concurrency, load, and failure injection.
+- Inspect logs, traces, metrics, heap snapshots, profiles, network captures, query plans, or rendered output depending on the layer.
+- Verify assumptions about ordering, ownership, retries, idempotency, caching, and lifecycle timing.
+- Compare healthy and unhealthy paths using correlation IDs and timestamps.
+
+#### 🔹 Optimization Techniques
+- Remove unnecessary work before adding infrastructure.
+- Batch, cache, debounce, stream, paginate, lazy-load, or precompute only where measurements show pressure.
+- Add backpressure, timeouts, circuit breakers, and bounded queues around expensive paths.
+- Optimize for p95/p99 behavior, not just happy-path averages.
+
+---
+
+### 3.2 Injection and XSS
+
+#### 🔹 Core Concepts
+- Definition: Understand Injection and XSS as it applies to Security, including the problem it solves and the boundary it owns.
+- Internal working: Trace the flow from input to processing to output, naming the state transitions, contracts, and dependencies involved.
+- Key principles: Prefer explicit contracts, measurable behavior, isolated responsibilities, and designs that degrade predictably under stress.
+
+#### 🔹 Deep Concepts
+- Hidden behaviors: Watch for implicit defaults, lifecycle timing, ordering guarantees, cache state, retries, and framework/runtime abstractions that hide real cost.
+- Edge cases: Empty input, duplicate input, partial failure, timeout, cancellation, race conditions, version mismatch, clock skew, and inconsistent downstream state.
+- Internal mechanisms: Identify queues, buffers, schedulers, execution contexts, network boundaries, storage paths, locks, indexes, or render phases behind the abstraction.
+- Performance implications: Measure latency, throughput, memory, CPU, I/O, bundle size, query cost, and tail behavior instead of trusting average-case intuition.
+
+#### 🔹 Code-Level Understanding
+- Example: Implement a small Security scenario where Injection and XSS has a visible contract, typed inputs, explicit error handling, and test coverage.
+- Anti-patterns: Leaky abstraction, over-broad shared state, hidden global configuration, unbounded retries, missing cancellation, and logging without correlation IDs.
+- Best practices: Keep interfaces narrow, validate at boundaries, model failures explicitly, add observability at decision points, and make behavior reproducible in tests.
+
+#### 🔹 Real-World Usage
+- Where used in production: Injection and XSS appears in systems that need predictable behavior across deploys, teams, and traffic patterns.
+- Example systems: Payments, chat, SaaS workspaces, dashboards, notification systems, search, audit trails, developer platforms, and internal admin tools.
+
+#### 🔹 Architecture Decisions
+- Multiple approaches: Compare simple in-process handling, framework-provided primitives, external managed services, and custom infrastructure.
+- Trade-offs: Balance correctness, latency, cost, operational burden, team familiarity, release risk, and long-term maintainability.
+- When to use what: Use the simplest option that satisfies current scale and correctness needs, then move complexity behind stable interfaces when pressure is proven.
+
+#### 🔹 Interview Focus
+- Common questions: Explain Injection and XSS, describe how it works internally, and show how you would implement or operate it in Security.
+- Tricky scenarios: Debug intermittent failures, high tail latency, duplicated work, stale data, memory growth, or behavior that changes only under load.
+- Follow-up depth: Be ready to discuss instrumentation, rollback plans, migration strategy, data consistency, and how the design changes at 10x scale.
+
+#### 🔹 Internal Flow Diagram
+```text
+Input / trigger
+  -> boundary validation
+  -> Application Security decision point
+  -> Injection and XSS execution path
+  -> side effects / state change
+  -> observable result
+  -> retry, rollback, or compensation if needed
+```
+
+#### 🔹 Failure Scenarios
+- Dependency timeout or unavailable downstream service.
+- Invalid, duplicated, stale, or out-of-order input.
+- Configuration drift between environments.
+- Resource exhaustion: CPU, memory, network, database connections, queue depth, or browser main-thread time.
+- Partial success where one side effect commits and another fails.
+
+#### 🔹 Debugging Strategies
+- Reproduce with minimal inputs, then add concurrency, load, and failure injection.
+- Inspect logs, traces, metrics, heap snapshots, profiles, network captures, query plans, or rendered output depending on the layer.
+- Verify assumptions about ordering, ownership, retries, idempotency, caching, and lifecycle timing.
+- Compare healthy and unhealthy paths using correlation IDs and timestamps.
+
+#### 🔹 Optimization Techniques
+- Remove unnecessary work before adding infrastructure.
+- Batch, cache, debounce, stream, paginate, lazy-load, or precompute only where measurements show pressure.
+- Add backpressure, timeouts, circuit breakers, and bounded queues around expensive paths.
+- Optimize for p95/p99 behavior, not just happy-path averages.
+
+---
+
+### 3.3 Secrets and Configuration
+
+#### 🔹 Core Concepts
+- Definition: Understand Secrets and Configuration as it applies to Security, including the problem it solves and the boundary it owns.
+- Internal working: Trace the flow from input to processing to output, naming the state transitions, contracts, and dependencies involved.
+- Key principles: Prefer explicit contracts, measurable behavior, isolated responsibilities, and designs that degrade predictably under stress.
+
+#### 🔹 Deep Concepts
+- Hidden behaviors: Watch for implicit defaults, lifecycle timing, ordering guarantees, cache state, retries, and framework/runtime abstractions that hide real cost.
+- Edge cases: Empty input, duplicate input, partial failure, timeout, cancellation, race conditions, version mismatch, clock skew, and inconsistent downstream state.
+- Internal mechanisms: Identify queues, buffers, schedulers, execution contexts, network boundaries, storage paths, locks, indexes, or render phases behind the abstraction.
+- Performance implications: Measure latency, throughput, memory, CPU, I/O, bundle size, query cost, and tail behavior instead of trusting average-case intuition.
+
+#### 🔹 Code-Level Understanding
+- Example: Implement a small Security scenario where Secrets and Configuration has a visible contract, typed inputs, explicit error handling, and test coverage.
+- Anti-patterns: Leaky abstraction, over-broad shared state, hidden global configuration, unbounded retries, missing cancellation, and logging without correlation IDs.
+- Best practices: Keep interfaces narrow, validate at boundaries, model failures explicitly, add observability at decision points, and make behavior reproducible in tests.
+
+#### 🔹 Real-World Usage
+- Where used in production: Secrets and Configuration appears in systems that need predictable behavior across deploys, teams, and traffic patterns.
+- Example systems: Payments, chat, SaaS workspaces, dashboards, notification systems, search, audit trails, developer platforms, and internal admin tools.
+
+#### 🔹 Architecture Decisions
+- Multiple approaches: Compare simple in-process handling, framework-provided primitives, external managed services, and custom infrastructure.
+- Trade-offs: Balance correctness, latency, cost, operational burden, team familiarity, release risk, and long-term maintainability.
+- When to use what: Use the simplest option that satisfies current scale and correctness needs, then move complexity behind stable interfaces when pressure is proven.
+
+#### 🔹 Interview Focus
+- Common questions: Explain Secrets and Configuration, describe how it works internally, and show how you would implement or operate it in Security.
+- Tricky scenarios: Debug intermittent failures, high tail latency, duplicated work, stale data, memory growth, or behavior that changes only under load.
+- Follow-up depth: Be ready to discuss instrumentation, rollback plans, migration strategy, data consistency, and how the design changes at 10x scale.
+
+#### 🔹 Internal Flow Diagram
+```text
+Input / trigger
+  -> boundary validation
+  -> Application Security decision point
+  -> Secrets and Configuration execution path
+  -> side effects / state change
+  -> observable result
+  -> retry, rollback, or compensation if needed
+```
+
+#### 🔹 Failure Scenarios
+- Dependency timeout or unavailable downstream service.
+- Invalid, duplicated, stale, or out-of-order input.
+- Configuration drift between environments.
+- Resource exhaustion: CPU, memory, network, database connections, queue depth, or browser main-thread time.
+- Partial success where one side effect commits and another fails.
+
+#### 🔹 Debugging Strategies
+- Reproduce with minimal inputs, then add concurrency, load, and failure injection.
+- Inspect logs, traces, metrics, heap snapshots, profiles, network captures, query plans, or rendered output depending on the layer.
+- Verify assumptions about ordering, ownership, retries, idempotency, caching, and lifecycle timing.
+- Compare healthy and unhealthy paths using correlation IDs and timestamps.
+
+#### 🔹 Optimization Techniques
+- Remove unnecessary work before adding infrastructure.
+- Batch, cache, debounce, stream, paginate, lazy-load, or precompute only where measurements show pressure.
+- Add backpressure, timeouts, circuit breakers, and bounded queues around expensive paths.
+- Optimize for p95/p99 behavior, not just happy-path averages.
+
+---
+
+## 4️⃣ Production Security
+
+### 4.1 Detection
+
+#### 🔹 Core Concepts
+- Definition: Understand Detection as it applies to Security, including the problem it solves and the boundary it owns.
+- Internal working: Trace the flow from input to processing to output, naming the state transitions, contracts, and dependencies involved.
+- Key principles: Prefer explicit contracts, measurable behavior, isolated responsibilities, and designs that degrade predictably under stress.
+
+#### 🔹 Deep Concepts
+- Hidden behaviors: Watch for implicit defaults, lifecycle timing, ordering guarantees, cache state, retries, and framework/runtime abstractions that hide real cost.
+- Edge cases: Empty input, duplicate input, partial failure, timeout, cancellation, race conditions, version mismatch, clock skew, and inconsistent downstream state.
+- Internal mechanisms: Identify queues, buffers, schedulers, execution contexts, network boundaries, storage paths, locks, indexes, or render phases behind the abstraction.
+- Performance implications: Measure latency, throughput, memory, CPU, I/O, bundle size, query cost, and tail behavior instead of trusting average-case intuition.
+
+#### 🔹 Code-Level Understanding
+- Example: Implement a small Security scenario where Detection has a visible contract, typed inputs, explicit error handling, and test coverage.
+- Anti-patterns: Leaky abstraction, over-broad shared state, hidden global configuration, unbounded retries, missing cancellation, and logging without correlation IDs.
+- Best practices: Keep interfaces narrow, validate at boundaries, model failures explicitly, add observability at decision points, and make behavior reproducible in tests.
+
+#### 🔹 Real-World Usage
+- Where used in production: Detection appears in systems that need predictable behavior across deploys, teams, and traffic patterns.
+- Example systems: Payments, chat, SaaS workspaces, dashboards, notification systems, search, audit trails, developer platforms, and internal admin tools.
+
+#### 🔹 Architecture Decisions
+- Multiple approaches: Compare simple in-process handling, framework-provided primitives, external managed services, and custom infrastructure.
+- Trade-offs: Balance correctness, latency, cost, operational burden, team familiarity, release risk, and long-term maintainability.
+- When to use what: Use the simplest option that satisfies current scale and correctness needs, then move complexity behind stable interfaces when pressure is proven.
+
+#### 🔹 Interview Focus
+- Common questions: Explain Detection, describe how it works internally, and show how you would implement or operate it in Security.
+- Tricky scenarios: Debug intermittent failures, high tail latency, duplicated work, stale data, memory growth, or behavior that changes only under load.
+- Follow-up depth: Be ready to discuss instrumentation, rollback plans, migration strategy, data consistency, and how the design changes at 10x scale.
+
+#### 🔹 Internal Flow Diagram
+```text
+Input / trigger
+  -> boundary validation
+  -> Production Security decision point
+  -> Detection execution path
+  -> side effects / state change
+  -> observable result
+  -> retry, rollback, or compensation if needed
+```
+
+#### 🔹 Failure Scenarios
+- Dependency timeout or unavailable downstream service.
+- Invalid, duplicated, stale, or out-of-order input.
+- Configuration drift between environments.
+- Resource exhaustion: CPU, memory, network, database connections, queue depth, or browser main-thread time.
+- Partial success where one side effect commits and another fails.
+
+#### 🔹 Debugging Strategies
+- Reproduce with minimal inputs, then add concurrency, load, and failure injection.
+- Inspect logs, traces, metrics, heap snapshots, profiles, network captures, query plans, or rendered output depending on the layer.
+- Verify assumptions about ordering, ownership, retries, idempotency, caching, and lifecycle timing.
+- Compare healthy and unhealthy paths using correlation IDs and timestamps.
+
+#### 🔹 Optimization Techniques
+- Remove unnecessary work before adding infrastructure.
+- Batch, cache, debounce, stream, paginate, lazy-load, or precompute only where measurements show pressure.
+- Add backpressure, timeouts, circuit breakers, and bounded queues around expensive paths.
+- Optimize for p95/p99 behavior, not just happy-path averages.
+
+---
+
+### 4.2 Incident Response
+
+#### 🔹 Core Concepts
+- Definition: Understand Incident Response as it applies to Security, including the problem it solves and the boundary it owns.
+- Internal working: Trace the flow from input to processing to output, naming the state transitions, contracts, and dependencies involved.
+- Key principles: Prefer explicit contracts, measurable behavior, isolated responsibilities, and designs that degrade predictably under stress.
+
+#### 🔹 Deep Concepts
+- Hidden behaviors: Watch for implicit defaults, lifecycle timing, ordering guarantees, cache state, retries, and framework/runtime abstractions that hide real cost.
+- Edge cases: Empty input, duplicate input, partial failure, timeout, cancellation, race conditions, version mismatch, clock skew, and inconsistent downstream state.
+- Internal mechanisms: Identify queues, buffers, schedulers, execution contexts, network boundaries, storage paths, locks, indexes, or render phases behind the abstraction.
+- Performance implications: Measure latency, throughput, memory, CPU, I/O, bundle size, query cost, and tail behavior instead of trusting average-case intuition.
+
+#### 🔹 Code-Level Understanding
+- Example: Implement a small Security scenario where Incident Response has a visible contract, typed inputs, explicit error handling, and test coverage.
+- Anti-patterns: Leaky abstraction, over-broad shared state, hidden global configuration, unbounded retries, missing cancellation, and logging without correlation IDs.
+- Best practices: Keep interfaces narrow, validate at boundaries, model failures explicitly, add observability at decision points, and make behavior reproducible in tests.
+
+#### 🔹 Real-World Usage
+- Where used in production: Incident Response appears in systems that need predictable behavior across deploys, teams, and traffic patterns.
+- Example systems: Payments, chat, SaaS workspaces, dashboards, notification systems, search, audit trails, developer platforms, and internal admin tools.
+
+#### 🔹 Architecture Decisions
+- Multiple approaches: Compare simple in-process handling, framework-provided primitives, external managed services, and custom infrastructure.
+- Trade-offs: Balance correctness, latency, cost, operational burden, team familiarity, release risk, and long-term maintainability.
+- When to use what: Use the simplest option that satisfies current scale and correctness needs, then move complexity behind stable interfaces when pressure is proven.
+
+#### 🔹 Interview Focus
+- Common questions: Explain Incident Response, describe how it works internally, and show how you would implement or operate it in Security.
+- Tricky scenarios: Debug intermittent failures, high tail latency, duplicated work, stale data, memory growth, or behavior that changes only under load.
+- Follow-up depth: Be ready to discuss instrumentation, rollback plans, migration strategy, data consistency, and how the design changes at 10x scale.
+
+#### 🔹 Internal Flow Diagram
+```text
+Input / trigger
+  -> boundary validation
+  -> Production Security decision point
+  -> Incident Response execution path
+  -> side effects / state change
+  -> observable result
+  -> retry, rollback, or compensation if needed
+```
+
+#### 🔹 Failure Scenarios
+- Dependency timeout or unavailable downstream service.
+- Invalid, duplicated, stale, or out-of-order input.
+- Configuration drift between environments.
+- Resource exhaustion: CPU, memory, network, database connections, queue depth, or browser main-thread time.
+- Partial success where one side effect commits and another fails.
+
+#### 🔹 Debugging Strategies
+- Reproduce with minimal inputs, then add concurrency, load, and failure injection.
+- Inspect logs, traces, metrics, heap snapshots, profiles, network captures, query plans, or rendered output depending on the layer.
+- Verify assumptions about ordering, ownership, retries, idempotency, caching, and lifecycle timing.
+- Compare healthy and unhealthy paths using correlation IDs and timestamps.
+
+#### 🔹 Optimization Techniques
+- Remove unnecessary work before adding infrastructure.
+- Batch, cache, debounce, stream, paginate, lazy-load, or precompute only where measurements show pressure.
+- Add backpressure, timeouts, circuit breakers, and bounded queues around expensive paths.
+- Optimize for p95/p99 behavior, not just happy-path averages.
+
+---
+
+### 4.3 Compliance and Auditability
+
+#### 🔹 Core Concepts
+- Definition: Understand Compliance and Auditability as it applies to Security, including the problem it solves and the boundary it owns.
+- Internal working: Trace the flow from input to processing to output, naming the state transitions, contracts, and dependencies involved.
+- Key principles: Prefer explicit contracts, measurable behavior, isolated responsibilities, and designs that degrade predictably under stress.
+
+#### 🔹 Deep Concepts
+- Hidden behaviors: Watch for implicit defaults, lifecycle timing, ordering guarantees, cache state, retries, and framework/runtime abstractions that hide real cost.
+- Edge cases: Empty input, duplicate input, partial failure, timeout, cancellation, race conditions, version mismatch, clock skew, and inconsistent downstream state.
+- Internal mechanisms: Identify queues, buffers, schedulers, execution contexts, network boundaries, storage paths, locks, indexes, or render phases behind the abstraction.
+- Performance implications: Measure latency, throughput, memory, CPU, I/O, bundle size, query cost, and tail behavior instead of trusting average-case intuition.
+
+#### 🔹 Code-Level Understanding
+- Example: Implement a small Security scenario where Compliance and Auditability has a visible contract, typed inputs, explicit error handling, and test coverage.
+- Anti-patterns: Leaky abstraction, over-broad shared state, hidden global configuration, unbounded retries, missing cancellation, and logging without correlation IDs.
+- Best practices: Keep interfaces narrow, validate at boundaries, model failures explicitly, add observability at decision points, and make behavior reproducible in tests.
+
+#### 🔹 Real-World Usage
+- Where used in production: Compliance and Auditability appears in systems that need predictable behavior across deploys, teams, and traffic patterns.
+- Example systems: Payments, chat, SaaS workspaces, dashboards, notification systems, search, audit trails, developer platforms, and internal admin tools.
+
+#### 🔹 Architecture Decisions
+- Multiple approaches: Compare simple in-process handling, framework-provided primitives, external managed services, and custom infrastructure.
+- Trade-offs: Balance correctness, latency, cost, operational burden, team familiarity, release risk, and long-term maintainability.
+- When to use what: Use the simplest option that satisfies current scale and correctness needs, then move complexity behind stable interfaces when pressure is proven.
+
+#### 🔹 Interview Focus
+- Common questions: Explain Compliance and Auditability, describe how it works internally, and show how you would implement or operate it in Security.
+- Tricky scenarios: Debug intermittent failures, high tail latency, duplicated work, stale data, memory growth, or behavior that changes only under load.
+- Follow-up depth: Be ready to discuss instrumentation, rollback plans, migration strategy, data consistency, and how the design changes at 10x scale.
+
+#### 🔹 Internal Flow Diagram
+```text
+Input / trigger
+  -> boundary validation
+  -> Production Security decision point
+  -> Compliance and Auditability execution path
+  -> side effects / state change
+  -> observable result
+  -> retry, rollback, or compensation if needed
+```
+
+#### 🔹 Failure Scenarios
+- Dependency timeout or unavailable downstream service.
+- Invalid, duplicated, stale, or out-of-order input.
+- Configuration drift between environments.
+- Resource exhaustion: CPU, memory, network, database connections, queue depth, or browser main-thread time.
+- Partial success where one side effect commits and another fails.
+
+#### 🔹 Debugging Strategies
+- Reproduce with minimal inputs, then add concurrency, load, and failure injection.
+- Inspect logs, traces, metrics, heap snapshots, profiles, network captures, query plans, or rendered output depending on the layer.
+- Verify assumptions about ordering, ownership, retries, idempotency, caching, and lifecycle timing.
+- Compare healthy and unhealthy paths using correlation IDs and timestamps.
+
+#### 🔹 Optimization Techniques
+- Remove unnecessary work before adding infrastructure.
+- Batch, cache, debounce, stream, paginate, lazy-load, or precompute only where measurements show pressure.
+- Add backpressure, timeouts, circuit breakers, and bounded queues around expensive paths.
+- Optimize for p95/p99 behavior, not just happy-path averages.
+
+
+---
+
+## 🚀 Hidden Advanced Topics (Senior Level)
+
+- Production-only failure modes: retries that amplify outages, cache stampedes, slow memory leaks, dependency brownouts, noisy-neighbor effects, and hidden coupling between release trains.
+- Scaling issues most teams discover late: p99 latency, queue backlog growth, lock contention, hydration or rendering bottlenecks, oversized payloads, schema evolution, and observability cardinality explosions.
+- Senior-level concerns: migration safety, backward compatibility, ownership boundaries, cost visibility, compliance constraints, graceful degradation, and operability during incidents.
+- Advanced design pressure: deciding when to split responsibilities, when to centralize platform capability, and when local duplication is cheaper than shared abstraction.
+- Production readiness: runbooks, dashboards, SLOs, alert thresholds, rollback paths, feature flags, capacity plans, and failure drills.
+
+## 🧠 Mental Models
+
+- Start from first principles: What invariant must hold, what can fail, who owns the state, and what must be observable?
+- Think in boundaries: API boundary, runtime boundary, team boundary, data boundary, trust boundary, and deployment boundary.
+- Separate correctness from performance: first prove behavior, then measure cost, then optimize the bottleneck.
+- Prefer explicit trade-offs: latency vs consistency, flexibility vs simplicity, autonomy vs standardization, speed vs safety, and cost vs resilience.
+- Design for change: stable contracts, reversible decisions, incremental migrations, and small blast radius.
+
+## ⚠️ Common Mistakes
+
+- Beginner mistakes: memorizing definitions without tracing real execution, ignoring edge cases, and relying on defaults without understanding them.
+- Intermediate mistakes: over-engineering too early, hiding failures behind generic catch blocks, under-testing boundaries, and treating logs as observability.
+- Senior-level blind spots: creating shared abstractions without ownership, optimizing local performance while harming system behavior, missing migration risk, and ignoring operational cost.
+- Interview mistakes: answering only the happy path, skipping trade-offs, failing to discuss scale, and not explaining how to debug production incidents.
+- Production mistakes: missing timeouts, missing idempotency, no rollback path, no load testing, weak dashboards, and unclear ownership during incidents.
+
+## 🧩 System Design Mapping
+
+- System Design: Use this category to reason about requirements, constraints, interfaces, state, consistency, failure handling, and operational readiness.
+- Microservices: Map responsibilities to service boundaries, contracts, deployment ownership, observability, and independent scaling needs.
+- Performance: Identify hot paths, remove unnecessary work, define budgets, measure tail latency, and profile before optimizing.
+- Scalability: Plan for horizontal growth, bounded queues, partitioning, caching, backpressure, and graceful degradation.
+- Security: Apply least privilege, validate boundaries, protect secrets, audit sensitive actions, and assume dependencies can be compromised.
+- Reliability: Define SLOs, expose health signals, test failure modes, and prepare rollback or compensation paths before incidents.
