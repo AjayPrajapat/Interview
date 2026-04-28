@@ -6,625 +6,1358 @@ Topic: 001.02 Execution Model
 
 ## 1. Definition
 
-Promises and Async-Await is a focused engineering concept inside 001.02 Execution Model. It describes a behavior, design choice, implementation technique, or operational concern that engineers must understand deeply to build reliable systems in JavaScript Core.
+A promise is a JavaScript object that represents the eventual result of an asynchronous operation.
 
-At a practical level, this topic answers:
+`async` / `await` is syntax built on top of promises that lets asynchronous code read like sequential code while still yielding back to the event loop at `await` points.
 
-- what problem it solves,
-- what boundary it belongs to,
-- what assumptions it depends on,
-- how it behaves during normal execution,
-- how it fails under pressure,
-- and how to reason about it in production.
+One-line version:
 
-The goal is not only to recognize the term. The goal is to explain Promises and Async-Await from first principles, apply it in code or architecture, debug it when it breaks, and defend trade-offs in an interview or design review.
+```txt
+Promises model future completion; async/await is structured syntax for consuming promises.
+```
+
+Expanded explanation:
+
+- A promise starts pending.
+- It eventually becomes fulfilled or rejected.
+- Fulfillment carries a value.
+- Rejection carries a reason, usually an error.
+- `.then`, `.catch`, and `.finally` register reactions.
+- Promise reactions run as microtasks.
+- An `async` function always returns a promise.
+- `await` pauses the async function's continuation, not the whole JavaScript thread.
+
+Promise states:
+
+```txt
+pending -> fulfilled
+pending -> rejected
+```
+
+Once settled, a promise cannot change state again.
 
 ## 2. Why It Exists
 
-Promises and Async-Await exists because real systems need explicit rules for correctness, ownership, execution, and change. Without this concept, teams usually rely on implicit assumptions, and implicit assumptions become bugs when systems grow.
+JavaScript needed a better way to represent asynchronous work than deeply nested callbacks.
 
-This topic matters because it helps engineers:
+Before promises:
 
-- reduce ambiguity in 001.02 Execution Model,
-- make behavior easier to test and review,
-- prevent local decisions from creating system-level failures,
-- identify performance and reliability limits before production incidents,
-- communicate trade-offs clearly across frontend, backend, platform, security, and product teams.
+```js
+readUser(id, (userError, user) => {
+  if (userError) return handleError(userError);
 
-You should understand this before moving deeper because later topics often depend on the same mental models: state ownership, lifecycle timing, API contracts, failure handling, scaling pressure, and observability.
+  readOrders(user.id, (ordersError, orders) => {
+    if (ordersError) return handleError(ordersError);
+
+    render(user, orders);
+  });
+});
+```
+
+With promises:
+
+```js
+readUser(id)
+  .then((user) => readOrders(user.id))
+  .then((orders) => render(orders))
+  .catch(handleError);
+```
+
+With `async` / `await`:
+
+```js
+async function load(id) {
+  try {
+    const user = await readUser(id);
+    const orders = await readOrders(user.id);
+    render(user, orders);
+  } catch (error) {
+    handleError(error);
+  }
+}
+```
+
+Problems solved:
+
+- callback nesting,
+- inconsistent async error handling,
+- composition of async operations,
+- sequential async workflows,
+- parallel async workflows,
+- cleanup after async work,
+- readable control flow around remote calls and I/O.
+
+Senior-level reason:
+
+Promises are not just nicer syntax. They define error propagation, microtask ordering, concurrency control, request cancellation patterns, timeout strategy, unhandled rejection behavior, and production latency characteristics.
 
 ## 3. Syntax & Variants
 
-Not every engineering topic has programming syntax, but every topic has an interface shape. The interface shape is how the concept appears to the rest of the system.
+### Creating A Promise
 
-In JavaScript Core, Promises and Async-Await commonly appears as a function, type, object, runtime behavior, data structure, or algorithm.
-
-Typical shape:
-
-```ts
-type PromisesAndAsyncAwaitInput = {
-  id: string;
-  payload: unknown;
-};
-
-type PromisesAndAsyncAwaitResult =
-  | { ok: true; value: unknown }
-  | { ok: false; error: string; retryable: boolean };
-
-export function handlePromisesAndAsyncAwait(
-  input: PromisesAndAsyncAwaitInput,
-): PromisesAndAsyncAwaitResult {
-  if (!input.id) {
-    return { ok: false, error: "missing_id", retryable: false };
+```js
+const promise = new Promise((resolve, reject) => {
+  if (Math.random() > 0.5) {
+    resolve("ok");
+  } else {
+    reject(new Error("failed"));
   }
+});
+```
 
-  try {
-    const value = input.payload;
-    return { ok: true, value };
-  } catch {
-    return { ok: false, error: "unexpected_failure", retryable: true };
-  }
+The executor runs synchronously.
+
+### Consuming With `.then`
+
+```js
+fetchUser()
+  .then((user) => {
+    return user.name;
+  })
+  .then((name) => {
+    console.log(name);
+  });
+```
+
+Each `.then` returns a new promise.
+
+### Handling Rejection
+
+```js
+fetchUser()
+  .then(renderUser)
+  .catch((error) => {
+    console.error(error);
+  });
+```
+
+`.catch(fn)` is similar to `.then(undefined, fn)`.
+
+### Cleanup With `.finally`
+
+```js
+setLoading(true);
+
+fetchUser()
+  .then(renderUser)
+  .catch(showError)
+  .finally(() => {
+    setLoading(false);
+  });
+```
+
+`finally` runs after fulfillment or rejection.
+
+### `async` Function
+
+```js
+async function loadUser(id) {
+  return fetch(`/users/${id}`).then((response) => response.json());
 }
 ```
 
-When reading or writing code for this topic, identify:
+This function always returns a promise.
 
-- the input boundary,
-- the output contract,
-- the state being read or changed,
-- the owner of the behavior,
-- the failure path,
-- the observability signal.
+### `await`
 
-Variants to identify:
+```js
+async function loadUser(id) {
+  const response = await fetch(`/users/${id}`);
+  return response.json();
+}
+```
 
-- direct language or framework syntax,
-- configuration shape,
-- API or interface shape,
-- runtime behavior shape,
-- rare edge syntax or unusual usage,
-- legacy forms that still appear in production.
+`await` unwraps fulfillment or throws on rejection.
+
+### Parallel Work With `Promise.all`
+
+```js
+const [user, orders] = await Promise.all([
+  fetchUser(id),
+  fetchOrders(id),
+]);
+```
+
+Both operations start before awaiting completion.
+
+### Resilient Aggregation With `Promise.allSettled`
+
+```js
+const results = await Promise.allSettled([
+  fetchProfile(id),
+  fetchRecommendations(id),
+  fetchNotifications(id),
+]);
+```
+
+This waits for all promises, even if some reject.
+
+### Race And Timeout Pattern
+
+```js
+function timeout(ms) {
+  return new Promise((_, reject) => {
+    setTimeout(() => reject(new Error("timeout")), ms);
+  });
+}
+
+await Promise.race([fetchUser(id), timeout(3000)]);
+```
+
+`Promise.race` settles when the first input settles.
+
+### Cancellation With `AbortController`
+
+```js
+const controller = new AbortController();
+
+const request = fetch("/api/users", {
+  signal: controller.signal,
+});
+
+controller.abort();
+
+await request;
+```
+
+Promises do not cancel by themselves. APIs must support cancellation.
 
 ## 4. Internal Working
 
-The internal working of Promises and Async-Await should be understood as a lifecycle, not as a definition.
+A promise stores:
 
-```text
-Input / trigger
-  -> validate assumptions
-  -> enter 001.02 Execution Model boundary
-  -> apply Promises and Async-Await rules
-  -> read or update state
-  -> handle success, failure, or partial success
-  -> emit observable signal
-  -> return result or continue workflow
+- state: pending, fulfilled, or rejected,
+- result: fulfillment value or rejection reason,
+- reactions: callbacks registered through `.then`, `.catch`, or `.finally`.
+
+Promise settlement flow:
+
+```txt
+create promise
+  -> executor runs synchronously
+  -> resolve or reject is called later or now
+  -> promise settles once
+  -> registered reactions are queued as microtasks
+  -> microtasks run after current stack clears
 ```
 
-For this topic, inspect the real mechanism behind the abstraction:
+Example:
 
-- engine, compiler, type system, memory model, call stack, event loop, and module boundary,
-- ordering and timing,
-- ownership of mutable state,
-- limits and resource usage,
-- retry, cancellation, cleanup, and rollback behavior,
-- how the behavior changes between local development, CI, staging, and production.
+```js
+console.log("A");
 
-Senior engineers do not stop at "it works." They ask what the runtime must do, what it keeps in memory, what it sends over the network, what can be retried, what can be duplicated, and what must be protected by invariants.
+const promise = new Promise((resolve) => {
+  console.log("B");
+  resolve("C");
+});
+
+promise.then((value) => console.log(value));
+
+console.log("D");
+```
+
+Output:
+
+```txt
+A
+B
+D
+C
+```
+
+Why:
+
+- promise executor runs synchronously,
+- `.then` callback is a microtask,
+- current stack finishes before microtasks run.
+
+### Promise Resolution Procedure
+
+If a `.then` callback returns a normal value, the next promise fulfills with that value.
+
+```js
+Promise.resolve(1)
+  .then((value) => value + 1)
+  .then(console.log); // 2
+```
+
+If it returns a promise, the chain waits for that promise.
+
+```js
+Promise.resolve(1)
+  .then((value) => Promise.resolve(value + 1))
+  .then(console.log); // 2
+```
+
+If it throws, the next promise rejects.
+
+```js
+Promise.resolve()
+  .then(() => {
+    throw new Error("boom");
+  })
+  .catch((error) => console.log(error.message));
+```
+
+### `async` Function Internals
+
+This:
+
+```js
+async function run() {
+  const value = await getValue();
+  return value + 1;
+}
+```
+
+Behaves conceptually like:
+
+```js
+function run() {
+  return Promise.resolve(getValue()).then((value) => value + 1);
+}
+```
+
+That is not exact engine source, but it is a useful mental model.
+
+### `await` Internals
+
+At `await`:
+
+```txt
+evaluate awaited expression
+  -> convert to promise-like value
+  -> suspend async function continuation
+  -> return control to caller/event loop
+  -> resume continuation as microtask after settlement
+```
+
+`await` does not block the thread.
 
 ## 5. Memory Behavior
 
-Every topic consumes or protects memory, state, or another resource. For Promises and Async-Await, reason about memory and resource behavior explicitly.
+Promises and async functions can retain memory through callbacks, closures, and unresolved work.
 
-Common resources:
+Example:
 
-- memory and retained references,
-- CPU and event-loop time,
-- network calls and connection pools,
-- database locks, indexes, and storage,
-- queue depth and worker capacity,
-- browser main-thread budget,
-- cloud cost and operational attention.
-
-Resource model:
-
-```text
-Work enters system
-  -> resource is allocated
-  -> work is processed
-  -> resource is released, retained, cached, or leaked
+```js
+function loadLater(data) {
+  return new Promise((resolve) => {
+    setTimeout(() => resolve(data.id), 60_000);
+  });
+}
 ```
 
-Production questions:
+The pending promise and timer callback retain `data` until the timer settles.
 
-- What grows with traffic?
-- What grows with data size?
-- What grows with number of tenants, teams, or services?
-- What is bounded?
-- What can leak?
-- What needs cleanup?
-- What metric proves the resource behavior is healthy?
+Memory model:
 
-For JavaScript Core, watch runtime errors, latency, memory growth, bundle size, CPU time, test failures, and defect rate.
+```txt
+pending promise
+  -> reactions
+  -> callback closure
+  -> closed-over data
+```
+
+Async function locals can be retained across `await`:
+
+```js
+async function process(data) {
+  const largeBuffer = data.buffer;
+
+  await sendMetadata(data.id);
+
+  return largeBuffer.length;
+}
+```
+
+`largeBuffer` may need to remain reachable until the function resumes after `await`.
+
+Reduce retention:
+
+```js
+async function process(data) {
+  const id = data.id;
+  const length = data.buffer.length;
+
+  await sendMetadata(id);
+
+  return length;
+}
+```
+
+Common memory risks:
+
+- promises that never settle,
+- unresolved request maps,
+- async functions retaining large locals across `await`,
+- long promise chains retaining intermediate values,
+- forgotten timeout/interval cleanup,
+- unbounded concurrency creating many pending promises,
+- unresolved fetches after component unmount.
 
 ## 6. Execution Behavior
 
-Execution behavior describes what actually happens when the system runs.
+### Async Function Returns Immediately
 
-Trace Promises and Async-Await through:
+```js
+async function run() {
+  return 1;
+}
 
-- the happy path,
-- invalid input,
-- missing dependency,
-- slow dependency,
-- concurrent execution,
-- retry after timeout,
-- duplicate request or event,
-- deploy with old and new versions running together,
-- cleanup after failure.
+const result = run();
 
-Execution timeline:
-
-```text
-Before
-  -> required state and configuration exist
-During
-  -> core behavior runs and may touch dependencies
-After
-  -> result, side effects, and telemetry are visible
-Failure
-  -> caller receives error, retry, fallback, or compensation path
+console.log(result instanceof Promise); // true
 ```
 
-The most important question is: what invariant must remain true even if the execution path is interrupted?
+An `async` function wraps returned values in a promise.
+
+### `await` Yields
+
+```js
+async function run() {
+  console.log("A");
+  await null;
+  console.log("B");
+}
+
+run();
+console.log("C");
+```
+
+Output:
+
+```txt
+A
+C
+B
+```
+
+The continuation after `await` runs as a microtask.
+
+### Sequential Await
+
+```js
+const user = await fetchUser(id);
+const orders = await fetchOrders(id);
+```
+
+`fetchOrders` starts only after `fetchUser` completes.
+
+### Parallel Await
+
+```js
+const userPromise = fetchUser(id);
+const ordersPromise = fetchOrders(id);
+
+const user = await userPromise;
+const orders = await ordersPromise;
+```
+
+Both operations start before the first await.
+
+Cleaner:
+
+```js
+const [user, orders] = await Promise.all([
+  fetchUser(id),
+  fetchOrders(id),
+]);
+```
+
+### Error Propagation
+
+```js
+async function load() {
+  throw new Error("failed");
+}
+
+load().catch((error) => {
+  console.log(error.message);
+});
+```
+
+Throwing inside an async function rejects the returned promise.
+
+### `try/catch` With Await
+
+```js
+try {
+  const user = await fetchUser(id);
+  render(user);
+} catch (error) {
+  showError(error);
+}
+```
+
+`try/catch` catches rejections from awaited promises.
+
+It does not catch an un-awaited promise that rejects later:
+
+```js
+try {
+  fetchUser(id);
+} catch (error) {
+  // does not catch async rejection
+}
+```
 
 ## 7. Scope & Context Interaction
 
-Promises and Async-Await should be understood in its surrounding scope and execution context, not as an isolated detail.
+Promises preserve closures just like other callbacks.
 
-Scope questions:
-
-- Where is this behavior visible?
-- Who can call or mutate it?
-- What module, component, service, tenant, request, thread, worker, or transaction owns it?
-- Does it cross frontend, backend, database, queue, cache, or platform boundaries?
-- Does it behave differently inside closures, async callbacks, dependency injection scopes, request scopes, or deployment environments?
-
-Context model:
-
-```text
-Local context
-  -> module or component context
-  -> service or runtime context
-  -> system or organization context
+```js
+function loadForUser(userId) {
+  return fetch(`/users/${userId}`).then(() => {
+    console.log(userId);
+  });
+}
 ```
 
-For JavaScript and TypeScript topics, also check lexical scope, closure retention, module scope, global scope, and `this` behavior where applicable.
+The `.then` callback closes over `userId`.
+
+### Async Local State Across Await
+
+```js
+async function checkout(cart) {
+  const orderId = createOrderId();
+
+  await charge(cart);
+
+  return orderId;
+}
+```
+
+`orderId` remains available after `await`.
+
+### Stale UI State
+
+```jsx
+async function handleSave() {
+  await save(form);
+  console.log(form);
+}
+```
+
+If `form` changes while `save` is in flight, the function still sees the binding from the render where `handleSave` was created.
+
+### `this` With Async Methods
+
+```js
+const userService = {
+  baseUrl: "/users",
+  async load(id) {
+    const response = await fetch(`${this.baseUrl}/${id}`);
+    return response.json();
+  },
+};
+```
+
+`this` is determined when `load` is called.
+
+Risk:
+
+```js
+const load = userService.load;
+await load(1); // this is lost
+```
+
+Fix:
+
+```js
+const load = userService.load.bind(userService);
+```
+
+### Async Context Propagation
+
+In production, one request may cross many async boundaries.
+
+```txt
+HTTP request
+  -> await auth
+  -> await database
+  -> await cache
+  -> await downstream API
+```
+
+Use explicit request IDs or runtime async context features so logs and traces remain connected.
 
 ## 8. Common Examples
 
-### Example 1: Local Implementation
+### Fetch JSON
 
-Use a local implementation when the behavior is simple, low-risk, and owned by one module or team.
+```js
+async function getJson(url) {
+  const response = await fetch(url);
 
-```ts
-type PromisesAndAsyncAwaitInput = {
-  id: string;
-  payload: unknown;
-};
-
-type PromisesAndAsyncAwaitResult =
-  | { ok: true; value: unknown }
-  | { ok: false; error: string; retryable: boolean };
-
-export function handlePromisesAndAsyncAwait(
-  input: PromisesAndAsyncAwaitInput,
-): PromisesAndAsyncAwaitResult {
-  if (!input.id) {
-    return { ok: false, error: "missing_id", retryable: false };
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status}`);
   }
 
+  return response.json();
+}
+```
+
+Important: `fetch` only rejects for network-level failures, not HTTP 404/500 responses.
+
+### Sequential Workflow
+
+```js
+async function createOrder(userId, cart) {
+  const user = await fetchUser(userId);
+  const payment = await chargePayment(user, cart);
+  return createReceipt(user, payment);
+}
+```
+
+Use sequential awaits when later steps depend on earlier results.
+
+### Parallel Workflow
+
+```js
+async function loadDashboard(userId) {
+  const [profile, notifications, recommendations] = await Promise.all([
+    fetchProfile(userId),
+    fetchNotifications(userId),
+    fetchRecommendations(userId),
+  ]);
+
+  return { profile, notifications, recommendations };
+}
+```
+
+Use parallel awaits when operations are independent.
+
+### Partial Failure
+
+```js
+async function loadHomePage(userId) {
+  const results = await Promise.allSettled([
+    fetchProfile(userId),
+    fetchRecommendations(userId),
+    fetchAds(userId),
+  ]);
+
+  return results.map((result) =>
+    result.status === "fulfilled" ? result.value : null,
+  );
+}
+```
+
+Useful when optional data should not fail the whole page.
+
+### Timeout With Abort
+
+```js
+async function fetchWithTimeout(url, ms) {
+  const controller = new AbortController();
+  const id = setTimeout(() => controller.abort(), ms);
+
   try {
-    const value = input.payload;
-    return { ok: true, value };
-  } catch {
-    return { ok: false, error: "unexpected_failure", retryable: true };
+    return await fetch(url, { signal: controller.signal });
+  } finally {
+    clearTimeout(id);
   }
 }
 ```
 
-### Example 2: Shared Abstraction
+This cancels the fetch and cleans up the timer.
 
-Move the behavior behind a shared abstraction when multiple teams repeat the same logic and the contract is stable.
+### Bounded Concurrency
 
-```text
-Consumer
-  -> stable interface
-  -> shared implementation
-  -> logs, metrics, tests, and ownership
+```js
+async function mapLimit(items, limit, worker) {
+  const results = [];
+  const executing = new Set();
+
+  for (const item of items) {
+    const promise = Promise.resolve()
+      .then(() => worker(item))
+      .then((result) => {
+        results.push(result);
+        executing.delete(promise);
+      });
+
+    executing.add(promise);
+
+    if (executing.size >= limit) {
+      await Promise.race(executing);
+    }
+  }
+
+  await Promise.all(executing);
+  return results;
+}
 ```
 
-### Example 3: Platform or Managed Capability
-
-Use a platform capability when correctness, scale, compliance, or operational cost is too important for every team to solve independently.
-
-```text
-Product team
-  -> platform API
-  -> centrally owned reliability, security, and observability
-```
+Bound concurrency to avoid overwhelming dependencies.
 
 ## 9. Confusing / Tricky Examples
 
-### Confusion 1: The Name Sounds Simple
+### `await` In A Loop Is Sequential
 
-Many developers can define Promises and Async-Await, but cannot trace its lifecycle or failure modes. Interviewers often move quickly from definition to edge cases.
+```js
+for (const id of ids) {
+  await fetchUser(id);
+}
+```
 
-### Confusion 2: Local Behavior Differs From Production
+This runs one request at a time.
 
-Local environments rarely reproduce production traffic, data shape, dependency latency, permissions, deploy overlap, or noisy neighbors.
+Parallel version:
 
-### Confusion 3: The Happy Path Hides Ownership
+```js
+await Promise.all(ids.map((id) => fetchUser(id)));
+```
 
-If no one owns the failure path, monitoring, documentation, migration plan, or rollback process, the design is incomplete.
+Bounded version is safer for large `ids`.
 
-### Confusion 4: Optimization Before Measurement
+### `forEach` Does Not Await
 
-Optimizing Promises and Async-Await without baseline data can make the system harder to debug while failing to improve the real bottleneck.
+```js
+ids.forEach(async (id) => {
+  await fetchUser(id);
+});
+
+console.log("done");
+```
+
+`done` logs before the async callbacks finish.
+
+Use:
+
+```js
+for (const id of ids) {
+  await fetchUser(id);
+}
+```
+
+Or:
+
+```js
+await Promise.all(ids.map((id) => fetchUser(id)));
+```
+
+### Missing `return` In Promise Chain
+
+```js
+fetchUser()
+  .then((user) => {
+    fetchOrders(user.id);
+  })
+  .then((orders) => {
+    console.log(orders); // undefined
+  });
+```
+
+Fix:
+
+```js
+fetchUser()
+  .then((user) => fetchOrders(user.id))
+  .then((orders) => {
+    console.log(orders);
+  });
+```
+
+### Promise Executor Is Sync
+
+```js
+console.log("A");
+
+new Promise((resolve) => {
+  console.log("B");
+  resolve();
+}).then(() => console.log("C"));
+
+console.log("D");
+```
+
+Output:
+
+```txt
+A
+B
+D
+C
+```
+
+### `try/catch` Needs `await`
+
+```js
+try {
+  failingAsync();
+} catch (error) {
+  console.log("caught");
+}
+```
+
+If `failingAsync` returns a rejected promise, this does not catch it.
+
+Fix:
+
+```js
+try {
+  await failingAsync();
+} catch (error) {
+  console.log("caught");
+}
+```
+
+### `Promise.all` Fails Fast
+
+```js
+await Promise.all([
+  required(),
+  optional(),
+]);
+```
+
+If `optional` rejects, the whole `Promise.all` rejects. Use `allSettled` or handle optional errors individually when partial success is acceptable.
 
 ## 10. Real Production Use Cases
 
-Promises and Async-Await appears in production anywhere JavaScript Core needs predictable behavior across real users, real traffic, real failures, and real team boundaries.
+### API Request Pipelines
 
-Used in:
+```js
+async function handler(req, res) {
+  const user = await authenticate(req);
+  const data = await loadData(user.id);
+  res.end(JSON.stringify(data));
+}
+```
 
-- frontend apps, Node.js services, SDKs, libraries, build pipelines, and shared platform packages,
-- payment and billing workflows,
-- authentication and authorization flows,
-- admin and internal platforms,
-- realtime or async processing,
-- reporting and analytics,
-- compliance and audit trails,
-- incident response and operational runbooks.
+Async/await makes request flow readable, but every await is a latency boundary.
 
-Production makes this harder because:
+### Frontend Data Fetching
 
-- inputs are messy,
-- clients and services run different versions,
-- dependencies degrade before they fail,
-- retries multiply load,
-- dashboards show symptoms before root cause,
-- ownership is split across teams.
+```jsx
+useEffect(() => {
+  const controller = new AbortController();
 
-## Architecture Decisions
+  loadUser(userId, controller.signal).catch(reportError);
 
-When designing around Promises and Async-Await, compare multiple approaches.
+  return () => controller.abort();
+}, [userId]);
+```
 
-| Approach | Use When | Trade-Off |
-|---|---|---|
-| Inline/local logic | Small scope, low risk, one owner | Fast to build, easier to duplicate |
-| Shared library | Same logic repeated across modules | Versioning and rollout become important |
-| Service/API boundary | Multiple consumers need stable behavior | Network, latency, and ownership overhead |
-| Platform capability | High scale, compliance, or reliability needs | Requires platform maturity and governance |
-| Managed service | Commodity capability with strong provider support | Less control, provider constraints |
+Cleanup prevents stale updates and wasted network work.
 
-Decision questions:
+### Payment Workflow
 
-- What is the blast radius if this breaks?
-- Who owns the contract?
-- How often will it change?
-- What must be observable?
-- What happens during rollback?
-- What is the simplest design that satisfies current correctness and scale?
+Payment systems need careful async design:
+
+- timeout external calls,
+- use idempotency keys,
+- retry only safe operations,
+- record durable state transitions,
+- avoid double-charging.
+
+### Background Jobs
+
+```js
+async function processJob(job) {
+  await validate(job);
+  await performSideEffect(job);
+  await markComplete(job.id);
+}
+```
+
+If a job fails halfway, the retry behavior must be safe.
+
+### Fan-Out Requests
+
+```js
+const responses = await Promise.all(
+  services.map((service) => service.fetchStatus()),
+);
+```
+
+Fan-out can overload dependencies. Use limits, caching, batching, and timeouts.
 
 ## 11. Interview Questions
 
-1. What is Promises and Async-Await, and why does it matter in JavaScript Core?
-2. What problem does it solve inside 001.02 Execution Model?
-3. How does it work internally?
-4. What are the most common edge cases?
-5. What failure modes appear only in production?
-6. How would you implement a minimal version?
-7. How would you test it?
-8. How would you debug a production issue related to it?
-9. What metrics or logs would you add?
-10. How does the design change at 10x traffic, data, or team size?
-11. What trade-offs exist between simple implementation and platform abstraction?
-12. What senior-level mistake do engineers make with this topic?
+1. What are the states of a promise?
+2. Does an `async` function always return a promise?
+3. What does `await` do internally?
+4. What is the output ordering with promises and timers?
+5. Why does the promise executor run synchronously?
+6. What is the difference between `.then` and `await`?
+7. How does error propagation work in promise chains?
+8. Why does `try/catch` require `await` for async errors?
+9. What is the difference between `Promise.all` and `Promise.allSettled`?
+10. What is the difference between `Promise.race` and `Promise.any`?
+11. Why is `await` inside a loop sometimes a performance bug?
+12. Why does `forEach(async () => {})` not wait?
+13. How do you implement timeouts for async work?
+14. How do you cancel fetch requests?
+15. How do you avoid unbounded concurrency?
+16. What is an unhandled promise rejection?
+17. How would you debug async stack traces in production?
 
 ## 12. Senior-Level Pitfalls
 
-### Pitfall 1: Treating It As Isolated Trivia
+### Pitfall 1: Sequential Work That Should Be Parallel
 
-Promises and Async-Await is connected to runtime behavior, architecture, operations, and team ownership. A narrow definition is not enough.
+```js
+const profile = await fetchProfile(id);
+const orders = await fetchOrders(id);
+const settings = await fetchSettings(id);
+```
 
-### Pitfall 2: Ignoring Failure Semantics
+If independent, this adds unnecessary latency.
 
-A design that only explains success is not production-ready. Define timeout, retry, cancellation, idempotency, rollback, and cleanup behavior.
+### Pitfall 2: Unbounded Parallelism
 
-### Pitfall 3: Missing Observability
+```js
+await Promise.all(users.map((user) => sendEmail(user)));
+```
 
-If the system cannot prove what happened, debugging becomes guesswork. Add logs, metrics, traces, and structured identifiers at decision points.
+For a huge user list, this can overwhelm SMTP, memory, network, or rate limits.
 
-### Pitfall 4: Hidden Shared State
+### Pitfall 3: Missing Timeout
 
-Shared state without clear ownership creates race conditions, stale reads, memory leaks, and cross-request contamination.
+```js
+await fetch("https://dependency.example.com");
+```
 
-### Pitfall 5: Premature Abstraction
+Without timeout/cancellation strategy, requests can hang or consume resources too long.
 
-Abstracting too early can freeze weak assumptions. Wait until the repeated shape is stable, then extract a clear interface.
+### Pitfall 4: Swallowed Rejections
+
+```js
+doWork().catch(() => {});
+```
+
+This hides failures and makes production debugging painful.
+
+### Pitfall 5: Fire-And-Forget Without Ownership
+
+```js
+sendAnalytics(event);
+```
+
+If the promise rejects, who observes it? If the process exits, does it finish? If it repeats, is it idempotent?
+
+### Pitfall 6: Partial Side Effects
+
+```js
+await chargeCard();
+await saveOrder();
+```
+
+If `chargeCard` succeeds and `saveOrder` fails, the system needs recovery, reconciliation, or idempotency.
 
 ## 13. Best Practices
 
-- Start with a precise definition.
-- Identify the owner and boundary.
-- Make inputs, outputs, and invariants explicit.
-- Prefer simple local design until the pressure for abstraction is real.
-- Test normal, edge, and failure paths.
-- Add observability before relying on the behavior in production.
-- Keep resource usage bounded.
-- Document assumptions and trade-offs.
-- Design rollback and migration paths.
-- Revisit the decision when scale, team count, or correctness requirements change.
+- Use `async` / `await` for readable sequential workflows.
+- Use `Promise.all` for independent required work.
+- Use `Promise.allSettled` for independent optional work.
+- Bound concurrency for large collections.
+- Always design timeout and cancellation behavior for network calls.
+- Avoid `forEach` with async callbacks when you need to wait.
+- Handle or intentionally propagate every rejection.
+- Preserve error causes when wrapping errors.
+- Use idempotency keys for retryable side effects.
+- Add observability around async boundaries.
+- Clean up timers, intervals, controllers, and subscriptions.
+- Avoid fire-and-forget unless there is an explicit owner and error sink.
 
 ## 14. Debugging Scenarios
 
-### Scenario 1: Works Locally, Fails In Production
+### Scenario 1: `done` Logs Too Early
 
-Likely causes:
+```js
+items.forEach(async (item) => {
+  await save(item);
+});
 
-- different configuration,
-- different data shape,
-- missing permissions,
-- dependency latency,
-- concurrency,
-- version mismatch.
-
-Debugging steps:
-
-1. Compare environment configuration.
-2. Capture one failing input.
-3. Trace the request or workflow end to end.
-4. Check deploy, data, and dependency timelines.
-5. Reproduce with production-like constraints.
-
-### Scenario 2: Intermittent Failure
-
-Likely causes:
-
-- race condition,
-- retry interaction,
-- shared mutable state,
-- timeout boundary,
-- cache inconsistency,
-- queue ordering.
-
-Debugging steps:
-
-1. Group failures by tenant, version, region, and dependency.
-2. Inspect p95 and p99 instead of averages.
-3. Add correlation IDs.
-4. Check whether retries amplify the issue.
-5. Verify cleanup and idempotency.
-
-### Scenario 3: Performance Regression
-
-Likely causes:
-
-- unbounded work,
-- inefficient query or algorithm,
-- larger payload,
-- cache miss pattern,
-- excessive serialization,
-- synchronous work on a critical path.
-
-Debugging steps:
-
-1. Establish baseline.
-2. Profile the hot path.
-3. Compare before and after deploy.
-4. Measure resource saturation.
-5. Optimize the proven bottleneck only.
-
-### Scenario 4: Memory Or Resource Growth
-
-Likely causes:
-
-- retained references,
-- unbounded queue,
-- missing cleanup,
-- long-lived subscriptions,
-- growing cache,
-- connection leak.
-
-Debugging steps:
-
-1. Capture heap, CPU, or resource profile.
-2. Inspect retainers or open handles.
-3. Confirm lifecycle cleanup.
-4. Add bounds and eviction.
-5. Verify recovery after load drops.
-
-## Diagrams
-
-Dedicated diagrams are available in [diagrams.md](./diagrams.md).
-
-### Concept Flow
-
-```mermaid
-flowchart TD
-  A[Input or trigger] --> B[Validate assumptions]
-  B --> C[Enter 001.02 Execution Model boundary]
-  C --> D[Apply Promises and Async-Await]
-  D --> E[Read or change state]
-  E --> F[Return result]
-  F --> G[Emit telemetry]
+console.log("done");
 ```
 
-### Failure Flow
+Cause: `forEach` does not wait for returned promises.
 
-```mermaid
-flowchart TD
-  A[Unexpected behavior] --> B{Input valid?}
-  B -->|No| C[Fix validation or caller contract]
-  B -->|Yes| D{State correct?}
-  D -->|No| E[Inspect ownership, mutation, cache, or ordering]
-  D -->|Yes| F{Dependency healthy?}
-  F -->|No| G[Check timeout, retry, fallback, and saturation]
-  F -->|Yes| H[Inspect implementation assumptions and edge cases]
+Fix:
+
+```js
+await Promise.all(items.map((item) => save(item)));
+console.log("done");
 ```
 
-### Production Readiness Loop
+Or use `for...of` for sequential processing.
 
-```text
-Design
-  -> implement
-  -> test
-  -> instrument
-  -> deploy safely
-  -> observe
-  -> learn
-  -> refine
+### Scenario 2: API Handler Hangs
+
+```js
+const result = await dependencyCall();
 ```
+
+Likely cause: missing timeout or dependency never responds.
+
+Debugging steps:
+
+1. Add timing logs around the await.
+2. Check dependency latency and error rate.
+3. Add timeout with cancellation.
+4. Decide retry policy.
+5. Add metrics for timeout count and dependency duration.
+
+### Scenario 3: Unhandled Promise Rejection
+
+```js
+async function run() {
+  throw new Error("failed");
+}
+
+run();
+```
+
+Fix:
+
+```js
+await run();
+```
+
+Or:
+
+```js
+run().catch(reportError);
+```
+
+### Scenario 4: Slow Dashboard
+
+```js
+const a = await fetchA();
+const b = await fetchB();
+const c = await fetchC();
+```
+
+If independent:
+
+```js
+const [a, b, c] = await Promise.all([
+  fetchA(),
+  fetchB(),
+  fetchC(),
+]);
+```
+
+Measure before and after.
+
+### Scenario 5: Memory Growth During Batch
+
+```js
+await Promise.all(hugeList.map(processItem));
+```
+
+Cause: all promises and closures are created at once.
+
+Fix: process with bounded concurrency.
+
+### Scenario 6: User Navigates Away But Request Continues
+
+Use `AbortController` and cleanup:
+
+```js
+const controller = new AbortController();
+
+try {
+  await fetch(url, { signal: controller.signal });
+} finally {
+  controller.abort();
+}
+```
+
+In UI code, abort on unmount or route change.
 
 ## 15. Exercises / Practice
 
 ### Exercise 1
 
-Explain Promises and Async-Await in your own words using three levels:
+Predict the output:
 
-- beginner explanation,
-- intermediate internal explanation,
-- senior production explanation.
+```js
+console.log("A");
+
+Promise.resolve().then(() => console.log("B"));
+
+console.log("C");
+```
 
 ### Exercise 2
 
-Draw the lifecycle for Promises and Async-Await:
+Predict the output:
 
-```text
-input -> decision -> state change -> output -> telemetry
+```js
+async function run() {
+  console.log(1);
+  await Promise.resolve();
+  console.log(2);
+}
+
+run();
+console.log(3);
 ```
-
-Mark where validation, failure handling, and cleanup happen.
 
 ### Exercise 3
 
-Write one example where Promises and Async-Await works correctly and one where it fails because of an edge case.
+Fix the bug:
+
+```js
+ids.forEach(async (id) => {
+  await deleteUser(id);
+});
+
+console.log("all deleted");
+```
 
 ### Exercise 4
 
-Create a debugging checklist for a production incident involving Promises and Async-Await. Include logs, metrics, traces, and rollback options.
+Convert this callback-style flow to async/await:
+
+```js
+getUser(id, (error, user) => {
+  if (error) return handle(error);
+  getOrders(user.id, (ordersError, orders) => {
+    if (ordersError) return handle(ordersError);
+    render(user, orders);
+  });
+});
+```
 
 ### Exercise 5
 
-Compare two architecture choices for this topic and explain when each is better.
+Write a `fetchWithTimeout(url, ms)` helper using `AbortController`.
+
+### Exercise 6
+
+Design a bounded-concurrency strategy for processing 10,000 items with a dependency limit of 10 concurrent requests.
+
+### Exercise 7
+
+Explain when `Promise.allSettled` is better than `Promise.all`.
 
 ## 16. Comparison
 
-Compare Promises and Async-Await with nearby or competing concepts.
+### Promise vs Async/Await
 
-Comparison prompts:
-
-- What problem does each option solve?
-- Which one is simpler?
-- Which one is safer?
-- Which one scales better?
-- Which one is easier to debug?
-- Which one has better ecosystem or platform support?
-
-Decision table:
-
-| Option | Prefer When | Avoid When |
+| Style | Strength | Risk |
 |---|---|---|
-| Promises and Async-Await | It directly matches the invariant and ownership boundary | The abstraction hides important failure behavior |
-| Simpler local approach | Scope is small, low risk, and easy to test | Logic is duplicated across many teams |
-| Shared/platform approach | Correctness, scale, or governance matters | The contract is still changing rapidly |
+| Promise chain | Good for pipeline composition | Missing `return` can break chains |
+| Async/await | Reads like sequential code | Accidental sequential awaits |
+
+### `Promise.all` vs `allSettled` vs `race` vs `any`
+
+| API | Settles When | Rejection Behavior | Use Case |
+|---|---|---|---|
+| `Promise.all` | all fulfill | rejects on first rejection | all required |
+| `Promise.allSettled` | all settle | never rejects from input rejection | partial success |
+| `Promise.race` | first settles | follows first settlement | timeout/race |
+| `Promise.any` | first fulfills | rejects only if all reject | use first successful source |
+
+### Sequential vs Parallel vs Bounded
+
+| Approach | Use When | Avoid When |
+|---|---|---|
+| Sequential `for...of await` | order matters, dependency limits are strict | independent work is latency-sensitive |
+| `Promise.all` | small independent batch | huge list or strict rate limits |
+| Bounded concurrency | large independent batch | implementation overhead is not worth it |
+
+### Timeout vs Cancellation
+
+| Concept | Meaning |
+|---|---|
+| Timeout | Stop waiting after a duration |
+| Cancellation | Tell the underlying operation to stop |
+
+`Promise.race` can stop waiting, but it does not cancel the losing operation unless the underlying API supports cancellation.
 
 ## 17. Related Concepts
 
-Promises and Async-Await connects to the rest of the knowledge tree.
+Prerequisites:
 
-Study links:
+- Call Stack
+- Event Loop and Tasks
+- Scope, Closures, and Hoisting
+- Error Handling basics
 
-- Parent category: JavaScript Core
-- Parent topic: 001.02 Execution Model
-- Internal flow and diagrams: [diagrams.md](./diagrams.md)
-- Practice files in this folder: debugging, questions, exercises, and review notes
+Direct follow-ups:
 
-Related concept types:
+- Error Handling
+- WebSocket / Realtime Systems
+- API Design
+- Node.js Event Loop
+- Background Jobs
+- Idempotency
+- Reliability Engineering
 
-- prerequisites that make this topic easier,
-- follow-up topics that build on it,
-- architecture concepts that use it,
-- production concerns that expose its limits,
-- interview patterns that test it indirectly.
+Production connections:
+
+- request timeouts,
+- retry policies,
+- cancellation,
+- idempotency,
+- fan-out control,
+- async context propagation,
+- distributed tracing,
+- frontend data fetching,
+- background worker pipelines.
+
+Knowledge graph:
+
+```txt
+Promise
+  -> pending / fulfilled / rejected
+  -> reactions
+    -> microtasks
+      -> async/await continuation
+        -> error propagation
+        -> concurrency control
+        -> production timeout/cancellation strategy
+```
 
 ## Advanced Add-ons
 
 ### Performance Impact
 
-- Time complexity: identify whether work is constant, linear, logarithmic, fan-out, or unbounded.
-- Memory usage: identify retained data, copied data, cached data, and cleanup timing.
-- Hot path risk: determine whether this runs per request, per render, per event, per query, or per deployment.
-- Measurement: use baselines, profiling, p95/p99, and resource saturation before optimizing.
+Promises are useful but not free. The big performance issue is usually not promise overhead; it is concurrency shape.
+
+Watch for:
+
+- accidental sequential latency,
+- unbounded parallelism,
+- promise chains retaining memory,
+- microtask-heavy loops,
+- too many in-flight network requests,
+- CPU work hidden inside async functions,
+- missing cancellation after work is no longer needed.
+
+Measure:
+
+- dependency latency,
+- number of in-flight promises,
+- timeout count,
+- rejection rate,
+- event-loop delay,
+- memory growth,
+- p95/p99 request or interaction latency.
 
 ### System Design Relevance
 
-Promises and Async-Await matters in system design when it affects boundaries, contracts, scaling behavior, correctness, or operational ownership.
+Promises and async/await affect system design because they define how a service coordinates unreliable dependencies.
 
-Ask:
+Architecture questions:
 
-- Does it belong inside a module, service, shared library, platform layer, or managed service?
-- What is the blast radius if it fails?
-- What happens at 10x traffic, data, tenants, regions, or teams?
-- What reliability, observability, and rollback strategy is required?
+- Which operations can run in parallel?
+- Which operations must be sequential?
+- Which operations need idempotency?
+- What is the timeout budget?
+- What is the retry policy?
+- What happens after partial success?
+- How is cancellation propagated?
+- How is async work observed across boundaries?
+
+Design rule:
+
+```txt
+Async workflow design is dependency orchestration, not just syntax.
+```
 
 ### Security Impact
 
-Security relevance depends on whether Promises and Async-Await touches input, identity, authorization, secrets, user data, logs, dependencies, or execution boundaries.
+Async bugs can become security and reliability issues.
 
-Check:
+Risks:
 
-- validation and sanitization,
-- least privilege,
-- sensitive data exposure,
-- injection or confused-deputy risks,
-- auditability and compliance requirements.
+- authorization check not awaited,
+- promise rejection swallowed,
+- race between permission update and action,
+- sensitive data retained in pending promises,
+- timeout missing for untrusted dependencies,
+- duplicate side effects after retry,
+- background task failure hidden from audit logs.
+
+Defenses:
+
+- await security-critical checks,
+- fail closed on rejection,
+- log audit-relevant async failures,
+- use idempotency keys,
+- add cancellation and timeout controls,
+- avoid fire-and-forget for critical work.
 
 ### Browser vs Node Behavior
 
-If this topic appears in JavaScript runtimes, compare browser and Node.js behavior:
+Shared:
 
-- global object and module scope,
-- event loop and task queues,
-- API availability,
-- security sandbox,
-- file, network, and process access,
-- debugging and profiling tools.
+- promises use microtasks,
+- `async` functions return promises,
+- `await` resumes asynchronously,
+- unhandled rejections matter.
 
-For non-runtime topics, compare local development, CI, staging, and production behavior instead.
+Browser:
+
+- fetch supports `AbortController`,
+- UI may unmount while async work is pending,
+- async work competes with rendering and input,
+- background tabs can throttle timers.
+
+Node.js:
+
+- unhandled rejection policy depends on Node version/configuration,
+- server request handlers must observe returned promises,
+- async context propagation is important for logs/traces,
+- worker threads/background queues may be needed for CPU-heavy async workflows.
 
 ### Polyfill / Implementation
 
-Staff-level understanding includes knowing whether you can implement a simplified version yourself.
+You can implement a very small promise-like object to understand the model, but production promises must follow the full specification.
 
-Implementation prompts:
+Minimal mental model:
 
-- What is the smallest correct version?
-- Which edge cases are intentionally unsupported?
-- Which behavior must match platform semantics?
-- What tests prove compatibility?
-- When is using a proven library safer than custom implementation?
+```js
+function delay(ms) {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
+```
+
+Promisifying a callback:
+
+```js
+function readFileAsync(fs, path) {
+  return new Promise((resolve, reject) => {
+    fs.readFile(path, "utf8", (error, data) => {
+      if (error) {
+        reject(error);
+        return;
+      }
+
+      resolve(data);
+    });
+  });
+}
+```
+
+Staff-level takeaway: use promises to model completion, use async/await to structure control flow, and design every async boundary with timeout, cancellation, error propagation, observability, and concurrency limits.
 
 ## 18. Summary
 
-Promises and Async-Await is a practical engineering topic, not just a vocabulary item. Mastery means you can define it, implement it, reason about internals, predict edge cases, debug failures, and explain trade-offs.
+Promises and async/await are central to modern JavaScript asynchronous programming.
 
 Remember:
 
-- Start from first principles.
-- Identify boundaries and ownership.
-- Understand execution and resource behavior.
-- Design for failure, not only success.
-- Add observability.
-- Keep the simplest design that satisfies correctness and scale.
-- Revisit the design as production pressure changes.
+- a promise represents eventual completion,
+- promises settle once,
+- promise reactions run as microtasks,
+- promise executors run synchronously,
+- an async function always returns a promise,
+- `await` yields and resumes later,
+- `try/catch` works with awaited rejections,
+- missing `await` can hide failures,
+- `Promise.all` fails fast,
+- `Promise.allSettled` supports partial success,
+- unbounded concurrency can break dependencies,
+- timeouts and cancellation must be designed explicitly,
+- production async workflows need observability, idempotency, and clear ownership.

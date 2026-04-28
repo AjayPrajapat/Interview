@@ -136,6 +136,10 @@ Legend:
 - [x] `001. JavaScript Core/001.01 Language Fundamentals/001.01.03 Prototypes and Object Model/README.md`
 - [x] `001. JavaScript Core/001.02 Execution Model/001.02.01 Call Stack/README.md`
 - [x] `001. JavaScript Core/001.02 Execution Model/001.02.02 Event Loop and Tasks/README.md`
+- [x] `001. JavaScript Core/001.02 Execution Model/001.02.03 Promises and Async-Await/README.md`
+- [x] `001. JavaScript Core/001.03 Advanced Runtime Behavior/001.03.01 Equality and Coercion/README.md`
+- [x] `001. JavaScript Core/001.03 Advanced Runtime Behavior/001.03.02 Memory and Garbage Collection/README.md`
+- [x] `001. JavaScript Core/001.03 Advanced Runtime Behavior/001.03.03 Modules and Bundling Boundaries/README.md`
 
 ## Strict Review Order
 
@@ -146,11 +150,11 @@ Legend:
 - [x] `001.01 Language Fundamentals/001.01.03 Prototypes and Object Model/README.md`
 - [x] `001.02 Execution Model/001.02.01 Call Stack/README.md`
 - [x] `001.02 Execution Model/001.02.02 Event Loop and Tasks/README.md`
-- [>] `001.02 Execution Model/001.02.03 Promises and Async-Await/README.md`
-- [ ] `001.03 Advanced Runtime Behavior/001.03.01 Equality and Coercion/README.md`
-- [ ] `001.03 Advanced Runtime Behavior/001.03.02 Memory and Garbage Collection/README.md`
-- [ ] `001.03 Advanced Runtime Behavior/001.03.03 Modules and Bundling Boundaries/README.md`
-- [ ] `001.04 Production JavaScript/001.04.01 Error Handling/README.md`
+- [x] `001.02 Execution Model/001.02.03 Promises and Async-Await/README.md`
+- [x] `001.03 Advanced Runtime Behavior/001.03.01 Equality and Coercion/README.md`
+- [x] `001.03 Advanced Runtime Behavior/001.03.02 Memory and Garbage Collection/README.md`
+- [x] `001.03 Advanced Runtime Behavior/001.03.03 Modules and Bundling Boundaries/README.md`
+- [>] `001.04 Production JavaScript/001.04.01 Error Handling/README.md`
 - [ ] `001.04 Production JavaScript/001.04.02 Performance Profiling/README.md`
 - [ ] `001.04 Production JavaScript/001.04.03 Maintainability at Scale/README.md`
 
@@ -299,5 +303,5 @@ At the end of each batch:
 Continue with:
 
 ```txt
-001. JavaScript Core/001.02 Execution Model/001.02.03 Promises and Async-Await/README.md
+001. JavaScript Core/001.04 Production JavaScript/001.04.01 Error Handling/README.md
 ```

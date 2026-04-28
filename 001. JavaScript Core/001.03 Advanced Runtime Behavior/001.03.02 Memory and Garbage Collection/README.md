@@ -6,625 +6,1004 @@ Topic: 001.03 Advanced Runtime Behavior
 
 ## 1. Definition
 
-Memory and Garbage Collection is a focused engineering concept inside 001.03 Advanced Runtime Behavior. It describes a behavior, design choice, implementation technique, or operational concern that engineers must understand deeply to build reliable systems in JavaScript Core.
+Memory management is how JavaScript allocates, retains, and releases memory for values, objects, functions, closures, buffers, DOM nodes, and runtime metadata.
 
-At a practical level, this topic answers:
+Garbage collection is the automatic process where the JavaScript engine reclaims memory that is no longer reachable from active roots.
 
-- what problem it solves,
-- what boundary it belongs to,
-- what assumptions it depends on,
-- how it behaves during normal execution,
-- how it fails under pressure,
-- and how to reason about it in production.
+One-line version:
 
-The goal is not only to recognize the term. The goal is to explain Memory and Garbage Collection from first principles, apply it in code or architecture, debug it when it breaks, and defend trade-offs in an interview or design review.
+```txt
+JavaScript allocates memory as your program creates values, and the garbage collector frees memory when those values are no longer reachable.
+```
+
+Expanded explanation:
+
+- Primitive values are small immutable values.
+- Objects, arrays, functions, maps, sets, buffers, promises, and DOM references can live on the heap.
+- References keep values reachable.
+- Reachable values cannot be collected.
+- Unreachable values are eligible for garbage collection.
+- Garbage collection is automatic, but memory leaks are still possible.
+
+Key idea:
+
+```txt
+Memory leak in garbage-collected JavaScript usually means "still reachable but no longer useful."
+```
 
 ## 2. Why It Exists
 
-Memory and Garbage Collection exists because real systems need explicit rules for correctness, ownership, execution, and change. Without this concept, teams usually rely on implicit assumptions, and implicit assumptions become bugs when systems grow.
+JavaScript needs memory management because programs constantly create temporary and long-lived values.
 
-This topic matters because it helps engineers:
+Garbage collection exists so developers do not manually call `free` or `delete` for most memory.
 
-- reduce ambiguity in 001.03 Advanced Runtime Behavior,
-- make behavior easier to test and review,
-- prevent local decisions from creating system-level failures,
-- identify performance and reliability limits before production incidents,
-- communicate trade-offs clearly across frontend, backend, platform, security, and product teams.
+Problems solved:
 
-You should understand this before moving deeper because later topics often depend on the same mental models: state ownership, lifecycle timing, API contracts, failure handling, scaling pressure, and observability.
+- local variables can disappear after function execution,
+- temporary objects can be reclaimed,
+- closures can safely retain needed state,
+- async callbacks can keep needed context,
+- engines can optimize allocation and collection automatically.
+
+But automatic memory management does not remove responsibility.
+
+Senior-level reason:
+
+Production JavaScript memory issues often come from retained references, unbounded caches, event listeners, intervals, closure retention, DOM leaks, global state, unresolved promises, large buffers, and poor cleanup. Understanding GC lets you debug memory growth instead of guessing.
 
 ## 3. Syntax & Variants
 
-Not every engineering topic has programming syntax, but every topic has an interface shape. The interface shape is how the concept appears to the rest of the system.
+You do not usually invoke garbage collection manually. You influence memory by how you create and retain references.
 
-In JavaScript Core, Memory and Garbage Collection commonly appears as a function, type, object, runtime behavior, data structure, or algorithm.
+### Object Allocation
 
-Typical shape:
+```js
+const user = { id: 1, name: "Ajay" };
+```
 
-```ts
-type MemoryAndGarbageCollectionInput = {
-  id: string;
-  payload: unknown;
-};
+Creates an object and stores a reference in `user`.
 
-type MemoryAndGarbageCollectionResult =
-  | { ok: true; value: unknown }
-  | { ok: false; error: string; retryable: boolean };
+### Array Allocation
 
-export function handleMemoryAndGarbageCollection(
-  input: MemoryAndGarbageCollectionInput,
-): MemoryAndGarbageCollectionResult {
-  if (!input.id) {
-    return { ok: false, error: "missing_id", retryable: false };
-  }
+```js
+const items = new Array(1000).fill(null);
+```
 
-  try {
-    const value = input.payload;
-    return { ok: true, value };
-  } catch {
-    return { ok: false, error: "unexpected_failure", retryable: true };
-  }
+Allocates an array and its elements.
+
+### Function And Closure Allocation
+
+```js
+function createReader(data) {
+  return function read() {
+    return data.id;
+  };
 }
 ```
 
-When reading or writing code for this topic, identify:
+The returned function can retain `data`.
 
-- the input boundary,
-- the output contract,
-- the state being read or changed,
-- the owner of the behavior,
-- the failure path,
-- the observability signal.
+### Explicit Reference Removal
 
-Variants to identify:
+```js
+let cache = loadLargeObject();
 
-- direct language or framework syntax,
-- configuration shape,
-- API or interface shape,
-- runtime behavior shape,
-- rare edge syntax or unusual usage,
-- legacy forms that still appear in production.
+cache = null;
+```
+
+Setting a reference to `null` does not force GC, but it can make the object unreachable if no other references exist.
+
+### Weak References
+
+```js
+const metadata = new WeakMap();
+
+metadata.set(domNode, { createdAt: Date.now() });
+```
+
+WeakMap keys do not prevent garbage collection.
+
+### FinalizationRegistry
+
+```js
+const registry = new FinalizationRegistry((id) => {
+  console.log("collected", id);
+});
+```
+
+This is advanced and should not be used for core business logic because finalization timing is not guaranteed.
+
+### Node Memory Flags
+
+```bash
+node --max-old-space-size=4096 app.js
+```
+
+This increases the old-space heap limit, but it does not fix leaks.
 
 ## 4. Internal Working
 
-The internal working of Memory and Garbage Collection should be understood as a lifecycle, not as a definition.
+Modern JavaScript engines usually use reachability-based garbage collection.
 
-```text
-Input / trigger
-  -> validate assumptions
-  -> enter 001.03 Advanced Runtime Behavior boundary
-  -> apply Memory and Garbage Collection rules
-  -> read or update state
-  -> handle success, failure, or partial success
-  -> emit observable signal
-  -> return result or continue workflow
+Mental model:
+
+```txt
+Start from roots
+  -> global objects
+  -> current call stack
+  -> active closures
+  -> pending callbacks
+  -> module variables
+  -> DOM/native references
+  -> mark everything reachable
+  -> collect unreachable objects
 ```
 
-For this topic, inspect the real mechanism behind the abstraction:
+### Roots
 
-- engine, compiler, type system, memory model, call stack, event loop, and module boundary,
-- ordering and timing,
-- ownership of mutable state,
-- limits and resource usage,
-- retry, cancellation, cleanup, and rollback behavior,
-- how the behavior changes between local development, CI, staging, and production.
+Roots are starting points for reachability.
 
-Senior engineers do not stop at "it works." They ask what the runtime must do, what it keeps in memory, what it sends over the network, what can be retried, what can be duplicated, and what must be protected by invariants.
+Examples:
+
+- global variables,
+- active stack frames,
+- module-scope variables,
+- pending timers,
+- event listeners,
+- promise reactions,
+- DOM references,
+- native runtime handles.
+
+### Mark And Sweep
+
+Simplified flow:
+
+```txt
+mark phase:
+  find all reachable objects
+
+sweep phase:
+  reclaim unreachable objects
+```
+
+### Generational GC
+
+Many engines separate objects by age.
+
+```txt
+new space / young generation:
+  short-lived objects
+
+old space / old generation:
+  objects that survived collections
+```
+
+This works because many objects die young.
+
+### Incremental And Concurrent GC
+
+Engines try to reduce pause time by doing parts of GC incrementally or concurrently, but GC can still affect latency.
+
+### Reachability Example
+
+```js
+let user = { name: "Ajay" };
+const list = [user];
+
+user = null;
+```
+
+The object is still reachable through `list[0]`.
+
+```txt
+list -> object { name: "Ajay" }
+```
 
 ## 5. Memory Behavior
 
-Every topic consumes or protects memory, state, or another resource. For Memory and Garbage Collection, reason about memory and resource behavior explicitly.
+### Stack vs Heap
 
-Common resources:
+Call stack:
 
-- memory and retained references,
-- CPU and event-loop time,
-- network calls and connection pools,
-- database locks, indexes, and storage,
-- queue depth and worker capacity,
-- browser main-thread budget,
-- cloud cost and operational attention.
+- active function frames,
+- local execution state,
+- return positions.
 
-Resource model:
+Heap:
 
-```text
-Work enters system
-  -> resource is allocated
-  -> work is processed
-  -> resource is released, retained, cached, or leaked
+- objects,
+- arrays,
+- functions,
+- closures,
+- strings,
+- maps,
+- sets,
+- buffers,
+- engine metadata.
+
+Example:
+
+```js
+function run() {
+  const count = 1;
+  const user = { name: "Ajay" };
+}
 ```
 
-Production questions:
+`count` is primitive local state. `user` references a heap object.
 
-- What grows with traffic?
-- What grows with data size?
-- What grows with number of tenants, teams, or services?
-- What is bounded?
-- What can leak?
-- What needs cleanup?
-- What metric proves the resource behavior is healthy?
+### Retained References
 
-For JavaScript Core, watch runtime errors, latency, memory growth, bundle size, CPU time, test failures, and defect rate.
+```js
+const handlers = [];
+
+function register(data) {
+  handlers.push(() => data.id);
+}
+```
+
+Every handler retains `data`.
+
+### Unbounded Cache
+
+```js
+const cache = new Map();
+
+function getUser(id) {
+  if (!cache.has(id)) {
+    cache.set(id, loadUser(id));
+  }
+
+  return cache.get(id);
+}
+```
+
+If `id` cardinality grows forever, memory grows forever.
+
+### DOM Leaks
+
+```js
+const detachedNodes = [];
+
+function removeNode(node) {
+  node.remove();
+  detachedNodes.push(node);
+}
+```
+
+The DOM node is removed from the document but still reachable from JavaScript.
+
+### Buffer Memory
+
+In Node.js, buffers and native resources can contribute to memory pressure beyond ordinary JS object graphs.
+
+```js
+const buffer = Buffer.alloc(100 * 1024 * 1024);
+```
+
+Watch RSS as well as heap metrics.
 
 ## 6. Execution Behavior
 
-Execution behavior describes what actually happens when the system runs.
+Allocation happens during normal code execution.
 
-Trace Memory and Garbage Collection through:
+Garbage collection happens automatically when the engine decides it is needed.
 
-- the happy path,
-- invalid input,
-- missing dependency,
-- slow dependency,
-- concurrent execution,
-- retry after timeout,
-- duplicate request or event,
-- deploy with old and new versions running together,
-- cleanup after failure.
+Important behavior:
 
-Execution timeline:
+- GC timing is nondeterministic.
+- You cannot rely on exactly when collection happens.
+- GC can introduce pauses.
+- More allocation pressure can trigger more frequent GC.
+- Long-lived references promote objects into older generations.
 
-```text
-Before
-  -> required state and configuration exist
-During
-  -> core behavior runs and may touch dependencies
-After
-  -> result, side effects, and telemetry are visible
-Failure
-  -> caller receives error, retry, fallback, or compensation path
-```
+Example:
 
-The most important question is: what invariant must remain true even if the execution path is interrupted?
-
-## 7. Scope & Context Interaction
-
-Memory and Garbage Collection should be understood in its surrounding scope and execution context, not as an isolated detail.
-
-Scope questions:
-
-- Where is this behavior visible?
-- Who can call or mutate it?
-- What module, component, service, tenant, request, thread, worker, or transaction owns it?
-- Does it cross frontend, backend, database, queue, cache, or platform boundaries?
-- Does it behave differently inside closures, async callbacks, dependency injection scopes, request scopes, or deployment environments?
-
-Context model:
-
-```text
-Local context
-  -> module or component context
-  -> service or runtime context
-  -> system or organization context
-```
-
-For JavaScript and TypeScript topics, also check lexical scope, closure retention, module scope, global scope, and `this` behavior where applicable.
-
-## 8. Common Examples
-
-### Example 1: Local Implementation
-
-Use a local implementation when the behavior is simple, low-risk, and owned by one module or team.
-
-```ts
-type MemoryAndGarbageCollectionInput = {
-  id: string;
-  payload: unknown;
-};
-
-type MemoryAndGarbageCollectionResult =
-  | { ok: true; value: unknown }
-  | { ok: false; error: string; retryable: boolean };
-
-export function handleMemoryAndGarbageCollection(
-  input: MemoryAndGarbageCollectionInput,
-): MemoryAndGarbageCollectionResult {
-  if (!input.id) {
-    return { ok: false, error: "missing_id", retryable: false };
-  }
-
-  try {
-    const value = input.payload;
-    return { ok: true, value };
-  } catch {
-    return { ok: false, error: "unexpected_failure", retryable: true };
+```js
+function createTemporaryObjects() {
+  for (let i = 0; i < 100000; i += 1) {
+    const item = { index: i };
+    use(item);
   }
 }
 ```
 
-### Example 2: Shared Abstraction
+Most `item` objects are short-lived and likely collected efficiently.
 
-Move the behavior behind a shared abstraction when multiple teams repeat the same logic and the contract is stable.
+Leak behavior:
 
-```text
-Consumer
-  -> stable interface
-  -> shared implementation
-  -> logs, metrics, tests, and ownership
+```js
+const retained = [];
+
+function createLeakingObjects() {
+  for (let i = 0; i < 100000; i += 1) {
+    retained.push({ index: i });
+  }
+}
 ```
 
-### Example 3: Platform or Managed Capability
+Objects stay reachable through `retained`.
 
-Use a platform capability when correctness, scale, compliance, or operational cost is too important for every team to solve independently.
+## 7. Scope & Context Interaction
 
-```text
-Product team
-  -> platform API
-  -> centrally owned reliability, security, and observability
+Scope and closures strongly affect memory.
+
+### Function Scope
+
+```js
+function run() {
+  const value = { id: 1 };
+}
 ```
+
+After `run` returns, `value` can be collected if nothing else references it.
+
+### Closure Retention
+
+```js
+function createHandler(data) {
+  return function handler() {
+    return data.id;
+  };
+}
+```
+
+If `handler` is retained, `data` is retained.
+
+### Async Retention
+
+```js
+async function process(data) {
+  await saveMetadata(data.id);
+  return data.payload.length;
+}
+```
+
+`data` may be retained across the `await`.
+
+### Module Scope
+
+```js
+const registry = new Map();
+```
+
+Module-scope collections live for the lifetime of the module instance unless cleared.
+
+### `this` Retention
+
+```js
+class Controller {
+  constructor(largeState) {
+    this.largeState = largeState;
+  }
+
+  register() {
+    window.addEventListener("click", this.handleClick.bind(this));
+  }
+}
+```
+
+The bound function can retain the controller instance and all of `largeState`.
+
+## 8. Common Examples
+
+### Good Cleanup For Timer
+
+```js
+function startPolling() {
+  const id = setInterval(refresh, 1000);
+
+  return function stopPolling() {
+    clearInterval(id);
+  };
+}
+```
+
+### Good Cleanup For Event Listener
+
+```js
+function mount(button) {
+  function onClick() {
+    console.log("clicked");
+  }
+
+  button.addEventListener("click", onClick);
+
+  return () => button.removeEventListener("click", onClick);
+}
+```
+
+### Bounded Cache
+
+```js
+class LruCache {
+  constructor(limit) {
+    this.limit = limit;
+    this.map = new Map();
+  }
+
+  set(key, value) {
+    if (this.map.has(key)) {
+      this.map.delete(key);
+    }
+
+    this.map.set(key, value);
+
+    if (this.map.size > this.limit) {
+      const oldestKey = this.map.keys().next().value;
+      this.map.delete(oldestKey);
+    }
+  }
+}
+```
+
+### WeakMap Metadata
+
+```js
+const metadata = new WeakMap();
+
+function attachMetadata(node, data) {
+  metadata.set(node, data);
+}
+```
+
+When `node` is unreachable elsewhere, the WeakMap entry does not keep it alive.
+
+### Avoid Capturing Whole Object
+
+```js
+function schedule(user) {
+  const userId = user.id;
+
+  setTimeout(() => {
+    audit(userId);
+  }, 1000);
+}
+```
+
+Capture the small stable value instead of the full object.
 
 ## 9. Confusing / Tricky Examples
 
-### Confusion 1: The Name Sounds Simple
+### `delete` Does Not Force GC
 
-Many developers can define Memory and Garbage Collection, but cannot trace its lifecycle or failure modes. Interviewers often move quickly from definition to edge cases.
+```js
+delete object.property;
+```
 
-### Confusion 2: Local Behavior Differs From Production
+This removes a property. It does not immediately collect memory, and it may hurt object-shape performance.
 
-Local environments rarely reproduce production traffic, data shape, dependency latency, permissions, deploy overlap, or noisy neighbors.
+### `null` Does Not Force GC
 
-### Confusion 3: The Happy Path Hides Ownership
+```js
+value = null;
+```
 
-If no one owns the failure path, monitoring, documentation, migration plan, or rollback process, the design is incomplete.
+This removes one reference. Collection happens only if the object becomes unreachable and the engine decides to run GC.
 
-### Confusion 4: Optimization Before Measurement
+### Detached DOM Node
 
-Optimizing Memory and Garbage Collection without baseline data can make the system harder to debug while failing to improve the real bottleneck.
+```js
+let node = document.querySelector("#modal");
+node.remove();
+```
+
+If `node` remains referenced, the DOM subtree may remain in memory.
+
+### WeakMap Keys Must Be Objects
+
+```js
+const weak = new WeakMap();
+
+weak.set("id", {}); // TypeError
+```
+
+WeakMap keys must be objects or non-registered symbols.
+
+### Promise Retention
+
+```js
+let resolvePromise;
+
+const promise = new Promise((resolve) => {
+  resolvePromise = resolve;
+});
+```
+
+If this promise and its reactions remain reachable, closed-over values can remain reachable too.
+
+### DevTools Can Retain Objects
+
+Objects logged in the console or selected in DevTools may stay reachable during debugging, making memory behavior look different.
 
 ## 10. Real Production Use Cases
 
-Memory and Garbage Collection appears in production anywhere JavaScript Core needs predictable behavior across real users, real traffic, real failures, and real team boundaries.
+### Browser SPAs
 
-Used in:
+Common leaks:
 
-- frontend apps, Node.js services, SDKs, libraries, build pipelines, and shared platform packages,
-- payment and billing workflows,
-- authentication and authorization flows,
-- admin and internal platforms,
-- realtime or async processing,
-- reporting and analytics,
-- compliance and audit trails,
-- incident response and operational runbooks.
+- unremoved event listeners,
+- stale intervals,
+- retained DOM nodes,
+- large client-side caches,
+- WebSocket handlers retaining state,
+- route transitions not cleaning subscriptions.
 
-Production makes this harder because:
+### Node.js APIs
 
-- inputs are messy,
-- clients and services run different versions,
-- dependencies degrade before they fail,
-- retries multiply load,
-- dashboards show symptoms before root cause,
-- ownership is split across teams.
+Common leaks:
 
-## Architecture Decisions
+- module-level maps,
+- per-request data stored globally,
+- unbounded queues,
+- response objects retained after completion,
+- buffers retained in closures,
+- logging contexts stored forever.
 
-When designing around Memory and Garbage Collection, compare multiple approaches.
+### React / Angular
 
-| Approach | Use When | Trade-Off |
-|---|---|---|
-| Inline/local logic | Small scope, low risk, one owner | Fast to build, easier to duplicate |
-| Shared library | Same logic repeated across modules | Versioning and rollout become important |
-| Service/API boundary | Multiple consumers need stable behavior | Network, latency, and ownership overhead |
-| Platform capability | High scale, compliance, or reliability needs | Requires platform maturity and governance |
-| Managed service | Commodity capability with strong provider support | Less control, provider constraints |
+Memory issues often come from:
 
-Decision questions:
+- missing effect cleanup,
+- subscriptions not unsubscribed,
+- services retaining component references,
+- closures over large props,
+- cached observables without lifecycle control.
 
-- What is the blast radius if this breaks?
-- Who owns the contract?
-- How often will it change?
-- What must be observable?
-- What happens during rollback?
-- What is the simplest design that satisfies current correctness and scale?
+### Realtime Systems
+
+WebSocket sessions must clean up:
+
+- connection references,
+- room membership,
+- timers,
+- heartbeat intervals,
+- buffered messages,
+- user presence state.
+
+### Caches
+
+Every cache needs:
+
+- max size,
+- TTL or invalidation,
+- ownership,
+- metrics,
+- memory budget,
+- clear behavior during deploys or tenant changes.
 
 ## 11. Interview Questions
 
-1. What is Memory and Garbage Collection, and why does it matter in JavaScript Core?
-2. What problem does it solve inside 001.03 Advanced Runtime Behavior?
-3. How does it work internally?
-4. What are the most common edge cases?
-5. What failure modes appear only in production?
-6. How would you implement a minimal version?
-7. How would you test it?
-8. How would you debug a production issue related to it?
-9. What metrics or logs would you add?
-10. How does the design change at 10x traffic, data, or team size?
-11. What trade-offs exist between simple implementation and platform abstraction?
-12. What senior-level mistake do engineers make with this topic?
+1. How does JavaScript garbage collection work at a high level?
+2. What does "reachable" mean?
+3. What are GC roots?
+4. What is a memory leak in garbage-collected JavaScript?
+5. How can closures cause memory leaks?
+6. How can event listeners cause memory leaks?
+7. What is a detached DOM node?
+8. What is the difference between `Map` and `WeakMap` for memory?
+9. Does setting a variable to `null` force GC?
+10. Why can unbounded caches leak memory?
+11. How do you debug memory growth in Node.js?
+12. How do you debug memory growth in the browser?
+13. What is heap snapshot analysis?
+14. What is RSS in Node.js?
+15. How can async functions retain memory across `await`?
 
 ## 12. Senior-Level Pitfalls
 
-### Pitfall 1: Treating It As Isolated Trivia
+### Pitfall 1: Treating GC As Leak Prevention
 
-Memory and Garbage Collection is connected to runtime behavior, architecture, operations, and team ownership. A narrow definition is not enough.
+GC collects unreachable objects. It does not know whether reachable objects are still useful.
 
-### Pitfall 2: Ignoring Failure Semantics
+### Pitfall 2: Unbounded Maps
 
-A design that only explains success is not production-ready. Define timeout, retry, cancellation, idempotency, rollback, and cleanup behavior.
+```js
+const sessions = new Map();
+```
 
-### Pitfall 3: Missing Observability
+Without cleanup, TTL, or lifecycle ownership, this can grow forever.
 
-If the system cannot prove what happened, debugging becomes guesswork. Add logs, metrics, traces, and structured identifiers at decision points.
+### Pitfall 3: Missing Listener Cleanup
 
-### Pitfall 4: Hidden Shared State
+```js
+window.addEventListener("resize", handler);
+```
 
-Shared state without clear ownership creates race conditions, stale reads, memory leaks, and cross-request contamination.
+If `handler` closes over component state and is never removed, memory grows after route changes.
 
-### Pitfall 5: Premature Abstraction
+### Pitfall 4: Retaining Request Objects
 
-Abstracting too early can freeze weak assumptions. Wait until the repeated shape is stable, then extract a clear interface.
+```js
+logs.push(() => req);
+```
+
+This can retain headers, auth data, body, sockets, and user data.
+
+### Pitfall 5: Only Watching Heap
+
+Node memory pressure may appear in RSS, external memory, buffers, or native handles, not only JS heap.
+
+### Pitfall 6: Increasing Heap Limit Instead Of Fixing Leak
+
+`--max-old-space-size` can delay a crash, but it does not solve retained references.
 
 ## 13. Best Practices
 
-- Start with a precise definition.
-- Identify the owner and boundary.
-- Make inputs, outputs, and invariants explicit.
-- Prefer simple local design until the pressure for abstraction is real.
-- Test normal, edge, and failure paths.
-- Add observability before relying on the behavior in production.
-- Keep resource usage bounded.
-- Document assumptions and trade-offs.
-- Design rollback and migration paths.
-- Revisit the decision when scale, team count, or correctness requirements change.
+- Keep object lifetimes clear.
+- Capture only the data a closure needs.
+- Clean up timers, intervals, listeners, subscriptions, and sockets.
+- Bound caches by size and/or time.
+- Prefer `WeakMap` for metadata keyed by objects.
+- Avoid storing request-specific data in module globals.
+- Monitor memory over time, not only at one point.
+- Use heap snapshots to inspect retainers.
+- Watch Node heap, RSS, and external memory.
+- Avoid deep cloning large objects unless necessary.
+- Document cache ownership and invalidation.
+- Treat memory as a production SLO for long-running processes.
 
 ## 14. Debugging Scenarios
 
-### Scenario 1: Works Locally, Fails In Production
+### Scenario 1: Browser Memory Grows After Route Changes
 
 Likely causes:
 
-- different configuration,
-- different data shape,
-- missing permissions,
-- dependency latency,
-- concurrency,
-- version mismatch.
+- unremoved event listeners,
+- intervals still running,
+- subscriptions still active,
+- detached DOM nodes,
+- cached component data.
 
 Debugging steps:
 
-1. Compare environment configuration.
-2. Capture one failing input.
-3. Trace the request or workflow end to end.
-4. Check deploy, data, and dependency timelines.
-5. Reproduce with production-like constraints.
+1. Take heap snapshot after initial load.
+2. Navigate repeatedly.
+3. Force GC from DevTools if available.
+4. Take another snapshot.
+5. Compare retained objects and inspect retainers.
+6. Add cleanup on unmount/destroy.
 
-### Scenario 2: Intermittent Failure
+### Scenario 2: Node Process RSS Keeps Growing
 
 Likely causes:
 
-- race condition,
-- retry interaction,
-- shared mutable state,
-- timeout boundary,
-- cache inconsistency,
-- queue ordering.
+- unbounded cache,
+- buffers,
+- native/external memory,
+- request objects retained,
+- queues growing faster than workers process.
 
 Debugging steps:
 
-1. Group failures by tenant, version, region, and dependency.
-2. Inspect p95 and p99 instead of averages.
-3. Add correlation IDs.
-4. Check whether retries amplify the issue.
-5. Verify cleanup and idempotency.
+1. Track heap used, heap total, RSS, and external memory.
+2. Capture heap snapshots.
+3. Inspect top retainers.
+4. Check queue/cache cardinality.
+5. Reproduce with load test.
+6. Add bounds and cleanup.
 
-### Scenario 3: Performance Regression
+### Scenario 3: Cache Leaks Per Tenant
 
-Likely causes:
+```js
+const cache = new Map();
 
-- unbounded work,
-- inefficient query or algorithm,
-- larger payload,
-- cache miss pattern,
-- excessive serialization,
-- synchronous work on a critical path.
+function getTenantConfig(tenantId) {
+  if (!cache.has(tenantId)) {
+    cache.set(tenantId, loadConfig(tenantId));
+  }
 
-Debugging steps:
-
-1. Establish baseline.
-2. Profile the hot path.
-3. Compare before and after deploy.
-4. Measure resource saturation.
-5. Optimize the proven bottleneck only.
-
-### Scenario 4: Memory Or Resource Growth
-
-Likely causes:
-
-- retained references,
-- unbounded queue,
-- missing cleanup,
-- long-lived subscriptions,
-- growing cache,
-- connection leak.
-
-Debugging steps:
-
-1. Capture heap, CPU, or resource profile.
-2. Inspect retainers or open handles.
-3. Confirm lifecycle cleanup.
-4. Add bounds and eviction.
-5. Verify recovery after load drops.
-
-## Diagrams
-
-Dedicated diagrams are available in [diagrams.md](./diagrams.md).
-
-### Concept Flow
-
-```mermaid
-flowchart TD
-  A[Input or trigger] --> B[Validate assumptions]
-  B --> C[Enter 001.03 Advanced Runtime Behavior boundary]
-  C --> D[Apply Memory and Garbage Collection]
-  D --> E[Read or change state]
-  E --> F[Return result]
-  F --> G[Emit telemetry]
+  return cache.get(tenantId);
+}
 ```
 
-### Failure Flow
+Fix:
 
-```mermaid
-flowchart TD
-  A[Unexpected behavior] --> B{Input valid?}
-  B -->|No| C[Fix validation or caller contract]
-  B -->|Yes| D{State correct?}
-  D -->|No| E[Inspect ownership, mutation, cache, or ordering]
-  D -->|Yes| F{Dependency healthy?}
-  F -->|No| G[Check timeout, retry, fallback, and saturation]
-  F -->|Yes| H[Inspect implementation assumptions and edge cases]
+- add max size,
+- add TTL,
+- clear on tenant deletion,
+- expose metrics,
+- document owner.
+
+### Scenario 4: Event Listener Retains Large State
+
+```js
+function mount(state) {
+  window.addEventListener("scroll", () => {
+    update(state.largeTree);
+  });
+}
 ```
 
-### Production Readiness Loop
+Fix:
 
-```text
-Design
-  -> implement
-  -> test
-  -> instrument
-  -> deploy safely
-  -> observe
-  -> learn
-  -> refine
+```js
+function mount(state) {
+  const treeId = state.largeTree.id;
+
+  function onScroll() {
+    update(treeId);
+  }
+
+  window.addEventListener("scroll", onScroll);
+
+  return () => window.removeEventListener("scroll", onScroll);
+}
 ```
+
+### Scenario 5: Promise Batch Uses Too Much Memory
+
+```js
+await Promise.all(items.map(processItem));
+```
+
+If `items` is huge, this creates many promises and closures at once.
+
+Fix: process with bounded concurrency.
 
 ## 15. Exercises / Practice
 
 ### Exercise 1
 
-Explain Memory and Garbage Collection in your own words using three levels:
+Explain which objects are reachable:
 
-- beginner explanation,
-- intermediate internal explanation,
-- senior production explanation.
+```js
+let user = { name: "Ajay" };
+const list = [user];
+user = null;
+```
 
 ### Exercise 2
 
-Draw the lifecycle for Memory and Garbage Collection:
+Find the leak:
 
-```text
-input -> decision -> state change -> output -> telemetry
+```js
+const handlers = [];
+
+function register(req) {
+  handlers.push(() => req.user.id);
+}
 ```
-
-Mark where validation, failure handling, and cleanup happen.
 
 ### Exercise 3
 
-Write one example where Memory and Garbage Collection works correctly and one where it fails because of an edge case.
+Refactor this cache to include a max size:
+
+```js
+const cache = new Map();
+```
 
 ### Exercise 4
 
-Create a debugging checklist for a production incident involving Memory and Garbage Collection. Include logs, metrics, traces, and rollback options.
+Explain why this can leak:
+
+```js
+setInterval(() => refresh(data), 1000);
+```
 
 ### Exercise 5
 
-Compare two architecture choices for this topic and explain when each is better.
+Choose `Map` or `WeakMap`:
+
+- metadata for DOM nodes,
+- cache by string user ID,
+- temporary metadata for object instances,
+- tenant configuration cache.
+
+### Exercise 6
+
+Design a memory debugging plan for a Node service that grows from 300 MB to 2 GB over six hours.
 
 ## 16. Comparison
 
-Compare Memory and Garbage Collection with nearby or competing concepts.
+### Reachable vs Useful
 
-Comparison prompts:
+| State | Meaning |
+|---|---|
+| Reachable | GC must keep it |
+| Useful | Application still needs it |
 
-- What problem does each option solve?
-- Which one is simpler?
-- Which one is safer?
-- Which one scales better?
-- Which one is easier to debug?
-- Which one has better ecosystem or platform support?
+Leaks are often reachable but no longer useful.
 
-Decision table:
+### `Map` vs `WeakMap`
 
-| Option | Prefer When | Avoid When |
+| Structure | Key Type | Prevents Key GC? | Iterable |
+|---|---|---:|---:|
+| `Map` | any value | yes | yes |
+| `WeakMap` | objects / non-registered symbols | no | no |
+
+### Stack vs Heap
+
+| Area | Stores | Lifetime |
 |---|---|---|
-| Memory and Garbage Collection | It directly matches the invariant and ownership boundary | The abstraction hides important failure behavior |
-| Simpler local approach | Scope is small, low risk, and easy to test | Logic is duplicated across many teams |
-| Shared/platform approach | Correctness, scale, or governance matters | The contract is still changing rapidly |
+| Stack | active call frames | until function returns/throws |
+| Heap | objects and dynamic data | while reachable |
+
+### Leak vs High Legitimate Usage
+
+| Pattern | Interpretation |
+|---|---|
+| memory rises then plateaus | may be cache/warmup |
+| memory rises forever | likely leak or unbounded workload |
+| memory spikes then falls | temporary allocation pressure |
+| RSS grows but heap stable | check buffers/native/external memory |
 
 ## 17. Related Concepts
 
-Memory and Garbage Collection connects to the rest of the knowledge tree.
+Prerequisites:
 
-Study links:
+- Variables & Declarations
+- Scope, Closures, and Hoisting
+- Call Stack
+- Promises and Async/Await
 
-- Parent category: JavaScript Core
-- Parent topic: 001.03 Advanced Runtime Behavior
-- Internal flow and diagrams: [diagrams.md](./diagrams.md)
-- Practice files in this folder: debugging, questions, exercises, and review notes
+Direct follow-ups:
 
-Related concept types:
+- JavaScript Internals: Heap Layout
+- JavaScript Internals: Garbage Collection
+- Leaks and Retainers
+- Node.js Memory Leaks
+- Performance Profiling
+- Observability
 
-- prerequisites that make this topic easier,
-- follow-up topics that build on it,
-- architecture concepts that use it,
-- production concerns that expose its limits,
-- interview patterns that test it indirectly.
+Production connections:
+
+- frontend route leaks,
+- Node heap growth,
+- cache design,
+- WebSocket session cleanup,
+- background queue pressure,
+- browser long sessions,
+- server memory limits,
+- incident debugging.
+
+Knowledge graph:
+
+```txt
+Allocation
+  -> references
+    -> reachability
+      -> garbage collection
+        -> retained objects
+          -> leaks
+          -> heap snapshots
+          -> production memory limits
+```
 
 ## Advanced Add-ons
 
 ### Performance Impact
 
-- Time complexity: identify whether work is constant, linear, logarithmic, fan-out, or unbounded.
-- Memory usage: identify retained data, copied data, cached data, and cleanup timing.
-- Hot path risk: determine whether this runs per request, per render, per event, per query, or per deployment.
-- Measurement: use baselines, profiling, p95/p99, and resource saturation before optimizing.
+Memory pressure affects latency and stability.
+
+Impacts:
+
+- more frequent GC,
+- longer GC pauses,
+- higher CPU,
+- browser jank,
+- Node latency spikes,
+- container OOM kills,
+- degraded cache behavior.
+
+Metrics:
+
+- heap used,
+- heap total,
+- RSS,
+- external memory,
+- GC pause duration,
+- allocation rate,
+- object count by type,
+- cache size,
+- queue depth.
 
 ### System Design Relevance
 
-Memory and Garbage Collection matters in system design when it affects boundaries, contracts, scaling behavior, correctness, or operational ownership.
+Memory design is system design for long-running JavaScript processes.
 
-Ask:
+Design questions:
 
-- Does it belong inside a module, service, shared library, platform layer, or managed service?
-- What is the blast radius if it fails?
-- What happens at 10x traffic, data, tenants, regions, or teams?
-- What reliability, observability, and rollback strategy is required?
+- What grows with users, tenants, connections, requests, or messages?
+- What is the memory budget?
+- What gets evicted?
+- Who owns cleanup?
+- What happens during traffic spikes?
+- What happens when a worker restarts?
+- What dashboards expose memory pressure?
 
 ### Security Impact
 
-Security relevance depends on whether Memory and Garbage Collection touches input, identity, authorization, secrets, user data, logs, dependencies, or execution boundaries.
+Memory bugs can become availability and privacy issues.
 
-Check:
+Risks:
 
-- validation and sanitization,
-- least privilege,
-- sensitive data exposure,
-- injection or confused-deputy risks,
-- auditability and compliance requirements.
+- denial of service through large payloads,
+- memory exhaustion via unbounded queues,
+- retained PII in closures or logs,
+- session data leaking across requests,
+- heap snapshots containing secrets,
+- stale authorization state retained in caches.
+
+Defenses:
+
+- payload limits,
+- bounded queues/caches,
+- cleanup sensitive data,
+- secure heap snapshot handling,
+- tenant-aware cache keys,
+- least retention of secrets.
 
 ### Browser vs Node Behavior
 
-If this topic appears in JavaScript runtimes, compare browser and Node.js behavior:
+Browser:
 
-- global object and module scope,
-- event loop and task queues,
-- API availability,
-- security sandbox,
-- file, network, and process access,
-- debugging and profiling tools.
+- DOM references can leak detached nodes,
+- DevTools heap snapshots show retainers,
+- long-lived tabs expose leaks,
+- Web Workers have separate memory contexts,
+- browser may throttle background pages.
 
-For non-runtime topics, compare local development, CI, staging, and production behavior instead.
+Node.js:
+
+- long-running processes amplify leaks,
+- `process.memoryUsage()` exposes heap/RSS/external metrics,
+- buffers can live outside ordinary heap accounting,
+- containers can OOM-kill the process,
+- heap snapshots and CPU profiles are essential debugging tools.
 
 ### Polyfill / Implementation
 
-Staff-level understanding includes knowing whether you can implement a simplified version yourself.
+You cannot implement garbage collection in application JavaScript. It is engine behavior.
 
-Implementation prompts:
+You can implement memory-safe patterns:
 
-- What is the smallest correct version?
-- Which edge cases are intentionally unsupported?
-- Which behavior must match platform semantics?
-- What tests prove compatibility?
-- When is using a proven library safer than custom implementation?
+Bounded cache:
+
+```js
+function createBoundedMap(limit) {
+  const map = new Map();
+
+  return {
+    set(key, value) {
+      if (map.has(key)) map.delete(key);
+      map.set(key, value);
+
+      if (map.size > limit) {
+        map.delete(map.keys().next().value);
+      }
+    },
+    get(key) {
+      return map.get(key);
+    },
+  };
+}
+```
+
+Cleanup wrapper:
+
+```js
+function listen(target, event, handler) {
+  target.addEventListener(event, handler);
+  return () => target.removeEventListener(event, handler);
+}
+```
+
+Staff-level takeaway: GC is automatic reclamation, not automatic lifecycle design. You still own references, cleanup, bounds, and observability.
 
 ## 18. Summary
 
-Memory and Garbage Collection is a practical engineering topic, not just a vocabulary item. Mastery means you can define it, implement it, reason about internals, predict edge cases, debug failures, and explain trade-offs.
+Memory and garbage collection are core production JavaScript topics.
 
 Remember:
 
-- Start from first principles.
-- Identify boundaries and ownership.
-- Understand execution and resource behavior.
-- Design for failure, not only success.
-- Add observability.
-- Keep the simplest design that satisfies correctness and scale.
-- Revisit the design as production pressure changes.
+- JavaScript collects unreachable objects automatically,
+- reachable does not mean useful,
+- leaks happen when unused objects remain reachable,
+- closures, timers, listeners, maps, promises, DOM nodes, and buffers commonly retain memory,
+- `null` and `delete` do not force GC,
+- `WeakMap` helps attach metadata without preventing key collection,
+- every cache needs bounds and ownership,
+- browser and Node memory debugging use heap snapshots and retainer analysis,
+- Node memory pressure includes heap, RSS, and external memory,
+- senior engineers design cleanup and memory budgets before incidents happen.

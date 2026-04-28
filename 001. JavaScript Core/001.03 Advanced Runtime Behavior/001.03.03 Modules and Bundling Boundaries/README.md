@@ -6,625 +6,920 @@ Topic: 001.03 Advanced Runtime Behavior
 
 ## 1. Definition
 
-Modules and Bundling Boundaries is a focused engineering concept inside 001.03 Advanced Runtime Behavior. It describes a behavior, design choice, implementation technique, or operational concern that engineers must understand deeply to build reliable systems in JavaScript Core.
+A JavaScript module is a file-level unit of code with its own scope, explicit imports, and explicit exports.
 
-At a practical level, this topic answers:
+Bundling is the build-time process of combining, transforming, splitting, and optimizing modules for a target runtime such as a browser, Node.js, edge runtime, or test environment.
 
-- what problem it solves,
-- what boundary it belongs to,
-- what assumptions it depends on,
-- how it behaves during normal execution,
-- how it fails under pressure,
-- and how to reason about it in production.
+One-line version:
 
-The goal is not only to recognize the term. The goal is to explain Modules and Bundling Boundaries from first principles, apply it in code or architecture, debug it when it breaks, and defend trade-offs in an interview or design review.
+```txt
+Modules define code boundaries; bundlers decide how those boundaries are packaged and loaded in production.
+```
+
+Expanded explanation:
+
+- Modules prevent accidental global variables.
+- Imports express dependencies.
+- Exports define public API.
+- ES modules use live bindings.
+- CommonJS uses runtime `require` and exported values.
+- Bundlers rewrite module graphs for performance, compatibility, and deployment.
+- Bundle boundaries affect load time, caching, tree shaking, side effects, and runtime failures.
 
 ## 2. Why It Exists
 
-Modules and Bundling Boundaries exists because real systems need explicit rules for correctness, ownership, execution, and change. Without this concept, teams usually rely on implicit assumptions, and implicit assumptions become bugs when systems grow.
+Modules exist because large programs need encapsulation and dependency management.
 
-This topic matters because it helps engineers:
+Without modules:
 
-- reduce ambiguity in 001.03 Advanced Runtime Behavior,
-- make behavior easier to test and review,
-- prevent local decisions from creating system-level failures,
-- identify performance and reliability limits before production incidents,
-- communicate trade-offs clearly across frontend, backend, platform, security, and product teams.
+- global names collide,
+- load order becomes fragile,
+- code ownership is unclear,
+- dead code is harder to remove,
+- dependency cycles are harder to detect,
+- teams cannot safely expose stable APIs.
 
-You should understand this before moving deeper because later topics often depend on the same mental models: state ownership, lifecycle timing, API contracts, failure handling, scaling pressure, and observability.
+Bundling exists because production environments need optimized delivery:
+
+- browsers should not download thousands of tiny files unnecessarily,
+- old browsers may need transformed syntax,
+- code should be split by route or feature,
+- unused code should be removed,
+- assets need hashing and caching,
+- server and client code must be separated.
+
+Senior-level reason:
+
+Modules and bundling boundaries are architecture boundaries. They decide what code is public, what code is private, what ships to users, what runs on the server, what can be tree-shaken, and what breaks during deploys.
 
 ## 3. Syntax & Variants
 
-Not every engineering topic has programming syntax, but every topic has an interface shape. The interface shape is how the concept appears to the rest of the system.
+### Named Export
 
-In JavaScript Core, Modules and Bundling Boundaries commonly appears as a function, type, object, runtime behavior, data structure, or algorithm.
+```js
+export function formatCurrency(amount) {
+  return `$${amount.toFixed(2)}`;
+}
 
-Typical shape:
+export const DEFAULT_LOCALE = "en-US";
+```
 
-```ts
-type ModulesAndBundlingBoundariesInput = {
-  id: string;
-  payload: unknown;
-};
+### Named Import
 
-type ModulesAndBundlingBoundariesResult =
-  | { ok: true; value: unknown }
-  | { ok: false; error: string; retryable: boolean };
+```js
+import { formatCurrency } from "./money.js";
+```
 
-export function handleModulesAndBundlingBoundaries(
-  input: ModulesAndBundlingBoundariesInput,
-): ModulesAndBundlingBoundariesResult {
-  if (!input.id) {
-    return { ok: false, error: "missing_id", retryable: false };
-  }
+### Default Export
 
-  try {
-    const value = input.payload;
-    return { ok: true, value };
-  } catch {
-    return { ok: false, error: "unexpected_failure", retryable: true };
-  }
+```js
+export default function createClient() {
+  return {};
 }
 ```
 
-When reading or writing code for this topic, identify:
+### Default Import
 
-- the input boundary,
-- the output contract,
-- the state being read or changed,
-- the owner of the behavior,
-- the failure path,
-- the observability signal.
+```js
+import createClient from "./client.js";
+```
 
-Variants to identify:
+### Namespace Import
 
-- direct language or framework syntax,
-- configuration shape,
-- API or interface shape,
-- runtime behavior shape,
-- rare edge syntax or unusual usage,
-- legacy forms that still appear in production.
+```js
+import * as money from "./money.js";
+```
+
+### Re-Export
+
+```js
+export { formatCurrency } from "./money.js";
+export * from "./date.js";
+```
+
+### Dynamic Import
+
+```js
+const module = await import("./heavy-chart.js");
+module.renderChart();
+```
+
+Dynamic import creates an async boundary and often a bundle split point.
+
+### CommonJS
+
+```js
+const fs = require("node:fs");
+
+module.exports = {
+  readConfig,
+};
+```
+
+CommonJS is still common in Node.js packages.
+
+### Package Boundary
+
+```json
+{
+  "type": "module",
+  "exports": {
+    ".": "./dist/index.js",
+    "./server": "./dist/server.js"
+  },
+  "sideEffects": false
+}
+```
+
+Package metadata affects resolution, tree shaking, and import paths.
 
 ## 4. Internal Working
 
-The internal working of Modules and Bundling Boundaries should be understood as a lifecycle, not as a definition.
+### ES Module Loading
 
-```text
-Input / trigger
-  -> validate assumptions
-  -> enter 001.03 Advanced Runtime Behavior boundary
-  -> apply Modules and Bundling Boundaries rules
-  -> read or update state
-  -> handle success, failure, or partial success
-  -> emit observable signal
-  -> return result or continue workflow
+Simplified ESM lifecycle:
+
+```txt
+parse module
+  -> discover static imports/exports
+  -> build module dependency graph
+  -> instantiate modules and create bindings
+  -> evaluate modules in dependency order
+  -> expose live bindings to importers
 ```
 
-For this topic, inspect the real mechanism behind the abstraction:
+### Live Bindings
 
-- engine, compiler, type system, memory model, call stack, event loop, and module boundary,
-- ordering and timing,
-- ownership of mutable state,
-- limits and resource usage,
-- retry, cancellation, cleanup, and rollback behavior,
-- how the behavior changes between local development, CI, staging, and production.
+```js
+// counter.js
+export let count = 0;
 
-Senior engineers do not stop at "it works." They ask what the runtime must do, what it keeps in memory, what it sends over the network, what can be retried, what can be duplicated, and what must be protected by invariants.
-
-## 5. Memory Behavior
-
-Every topic consumes or protects memory, state, or another resource. For Modules and Bundling Boundaries, reason about memory and resource behavior explicitly.
-
-Common resources:
-
-- memory and retained references,
-- CPU and event-loop time,
-- network calls and connection pools,
-- database locks, indexes, and storage,
-- queue depth and worker capacity,
-- browser main-thread budget,
-- cloud cost and operational attention.
-
-Resource model:
-
-```text
-Work enters system
-  -> resource is allocated
-  -> work is processed
-  -> resource is released, retained, cached, or leaked
-```
-
-Production questions:
-
-- What grows with traffic?
-- What grows with data size?
-- What grows with number of tenants, teams, or services?
-- What is bounded?
-- What can leak?
-- What needs cleanup?
-- What metric proves the resource behavior is healthy?
-
-For JavaScript Core, watch runtime errors, latency, memory growth, bundle size, CPU time, test failures, and defect rate.
-
-## 6. Execution Behavior
-
-Execution behavior describes what actually happens when the system runs.
-
-Trace Modules and Bundling Boundaries through:
-
-- the happy path,
-- invalid input,
-- missing dependency,
-- slow dependency,
-- concurrent execution,
-- retry after timeout,
-- duplicate request or event,
-- deploy with old and new versions running together,
-- cleanup after failure.
-
-Execution timeline:
-
-```text
-Before
-  -> required state and configuration exist
-During
-  -> core behavior runs and may touch dependencies
-After
-  -> result, side effects, and telemetry are visible
-Failure
-  -> caller receives error, retry, fallback, or compensation path
-```
-
-The most important question is: what invariant must remain true even if the execution path is interrupted?
-
-## 7. Scope & Context Interaction
-
-Modules and Bundling Boundaries should be understood in its surrounding scope and execution context, not as an isolated detail.
-
-Scope questions:
-
-- Where is this behavior visible?
-- Who can call or mutate it?
-- What module, component, service, tenant, request, thread, worker, or transaction owns it?
-- Does it cross frontend, backend, database, queue, cache, or platform boundaries?
-- Does it behave differently inside closures, async callbacks, dependency injection scopes, request scopes, or deployment environments?
-
-Context model:
-
-```text
-Local context
-  -> module or component context
-  -> service or runtime context
-  -> system or organization context
-```
-
-For JavaScript and TypeScript topics, also check lexical scope, closure retention, module scope, global scope, and `this` behavior where applicable.
-
-## 8. Common Examples
-
-### Example 1: Local Implementation
-
-Use a local implementation when the behavior is simple, low-risk, and owned by one module or team.
-
-```ts
-type ModulesAndBundlingBoundariesInput = {
-  id: string;
-  payload: unknown;
-};
-
-type ModulesAndBundlingBoundariesResult =
-  | { ok: true; value: unknown }
-  | { ok: false; error: string; retryable: boolean };
-
-export function handleModulesAndBundlingBoundaries(
-  input: ModulesAndBundlingBoundariesInput,
-): ModulesAndBundlingBoundariesResult {
-  if (!input.id) {
-    return { ok: false, error: "missing_id", retryable: false };
-  }
-
-  try {
-    const value = input.payload;
-    return { ok: true, value };
-  } catch {
-    return { ok: false, error: "unexpected_failure", retryable: true };
-  }
+export function increment() {
+  count += 1;
 }
 ```
 
-### Example 2: Shared Abstraction
+```js
+// app.js
+import { count, increment } from "./counter.js";
 
-Move the behavior behind a shared abstraction when multiple teams repeat the same logic and the contract is stable.
-
-```text
-Consumer
-  -> stable interface
-  -> shared implementation
-  -> logs, metrics, tests, and ownership
+console.log(count); // 0
+increment();
+console.log(count); // 1
 ```
 
-### Example 3: Platform or Managed Capability
+Imports are live views of exported bindings, not copied snapshots.
 
-Use a platform capability when correctness, scale, compliance, or operational cost is too important for every team to solve independently.
+### Module Scope
 
-```text
-Product team
-  -> platform API
-  -> centrally owned reliability, security, and observability
+```js
+const secret = "private";
+
+export function getSecretLength() {
+  return secret.length;
+}
 ```
+
+`secret` is private to the module.
+
+### Module Cache
+
+Modules are evaluated once per module instance and then cached by the runtime/bundler.
+
+```js
+console.log("module evaluated");
+```
+
+If imported by multiple files, this side effect usually runs once.
+
+### Bundler Graph
+
+Bundlers analyze imports to build a graph:
+
+```txt
+entrypoint
+  -> route module
+    -> component
+      -> utility
+      -> stylesheet
+      -> asset
+```
+
+Then they transform and emit chunks.
+
+### Tree Shaking
+
+Tree shaking removes unused exports when the bundler can prove they are unused and safe to remove.
+
+```js
+export function used() {}
+export function unused() {}
+```
+
+If only `used` is imported, `unused` may be removed.
+
+### Side Effects
+
+```js
+import "./polyfill.js";
+import "./global.css";
+```
+
+These imports are for side effects. Bundlers must not remove them accidentally.
+
+## 5. Memory Behavior
+
+Modules are long-lived. Module-level state usually lives for the lifetime of the runtime or page session.
+
+```js
+const cache = new Map();
+
+export function getCached(key) {
+  return cache.get(key);
+}
+```
+
+This cache is shared by all importers of the module instance.
+
+Memory implications:
+
+- module caches can retain data forever,
+- imported singletons are shared state,
+- dynamic chunks load code into memory,
+- large dependencies increase parse/compile memory,
+- circular imports can retain partial module state,
+- client bundles can keep route code resident after load depending on runtime behavior.
+
+Avoid request-specific module globals in servers:
+
+```js
+let currentUser;
+
+export function setCurrentUser(user) {
+  currentUser = user;
+}
+```
+
+This can leak state between requests in a Node process.
+
+Better:
+
+```js
+export function createRequestContext(user) {
+  return { user };
+}
+```
+
+## 6. Execution Behavior
+
+### Static Imports Run Before Module Body
+
+```js
+import "./setup.js";
+
+console.log("app");
+```
+
+The dependency is loaded and evaluated before the importing module body runs.
+
+### Top-Level Await
+
+```js
+const config = await loadConfig();
+
+export { config };
+```
+
+Top-level await can delay evaluation of dependent modules.
+
+Use carefully in shared libraries because it can slow startup or create dependency timing surprises.
+
+### Dynamic Import Runs Later
+
+```js
+button.addEventListener("click", async () => {
+  const { openModal } = await import("./modal.js");
+  openModal();
+});
+```
+
+The modal code may be split into a separate chunk and loaded on demand.
+
+### Circular Dependency
+
+```js
+// a.js
+import { b } from "./b.js";
+export const a = "a";
+console.log(b);
+```
+
+```js
+// b.js
+import { a } from "./a.js";
+export const b = "b";
+console.log(a);
+```
+
+Circular dependencies can expose uninitialized bindings or partial state depending on evaluation order.
+
+### CommonJS Interop
+
+ESM and CommonJS interop can be tricky because they have different loading and export models.
+
+```js
+import pkg from "commonjs-package";
+```
+
+Default import behavior may depend on transpiler/bundler configuration.
+
+## 7. Scope & Context Interaction
+
+Modules create module scope.
+
+```js
+const privateValue = 1;
+
+export const publicValue = 2;
+```
+
+`privateValue` is not global. `publicValue` is available only through imports.
+
+### Boundary Ownership
+
+A module boundary is an ownership boundary:
+
+```txt
+internal implementation
+  -> exported API
+  -> consumers
+```
+
+Changing internal code should be safe. Changing exports can break consumers.
+
+### Server vs Client Boundary
+
+Frontend frameworks often separate server-only and client-safe modules.
+
+Bad:
+
+```js
+// accidentally imported by browser code
+import { readFileSync } from "node:fs";
+```
+
+Server-only modules must not cross into client bundles.
+
+### Request Context
+
+Module scope is not request scope.
+
+```js
+const userIds = [];
+
+export function recordUser(id) {
+  userIds.push(id);
+}
+```
+
+This array is shared globally in the module instance.
+
+## 8. Common Examples
+
+### Utility Module
+
+```js
+// math.js
+export function add(a, b) {
+  return a + b;
+}
+```
+
+```js
+import { add } from "./math.js";
+```
+
+### Barrel File
+
+```js
+export { Button } from "./Button.js";
+export { Modal } from "./Modal.js";
+```
+
+Barrels simplify imports but can hurt tree shaking if they re-export side-effectful modules carelessly.
+
+### Lazy Route Loading
+
+```js
+const SettingsPage = lazy(() => import("./SettingsPage.js"));
+```
+
+Used to split rarely visited route code from the initial bundle.
+
+### Package Public API
+
+```js
+export { createClient } from "./client.js";
+export { ValidationError } from "./errors.js";
+```
+
+Keep public exports intentional and stable.
+
+### Side-Effect Import
+
+```js
+import "./styles.css";
+import "./polyfills.js";
+```
+
+Make side effects explicit so bundler behavior is predictable.
 
 ## 9. Confusing / Tricky Examples
 
-### Confusion 1: The Name Sounds Simple
+### Import Is Not Copy
 
-Many developers can define Modules and Bundling Boundaries, but cannot trace its lifecycle or failure modes. Interviewers often move quickly from definition to edge cases.
+```js
+import { count } from "./counter.js";
+```
 
-### Confusion 2: Local Behavior Differs From Production
+`count` is a live binding, not a copied value.
 
-Local environments rarely reproduce production traffic, data shape, dependency latency, permissions, deploy overlap, or noisy neighbors.
+### Cannot Reassign Imported Binding
 
-### Confusion 3: The Happy Path Hides Ownership
+```js
+import { count } from "./counter.js";
 
-If no one owns the failure path, monitoring, documentation, migration plan, or rollback process, the design is incomplete.
+count = 10; // TypeError
+```
 
-### Confusion 4: Optimization Before Measurement
+Imported bindings are read-only from the importing module.
 
-Optimizing Modules and Bundling Boundaries without baseline data can make the system harder to debug while failing to improve the real bottleneck.
+### Default Export Naming
+
+```js
+export default function user() {}
+```
+
+Importer can choose any local name:
+
+```js
+import anything from "./user.js";
+```
+
+This can reduce clarity compared to named exports.
+
+### Circular Import TDZ
+
+Circular modules can hit temporal dead zone errors when a binding is read before initialization.
+
+### Tree Shaking Can Fail
+
+Tree shaking may fail when:
+
+- code uses CommonJS,
+- modules have unknown side effects,
+- package metadata is wrong,
+- dynamic import paths are too broad,
+- barrel files import too much.
+
+### Dynamic Import Path Explosion
+
+```js
+import(`./pages/${name}.js`);
+```
+
+Bundlers may include many possible files because the path is dynamic.
 
 ## 10. Real Production Use Cases
 
-Modules and Bundling Boundaries appears in production anywhere JavaScript Core needs predictable behavior across real users, real traffic, real failures, and real team boundaries.
+### Initial Bundle Performance
 
-Used in:
+Large initial bundles slow:
 
-- frontend apps, Node.js services, SDKs, libraries, build pipelines, and shared platform packages,
-- payment and billing workflows,
-- authentication and authorization flows,
-- admin and internal platforms,
-- realtime or async processing,
-- reporting and analytics,
-- compliance and audit trails,
-- incident response and operational runbooks.
+- download,
+- parse,
+- compile,
+- hydration,
+- interaction readiness.
 
-Production makes this harder because:
+### Code Splitting
 
-- inputs are messy,
-- clients and services run different versions,
-- dependencies degrade before they fail,
-- retries multiply load,
-- dashboards show symptoms before root cause,
-- ownership is split across teams.
+Split code by:
 
-## Architecture Decisions
+- route,
+- feature,
+- admin-only surfaces,
+- heavy charts/editors,
+- rarely used integrations.
 
-When designing around Modules and Bundling Boundaries, compare multiple approaches.
+### Monorepo Boundaries
 
-| Approach | Use When | Trade-Off |
-|---|---|---|
-| Inline/local logic | Small scope, low risk, one owner | Fast to build, easier to duplicate |
-| Shared library | Same logic repeated across modules | Versioning and rollout become important |
-| Service/API boundary | Multiple consumers need stable behavior | Network, latency, and ownership overhead |
-| Platform capability | High scale, compliance, or reliability needs | Requires platform maturity and governance |
-| Managed service | Commodity capability with strong provider support | Less control, provider constraints |
+Packages should expose stable public APIs and avoid deep imports:
 
-Decision questions:
+```js
+import { Button } from "@company/ui";
+```
 
-- What is the blast radius if this breaks?
-- Who owns the contract?
-- How often will it change?
-- What must be observable?
-- What happens during rollback?
-- What is the simplest design that satisfies current correctness and scale?
+Avoid:
+
+```js
+import Button from "@company/ui/src/internal/Button";
+```
+
+### Dependency Governance
+
+Bundling exposes dependency costs:
+
+- duplicate versions,
+- heavy transitive packages,
+- accidental server-only imports,
+- polyfill bloat,
+- side-effectful modules.
+
+### SSR / Hydration
+
+Server and client bundles differ. Code that touches `window` at module top level can crash SSR.
+
+```js
+const width = window.innerWidth; // SSR crash
+```
+
+Better:
+
+```js
+function getWidth() {
+  return typeof window === "undefined" ? 0 : window.innerWidth;
+}
+```
 
 ## 11. Interview Questions
 
-1. What is Modules and Bundling Boundaries, and why does it matter in JavaScript Core?
-2. What problem does it solve inside 001.03 Advanced Runtime Behavior?
-3. How does it work internally?
-4. What are the most common edge cases?
-5. What failure modes appear only in production?
-6. How would you implement a minimal version?
-7. How would you test it?
-8. How would you debug a production issue related to it?
-9. What metrics or logs would you add?
-10. How does the design change at 10x traffic, data, or team size?
-11. What trade-offs exist between simple implementation and platform abstraction?
-12. What senior-level mistake do engineers make with this topic?
+1. What is a JavaScript module?
+2. What is module scope?
+3. What is the difference between ESM and CommonJS?
+4. What are live bindings?
+5. Why are imported bindings read-only?
+6. What is a circular dependency?
+7. What is tree shaking?
+8. What are side-effect imports?
+9. What is code splitting?
+10. How does dynamic import affect bundles?
+11. Why can barrel files hurt tree shaking?
+12. What is top-level await?
+13. Why can module-level state be dangerous in Node servers?
+14. How do server/client boundaries affect bundling?
+15. How would you debug a production bundle-size regression?
 
 ## 12. Senior-Level Pitfalls
 
-### Pitfall 1: Treating It As Isolated Trivia
+### Pitfall 1: Module-Level Request State
 
-Modules and Bundling Boundaries is connected to runtime behavior, architecture, operations, and team ownership. A narrow definition is not enough.
+```js
+let currentTenant;
+```
 
-### Pitfall 2: Ignoring Failure Semantics
+In a server process, this is shared across requests.
 
-A design that only explains success is not production-ready. Define timeout, retry, cancellation, idempotency, rollback, and cleanup behavior.
+### Pitfall 2: Accidental Client Bundle Bloat
 
-### Pitfall 3: Missing Observability
+```js
+import { everything } from "huge-library";
+```
 
-If the system cannot prove what happened, debugging becomes guesswork. Add logs, metrics, traces, and structured identifiers at decision points.
+Use targeted imports and verify bundle output.
 
-### Pitfall 4: Hidden Shared State
+### Pitfall 3: Wrong `sideEffects` Metadata
 
-Shared state without clear ownership creates race conditions, stale reads, memory leaks, and cross-request contamination.
+Marking a package as side-effect-free when it imports CSS or polyfills can break production.
 
-### Pitfall 5: Premature Abstraction
+### Pitfall 4: Circular Dependency Hidden By Tests
 
-Abstracting too early can freeze weak assumptions. Wait until the repeated shape is stable, then extract a clear interface.
+Tests may load modules in a different order than production bundles.
+
+### Pitfall 5: Deep Imports Into Internals
+
+Deep imports couple consumers to file layout and bypass package API governance.
+
+### Pitfall 6: SSR-Unsafe Module Top Level
+
+Accessing browser globals at module top level breaks server rendering.
 
 ## 13. Best Practices
 
-- Start with a precise definition.
-- Identify the owner and boundary.
-- Make inputs, outputs, and invariants explicit.
-- Prefer simple local design until the pressure for abstraction is real.
-- Test normal, edge, and failure paths.
-- Add observability before relying on the behavior in production.
-- Keep resource usage bounded.
-- Document assumptions and trade-offs.
-- Design rollback and migration paths.
-- Revisit the decision when scale, team count, or correctness requirements change.
+- Prefer ES modules for modern application code.
+- Keep module public APIs small and intentional.
+- Avoid request-specific module globals.
+- Use named exports for clearer refactoring in shared code.
+- Avoid circular dependencies.
+- Use dynamic import for heavy or rarely used code.
+- Verify bundle analysis before and after dependency changes.
+- Mark package side effects accurately.
+- Keep server-only code out of client bundles.
+- Avoid top-level browser globals in SSR-capable code.
+- Use package `exports` to define supported import paths.
+- Treat module boundaries as team and architecture boundaries.
 
 ## 14. Debugging Scenarios
 
-### Scenario 1: Works Locally, Fails In Production
-
-Likely causes:
-
-- different configuration,
-- different data shape,
-- missing permissions,
-- dependency latency,
-- concurrency,
-- version mismatch.
+### Scenario 1: Client Bundle Suddenly Grows
 
 Debugging steps:
 
-1. Compare environment configuration.
-2. Capture one failing input.
-3. Trace the request or workflow end to end.
-4. Check deploy, data, and dependency timelines.
-5. Reproduce with production-like constraints.
+1. Run bundle analyzer.
+2. Compare before/after dependency graph.
+3. Look for duplicate package versions.
+4. Check barrel imports.
+5. Check dynamic import patterns.
+6. Verify tree shaking and side effects.
 
-### Scenario 2: Intermittent Failure
+### Scenario 2: SSR Crashes With `window is not defined`
 
-Likely causes:
+Cause: browser global used at module top level.
 
-- race condition,
-- retry interaction,
-- shared mutable state,
-- timeout boundary,
-- cache inconsistency,
-- queue ordering.
+Fix:
 
-Debugging steps:
-
-1. Group failures by tenant, version, region, and dependency.
-2. Inspect p95 and p99 instead of averages.
-3. Add correlation IDs.
-4. Check whether retries amplify the issue.
-5. Verify cleanup and idempotency.
-
-### Scenario 3: Performance Regression
-
-Likely causes:
-
-- unbounded work,
-- inefficient query or algorithm,
-- larger payload,
-- cache miss pattern,
-- excessive serialization,
-- synchronous work on a critical path.
-
-Debugging steps:
-
-1. Establish baseline.
-2. Profile the hot path.
-3. Compare before and after deploy.
-4. Measure resource saturation.
-5. Optimize the proven bottleneck only.
-
-### Scenario 4: Memory Or Resource Growth
-
-Likely causes:
-
-- retained references,
-- unbounded queue,
-- missing cleanup,
-- long-lived subscriptions,
-- growing cache,
-- connection leak.
-
-Debugging steps:
-
-1. Capture heap, CPU, or resource profile.
-2. Inspect retainers or open handles.
-3. Confirm lifecycle cleanup.
-4. Add bounds and eviction.
-5. Verify recovery after load drops.
-
-## Diagrams
-
-Dedicated diagrams are available in [diagrams.md](./diagrams.md).
-
-### Concept Flow
-
-```mermaid
-flowchart TD
-  A[Input or trigger] --> B[Validate assumptions]
-  B --> C[Enter 001.03 Advanced Runtime Behavior boundary]
-  C --> D[Apply Modules and Bundling Boundaries]
-  D --> E[Read or change state]
-  E --> F[Return result]
-  F --> G[Emit telemetry]
+```js
+if (typeof window !== "undefined") {
+  // browser-only logic
+}
 ```
 
-### Failure Flow
+Or move the code into a client-only boundary.
 
-```mermaid
-flowchart TD
-  A[Unexpected behavior] --> B{Input valid?}
-  B -->|No| C[Fix validation or caller contract]
-  B -->|Yes| D{State correct?}
-  D -->|No| E[Inspect ownership, mutation, cache, or ordering]
-  D -->|Yes| F{Dependency healthy?}
-  F -->|No| G[Check timeout, retry, fallback, and saturation]
-  F -->|Yes| H[Inspect implementation assumptions and edge cases]
+### Scenario 3: Imported Value Is Unexpected During Cycle
+
+Likely cause: circular dependency and evaluation order.
+
+Fix:
+
+- extract shared constants to a third module,
+- invert dependency,
+- move side effects out of module top level,
+- use functions to defer access.
+
+### Scenario 4: CSS Missing In Production
+
+Likely cause: package marked `sideEffects: false` while CSS imports were treated as removable.
+
+Fix: configure side effects correctly.
+
+### Scenario 5: Node Server Leaks Tenant State
+
+```js
+let tenantConfig;
 ```
 
-### Production Readiness Loop
+Fix: pass request context explicitly or use a scoped context mechanism.
 
-```text
-Design
-  -> implement
-  -> test
-  -> instrument
-  -> deploy safely
-  -> observe
-  -> learn
-  -> refine
-```
+### Scenario 6: Dynamic Import 404 After Deploy
+
+Likely cause: stale HTML references old chunk names or CDN cache mismatch.
+
+Fix:
+
+- use content-hashed assets,
+- deploy HTML and chunks safely,
+- configure CDN caching correctly,
+- support old chunks during rolling deploys.
 
 ## 15. Exercises / Practice
 
 ### Exercise 1
 
-Explain Modules and Bundling Boundaries in your own words using three levels:
-
-- beginner explanation,
-- intermediate internal explanation,
-- senior production explanation.
+Explain the difference between module scope and global scope.
 
 ### Exercise 2
 
-Draw the lifecycle for Modules and Bundling Boundaries:
+Predict behavior with live bindings:
 
-```text
-input -> decision -> state change -> output -> telemetry
+```js
+// counter.js
+export let count = 0;
+export function inc() {
+  count += 1;
+}
 ```
 
-Mark where validation, failure handling, and cleanup happen.
+```js
+// app.js
+import { count, inc } from "./counter.js";
+inc();
+console.log(count);
+```
 
 ### Exercise 3
 
-Write one example where Modules and Bundling Boundaries works correctly and one where it fails because of an edge case.
+Refactor a circular dependency by extracting shared code into a third module.
 
 ### Exercise 4
 
-Create a debugging checklist for a production incident involving Modules and Bundling Boundaries. Include logs, metrics, traces, and rollback options.
+Identify which imports are side-effect imports:
+
+```js
+import "./styles.css";
+import { Button } from "./Button.js";
+import "./polyfill.js";
+```
 
 ### Exercise 5
 
-Compare two architecture choices for this topic and explain when each is better.
+Design a code-splitting plan for an admin dashboard with heavy charts.
+
+### Exercise 6
+
+Review a package `exports` field and decide which imports should be public.
 
 ## 16. Comparison
 
-Compare Modules and Bundling Boundaries with nearby or competing concepts.
+### ESM vs CommonJS
 
-Comparison prompts:
-
-- What problem does each option solve?
-- Which one is simpler?
-- Which one is safer?
-- Which one scales better?
-- Which one is easier to debug?
-- Which one has better ecosystem or platform support?
-
-Decision table:
-
-| Option | Prefer When | Avoid When |
+| Area | ESM | CommonJS |
 |---|---|---|
-| Modules and Bundling Boundaries | It directly matches the invariant and ownership boundary | The abstraction hides important failure behavior |
-| Simpler local approach | Scope is small, low risk, and easy to test | Logic is duplicated across many teams |
-| Shared/platform approach | Correctness, scale, or governance matters | The contract is still changing rapidly |
+| Syntax | `import` / `export` | `require` / `module.exports` |
+| Analysis | static imports analyzable | runtime loading flexible |
+| Bindings | live bindings | exported values/objects |
+| Browser support | native modern browsers | bundler/transpiler needed |
+| Tree shaking | generally better | harder |
+
+### Static Import vs Dynamic Import
+
+| Import Type | Loaded | Use For |
+|---|---|---|
+| Static `import` | during module loading | required dependencies |
+| Dynamic `import()` | at runtime | lazy features, code splitting |
+
+### Module State vs Request State
+
+| State Type | Lifetime | Risk |
+|---|---|---|
+| Module state | runtime/module instance | shared across requests/users |
+| Request state | one request/workflow | must be passed or scoped |
+
+### Tree Shaking vs Code Splitting
+
+| Optimization | Goal |
+|---|---|
+| Tree shaking | remove unused code |
+| Code splitting | load code later or separately |
 
 ## 17. Related Concepts
 
-Modules and Bundling Boundaries connects to the rest of the knowledge tree.
+Prerequisites:
 
-Study links:
+- Scope, Closures, and Hoisting
+- Prototypes and Object Model
+- Event Loop and Tasks
 
-- Parent category: JavaScript Core
-- Parent topic: 001.03 Advanced Runtime Behavior
-- Internal flow and diagrams: [diagrams.md](./diagrams.md)
-- Practice files in this folder: debugging, questions, exercises, and review notes
+Direct follow-ups:
 
-Related concept types:
+- Build Tools
+- Webpack / Vite / Nx
+- SSR / CSR / SSG / Hydration
+- Package Management
+- Monorepo Architecture
+- Frontend Architecture
 
-- prerequisites that make this topic easier,
-- follow-up topics that build on it,
-- architecture concepts that use it,
-- production concerns that expose its limits,
-- interview patterns that test it indirectly.
+Production connections:
+
+- bundle size budgets,
+- CDN caching,
+- SSR safety,
+- dependency governance,
+- public package APIs,
+- lazy loading,
+- side-effect management,
+- rolling deploy chunk compatibility.
+
+Knowledge graph:
+
+```txt
+Module
+  -> imports / exports
+  -> dependency graph
+    -> bundler
+      -> chunks
+      -> tree shaking
+      -> side effects
+      -> runtime boundaries
+```
 
 ## Advanced Add-ons
 
 ### Performance Impact
 
-- Time complexity: identify whether work is constant, linear, logarithmic, fan-out, or unbounded.
-- Memory usage: identify retained data, copied data, cached data, and cleanup timing.
-- Hot path risk: determine whether this runs per request, per render, per event, per query, or per deployment.
-- Measurement: use baselines, profiling, p95/p99, and resource saturation before optimizing.
+Modules and bundles affect:
+
+- initial JavaScript size,
+- parse time,
+- compile time,
+- hydration time,
+- route transition latency,
+- cache efficiency,
+- memory usage,
+- build time.
+
+Measure:
+
+- bundle analyzer output,
+- unused JavaScript,
+- chunk count,
+- long tasks,
+- Core Web Vitals,
+- dependency duplication,
+- server cold-start time.
 
 ### System Design Relevance
 
-Modules and Bundling Boundaries matters in system design when it affects boundaries, contracts, scaling behavior, correctness, or operational ownership.
+Module boundaries are architecture boundaries.
 
-Ask:
+Questions:
 
-- Does it belong inside a module, service, shared library, platform layer, or managed service?
-- What is the blast radius if it fails?
-- What happens at 10x traffic, data, tenants, regions, or teams?
-- What reliability, observability, and rollback strategy is required?
+- What is public API vs internal implementation?
+- Which module owns this dependency?
+- Can this code run on server, client, edge, or worker?
+- What is the deployment and cache boundary?
+- What happens during rolling deploys?
+- How are breaking changes communicated?
 
 ### Security Impact
 
-Security relevance depends on whether Modules and Bundling Boundaries touches input, identity, authorization, secrets, user data, logs, dependencies, or execution boundaries.
+Risks:
 
-Check:
+- accidentally bundling server secrets into client code,
+- dependency confusion,
+- unsafe package entry points,
+- supply-chain compromise,
+- prototype pollution dependencies,
+- exposing internal APIs through public exports.
 
-- validation and sanitization,
-- least privilege,
-- sensitive data exposure,
-- injection or confused-deputy risks,
-- auditability and compliance requirements.
+Defenses:
+
+- audit bundles for secrets,
+- restrict public exports,
+- pin/verify dependencies,
+- use lockfiles,
+- separate server/client modules,
+- review transitive dependencies.
 
 ### Browser vs Node Behavior
 
-If this topic appears in JavaScript runtimes, compare browser and Node.js behavior:
+Browser:
 
-- global object and module scope,
-- event loop and task queues,
-- API availability,
-- security sandbox,
-- file, network, and process access,
-- debugging and profiling tools.
+- ESM can load natively,
+- bundlers optimize for download and execution,
+- dynamic imports fetch chunks,
+- client bundles must not include Node-only APIs.
 
-For non-runtime topics, compare local development, CI, staging, and production behavior instead.
+Node.js:
+
+- supports both ESM and CommonJS with rules,
+- package `type` and `exports` matter,
+- module cache affects singleton state,
+- dynamic import returns a promise,
+- interop can be surprising.
 
 ### Polyfill / Implementation
 
-Staff-level understanding includes knowing whether you can implement a simplified version yourself.
+You cannot polyfill the whole module loader perfectly in userland, but bundlers implement module runtimes.
 
-Implementation prompts:
+Simplified module registry:
 
-- What is the smallest correct version?
-- Which edge cases are intentionally unsupported?
-- Which behavior must match platform semantics?
-- What tests prove compatibility?
-- When is using a proven library safer than custom implementation?
+```js
+const modules = {};
+const cache = {};
+
+function define(id, factory) {
+  modules[id] = factory;
+}
+
+function requireModule(id) {
+  if (cache[id]) return cache[id].exports;
+
+  const module = { exports: {} };
+  cache[id] = module;
+  modules[id](module, module.exports, requireModule);
+  return module.exports;
+}
+```
+
+Staff-level takeaway: modules are not just file organization. They shape runtime behavior, bundle cost, ownership, public API, deployment safety, and production reliability.
 
 ## 18. Summary
 
-Modules and Bundling Boundaries is a practical engineering topic, not just a vocabulary item. Mastery means you can define it, implement it, reason about internals, predict edge cases, debug failures, and explain trade-offs.
+Modules and bundling boundaries define how JavaScript code is organized, shared, optimized, and shipped.
 
 Remember:
 
-- Start from first principles.
-- Identify boundaries and ownership.
-- Understand execution and resource behavior.
-- Design for failure, not only success.
-- Add observability.
-- Keep the simplest design that satisfies correctness and scale.
-- Revisit the design as production pressure changes.
+- ES modules have module scope and explicit imports/exports,
+- imports are live bindings,
+- imported bindings are read-only to consumers,
+- modules are evaluated and cached,
+- module-level state is long-lived,
+- CommonJS and ESM have different semantics,
+- bundlers build dependency graphs,
+- tree shaking removes provably unused code,
+- dynamic import enables lazy loading and code splitting,
+- side effects must be declared accurately,
+- circular dependencies create evaluation-order bugs,
+- server/client boundaries must be enforced,
+- bundle boundaries affect performance, security, deploy safety, and architecture.
