@@ -6,625 +6,1240 @@ Topic: 001.02 Execution Model
 
 ## 1. Definition
 
-Event Loop and Tasks is a focused engineering concept inside 001.02 Execution Model. It describes a behavior, design choice, implementation technique, or operational concern that engineers must understand deeply to build reliable systems in JavaScript Core.
+The event loop is the runtime coordination mechanism that decides when queued JavaScript callbacks run after the current call stack becomes empty.
 
-At a practical level, this topic answers:
+Tasks are scheduled units of work, such as timer callbacks, user events, network callbacks, script execution, and other host-driven callbacks.
 
-- what problem it solves,
-- what boundary it belongs to,
-- what assumptions it depends on,
-- how it behaves during normal execution,
-- how it fails under pressure,
-- and how to reason about it in production.
+One-line version:
 
-The goal is not only to recognize the term. The goal is to explain Event Loop and Tasks from first principles, apply it in code or architecture, debug it when it breaks, and defend trade-offs in an interview or design review.
+```txt
+The event loop lets JavaScript handle asynchronous work by running one synchronous callback at a time, then choosing the next queued callback when the call stack is empty.
+```
+
+Expanded explanation:
+
+- JavaScript execution on one thread is stack-based and synchronous while code is running.
+- Host environments such as browsers and Node.js provide queues for async work.
+- The event loop checks whether the call stack is empty.
+- If it is empty, the runtime selects queued work and runs its callback.
+- Microtasks run at special checkpoints, usually after the current synchronous code and before the next task.
+- Browser rendering gets opportunities between tasks, not while the stack is busy.
+
+Important vocabulary:
+
+- **Call stack:** currently executing function frames.
+- **Task:** queued unit such as a timer, event, script, or message callback.
+- **Microtask:** high-priority callback such as promise reactions and `queueMicrotask`.
+- **Rendering opportunity:** browser chance to style, layout, paint, and handle visual updates.
+- **Event loop tick/turn:** one pass where queued work may be selected and processed.
 
 ## 2. Why It Exists
 
-Event Loop and Tasks exists because real systems need explicit rules for correctness, ownership, execution, and change. Without this concept, teams usually rely on implicit assumptions, and implicit assumptions become bugs when systems grow.
+JavaScript needed an execution model that could handle user events, timers, network responses, file I/O, promises, and rendering without running multiple pieces of JavaScript at the same time on the same thread.
 
-This topic matters because it helps engineers:
+The event loop solves this by allowing concurrency without shared-memory parallel execution in the main JavaScript thread.
 
-- reduce ambiguity in 001.02 Execution Model,
-- make behavior easier to test and review,
-- prevent local decisions from creating system-level failures,
-- identify performance and reliability limits before production incidents,
-- communicate trade-offs clearly across frontend, backend, platform, security, and product teams.
+Problems solved:
 
-You should understand this before moving deeper because later topics often depend on the same mental models: state ownership, lifecycle timing, API contracts, failure handling, scaling pressure, and observability.
+- run synchronous code predictably,
+- defer callbacks until the current stack finishes,
+- respond to user input,
+- coordinate timers and I/O,
+- schedule promise continuations,
+- allow the browser to render between units of work,
+- keep Node.js servers capable of handling many concurrent I/O operations.
+
+Senior-level reason:
+
+The event loop is the reason JavaScript can feel asynchronous while still being mostly single-threaded at the language level. It explains UI freezes, event-loop delay, promise ordering, timer surprises, starvation, hydration jank, slow request handlers, and production latency spikes.
 
 ## 3. Syntax & Variants
 
-Not every engineering topic has programming syntax, but every topic has an interface shape. The interface shape is how the concept appears to the rest of the system.
+The event loop is not directly invoked with one syntax. You interact with it through APIs that schedule work.
 
-In JavaScript Core, Event Loop and Tasks commonly appears as a function, type, object, runtime behavior, data structure, or algorithm.
+### Synchronous Code
 
-Typical shape:
+```js
+console.log("A");
+console.log("B");
+```
 
-```ts
-type EventLoopAndTasksInput = {
-  id: string;
-  payload: unknown;
-};
+Runs immediately on the current call stack.
 
-type EventLoopAndTasksResult =
-  | { ok: true; value: unknown }
-  | { ok: false; error: string; retryable: boolean };
+### Timer Task
 
-export function handleEventLoopAndTasks(
-  input: EventLoopAndTasksInput,
-): EventLoopAndTasksResult {
-  if (!input.id) {
-    return { ok: false, error: "missing_id", retryable: false };
-  }
+```js
+setTimeout(() => {
+  console.log("timer");
+}, 0);
+```
 
-  try {
-    const value = input.payload;
-    return { ok: true, value };
-  } catch {
-    return { ok: false, error: "unexpected_failure", retryable: true };
-  }
+The callback is scheduled as a timer task. It cannot run until the current stack is empty and the timer is eligible.
+
+### Repeating Timer
+
+```js
+const id = setInterval(() => {
+  console.log("tick");
+}, 1000);
+
+clearInterval(id);
+```
+
+Intervals enqueue repeated timer callbacks, but callbacks can drift if the event loop is busy.
+
+### Promise Microtask
+
+```js
+Promise.resolve().then(() => {
+  console.log("promise");
+});
+```
+
+Promise reactions run as microtasks.
+
+### `queueMicrotask`
+
+```js
+queueMicrotask(() => {
+  console.log("microtask");
+});
+```
+
+This schedules a microtask directly.
+
+### `async` / `await`
+
+```js
+async function run() {
+  console.log("before");
+  await Promise.resolve();
+  console.log("after");
 }
 ```
 
-When reading or writing code for this topic, identify:
+Code before `await` runs synchronously. Code after `await` resumes through promise/microtask scheduling.
 
-- the input boundary,
-- the output contract,
-- the state being read or changed,
-- the owner of the behavior,
-- the failure path,
-- the observability signal.
+### Browser Rendering Callback
 
-Variants to identify:
+```js
+requestAnimationFrame(() => {
+  updateAnimation();
+});
+```
 
-- direct language or framework syntax,
-- configuration shape,
-- API or interface shape,
-- runtime behavior shape,
-- rare edge syntax or unusual usage,
-- legacy forms that still appear in production.
+`requestAnimationFrame` runs before a browser paint opportunity.
+
+### Browser Event Callback
+
+```js
+button.addEventListener("click", () => {
+  console.log("clicked");
+});
+```
+
+User interaction queues event callbacks as tasks.
+
+### Node-Specific Scheduling
+
+```js
+process.nextTick(() => {
+  console.log("nextTick");
+});
+
+setImmediate(() => {
+  console.log("immediate");
+});
+```
+
+These are Node-specific and have ordering rules that differ from browsers.
 
 ## 4. Internal Working
 
-The internal working of Event Loop and Tasks should be understood as a lifecycle, not as a definition.
+The exact event loop is defined by the host environment, but the core mental model is stable.
 
-```text
-Input / trigger
-  -> validate assumptions
-  -> enter 001.02 Execution Model boundary
-  -> apply Event Loop and Tasks rules
-  -> read or update state
-  -> handle success, failure, or partial success
-  -> emit observable signal
-  -> return result or continue workflow
+Browser-style model:
+
+```txt
+Run current script/task
+  -> call stack becomes empty
+  -> drain microtask queue
+  -> browser may render
+  -> take next task from a task queue
+  -> run that task's callback
+  -> repeat
 ```
 
-For this topic, inspect the real mechanism behind the abstraction:
+Example:
 
-- engine, compiler, type system, memory model, call stack, event loop, and module boundary,
-- ordering and timing,
-- ownership of mutable state,
-- limits and resource usage,
-- retry, cancellation, cleanup, and rollback behavior,
-- how the behavior changes between local development, CI, staging, and production.
+```js
+console.log("A");
 
-Senior engineers do not stop at "it works." They ask what the runtime must do, what it keeps in memory, what it sends over the network, what can be retried, what can be duplicated, and what must be protected by invariants.
+setTimeout(() => console.log("B"), 0);
+
+Promise.resolve().then(() => console.log("C"));
+
+console.log("D");
+```
+
+Output:
+
+```txt
+A
+D
+C
+B
+```
+
+Why:
+
+```txt
+1. Current script runs: A, schedule timer, schedule promise microtask, D.
+2. Current call stack clears.
+3. Microtask queue drains: C.
+4. Next eligible task runs: B.
+```
+
+### Task Queue
+
+Tasks come from host APIs:
+
+- initial script execution,
+- timers,
+- user input events,
+- network callbacks,
+- message events,
+- history/navigation events,
+- Node I/O callbacks,
+- Node timers and immediates.
+
+Only one task callback runs at a time on the same JavaScript thread.
+
+### Microtask Queue
+
+Microtasks include:
+
+- promise `.then`, `.catch`, `.finally`,
+- `await` continuation,
+- `queueMicrotask`,
+- mutation observer callbacks in browsers.
+
+Microtasks are drained before the runtime takes the next task.
+
+Important consequence:
+
+```js
+function loop() {
+  queueMicrotask(loop);
+}
+
+loop();
+```
+
+This can starve tasks and rendering because the microtask queue never empties.
+
+### Rendering Checkpoint
+
+Browsers cannot render while JavaScript is running. Rendering happens only when the browser gets control back.
+
+```txt
+task runs
+  -> microtasks drain
+  -> browser may style/layout/paint
+  -> next task
+```
+
+If a task is long, the page can feel frozen.
+
+### Node.js Model
+
+Node.js uses libuv phases for timers, pending callbacks, poll, check, close callbacks, plus microtask and `process.nextTick` processing around phase/callback boundaries.
+
+You do not need to memorize every phase for most interviews, but you must know:
+
+- Node has no browser render step.
+- Node event-loop health affects server latency.
+- `process.nextTick` runs before promise microtasks in Node.
+- `setImmediate` and `setTimeout(..., 0)` ordering can depend on context.
+- CPU-heavy JavaScript blocks I/O callbacks from running.
 
 ## 5. Memory Behavior
 
-Every topic consumes or protects memory, state, or another resource. For Event Loop and Tasks, reason about memory and resource behavior explicitly.
+The event loop itself is a scheduling mechanism, but queued callbacks retain memory.
 
-Common resources:
+Example:
 
-- memory and retained references,
-- CPU and event-loop time,
-- network calls and connection pools,
-- database locks, indexes, and storage,
-- queue depth and worker capacity,
-- browser main-thread budget,
-- cloud cost and operational attention.
-
-Resource model:
-
-```text
-Work enters system
-  -> resource is allocated
-  -> work is processed
-  -> resource is released, retained, cached, or leaked
+```js
+function schedule(data) {
+  setTimeout(() => {
+    console.log(data.id);
+  }, 60_000);
+}
 ```
 
-Production questions:
+The callback closes over `data`. Until the timer fires or is cleared, `data` remains reachable.
 
-- What grows with traffic?
-- What grows with data size?
-- What grows with number of tenants, teams, or services?
-- What is bounded?
-- What can leak?
-- What needs cleanup?
-- What metric proves the resource behavior is healthy?
+Memory model:
 
-For JavaScript Core, watch runtime errors, latency, memory growth, bundle size, CPU time, test failures, and defect rate.
+```txt
+timer queue
+  -> callback
+    -> closed-over lexical environment
+      -> data object
+```
+
+Common memory risks:
+
+- timers retaining large objects,
+- intervals never cleared,
+- promise chains retaining intermediate data,
+- event listeners retaining DOM nodes,
+- queued callbacks retaining request objects,
+- unbounded job queues in userland,
+- microtask loops accumulating closures.
+
+Better:
+
+```js
+function schedule(data) {
+  const id = data.id;
+
+  setTimeout(() => {
+    console.log(id);
+  }, 60_000);
+}
+```
+
+Capture only the value needed.
+
+Cleanup matters:
+
+```js
+const id = setInterval(refresh, 1000);
+
+function destroy() {
+  clearInterval(id);
+}
+```
+
+In React, Angular, and Node services, missing cleanup is a common source of leaks.
 
 ## 6. Execution Behavior
 
-Execution behavior describes what actually happens when the system runs.
+### Basic Ordering
 
-Trace Event Loop and Tasks through:
+```js
+console.log("sync 1");
 
-- the happy path,
-- invalid input,
-- missing dependency,
-- slow dependency,
-- concurrent execution,
-- retry after timeout,
-- duplicate request or event,
-- deploy with old and new versions running together,
-- cleanup after failure.
+setTimeout(() => console.log("timer"), 0);
 
-Execution timeline:
+Promise.resolve().then(() => console.log("promise"));
 
-```text
-Before
-  -> required state and configuration exist
-During
-  -> core behavior runs and may touch dependencies
-After
-  -> result, side effects, and telemetry are visible
-Failure
-  -> caller receives error, retry, fallback, or compensation path
+console.log("sync 2");
 ```
 
-The most important question is: what invariant must remain true even if the execution path is interrupted?
+Output:
+
+```txt
+sync 1
+sync 2
+promise
+timer
+```
+
+### Microtasks Drain Fully
+
+```js
+Promise.resolve().then(() => {
+  console.log("microtask 1");
+  queueMicrotask(() => console.log("microtask 2"));
+});
+
+setTimeout(() => console.log("timer"), 0);
+```
+
+Output:
+
+```txt
+microtask 1
+microtask 2
+timer
+```
+
+The runtime drains microtasks before taking the next task.
+
+### Timer Delay Is Minimum Delay
+
+```js
+const start = Date.now();
+
+setTimeout(() => {
+  console.log(Date.now() - start);
+}, 0);
+
+while (Date.now() - start < 1000) {}
+```
+
+The timer cannot run until the blocking loop ends.
+
+### UI Rendering Interaction
+
+```js
+button.textContent = "Loading";
+heavySynchronousWork();
+button.textContent = "Done";
+```
+
+The browser may not paint `"Loading"` if the stack stays busy until `"Done"`.
+
+To allow paint:
+
+```js
+button.textContent = "Loading";
+
+setTimeout(() => {
+  heavySynchronousWork();
+  button.textContent = "Done";
+}, 0);
+```
+
+This gives the browser a chance to process rendering between tasks, depending on timing.
+
+### Async/Await Ordering
+
+```js
+async function run() {
+  console.log("A");
+  await null;
+  console.log("B");
+}
+
+run();
+console.log("C");
+```
+
+Output:
+
+```txt
+A
+C
+B
+```
+
+The continuation after `await` runs later as a microtask.
 
 ## 7. Scope & Context Interaction
 
-Event Loop and Tasks should be understood in its surrounding scope and execution context, not as an isolated detail.
+Event loop scheduling does not change lexical scope. A callback keeps access to variables from where it was created.
 
-Scope questions:
-
-- Where is this behavior visible?
-- Who can call or mutate it?
-- What module, component, service, tenant, request, thread, worker, or transaction owns it?
-- Does it cross frontend, backend, database, queue, cache, or platform boundaries?
-- Does it behave differently inside closures, async callbacks, dependency injection scopes, request scopes, or deployment environments?
-
-Context model:
-
-```text
-Local context
-  -> module or component context
-  -> service or runtime context
-  -> system or organization context
+```js
+function start(userId) {
+  setTimeout(() => {
+    console.log(userId);
+  }, 100);
+}
 ```
 
-For JavaScript and TypeScript topics, also check lexical scope, closure retention, module scope, global scope, and `this` behavior where applicable.
+The callback runs later, but it still closes over `userId`.
+
+### Stale Closure Risk
+
+```js
+let count = 0;
+
+setTimeout(() => {
+  console.log(count);
+}, 1000);
+
+count = 10;
+```
+
+The callback reads the current binding value when it runs, not a snapshot.
+
+In React, each render creates new bindings:
+
+```jsx
+useEffect(() => {
+  const id = setInterval(() => {
+    console.log(count);
+  }, 1000);
+
+  return () => clearInterval(id);
+}, []);
+```
+
+The interval closes over the `count` from the render where the effect was created.
+
+### `this` In Scheduled Callbacks
+
+```js
+const user = {
+  name: "Ajay",
+  greet() {
+    setTimeout(function () {
+      console.log(this.name);
+    }, 0);
+  },
+};
+```
+
+The callback's `this` is not automatically `user`.
+
+Fix:
+
+```js
+const user = {
+  name: "Ajay",
+  greet() {
+    setTimeout(() => {
+      console.log(this.name);
+    }, 0);
+  },
+};
+```
+
+The arrow function captures `this` lexically from `greet`.
+
+### Async Context
+
+In production, async workflows need correlation IDs because the synchronous stack is split across tasks and microtasks.
+
+```txt
+request starts
+  -> schedule database callback
+  -> schedule promise continuation
+  -> send response
+```
+
+Without async context propagation or explicit IDs, logs become difficult to connect.
 
 ## 8. Common Examples
 
-### Example 1: Local Implementation
+### Classic Ordering Example
 
-Use a local implementation when the behavior is simple, low-risk, and owned by one module or team.
+```js
+console.log(1);
 
-```ts
-type EventLoopAndTasksInput = {
-  id: string;
-  payload: unknown;
-};
+setTimeout(() => console.log(2), 0);
 
-type EventLoopAndTasksResult =
-  | { ok: true; value: unknown }
-  | { ok: false; error: string; retryable: boolean };
+Promise.resolve().then(() => console.log(3));
 
-export function handleEventLoopAndTasks(
-  input: EventLoopAndTasksInput,
-): EventLoopAndTasksResult {
-  if (!input.id) {
-    return { ok: false, error: "missing_id", retryable: false };
+console.log(4);
+```
+
+Output:
+
+```txt
+1
+4
+3
+2
+```
+
+### Chunking Browser Work
+
+```js
+function processInChunks(items, chunkSize = 100) {
+  let index = 0;
+
+  function nextChunk() {
+    const end = Math.min(index + chunkSize, items.length);
+
+    while (index < end) {
+      process(items[index]);
+      index += 1;
+    }
+
+    if (index < items.length) {
+      setTimeout(nextChunk, 0);
+    }
   }
 
-  try {
-    const value = input.payload;
-    return { ok: true, value };
-  } catch {
-    return { ok: false, error: "unexpected_failure", retryable: true };
+  nextChunk();
+}
+```
+
+This lets other tasks and rendering happen between chunks.
+
+### Microtask For Post-Sync Cleanup
+
+```js
+let pending = false;
+
+function scheduleFlush() {
+  if (pending) return;
+  pending = true;
+
+  queueMicrotask(() => {
+    pending = false;
+    flushChanges();
+  });
+}
+```
+
+This batches multiple synchronous calls into one microtask flush.
+
+### Node Event-Loop Delay
+
+```js
+import { monitorEventLoopDelay } from "node:perf_hooks";
+
+const histogram = monitorEventLoopDelay();
+histogram.enable();
+
+setInterval(() => {
+  console.log(histogram.mean);
+}, 10_000);
+```
+
+This helps detect blocking work in Node.js services.
+
+### Yielding In Async Code
+
+```js
+async function processAll(items) {
+  for (let i = 0; i < items.length; i += 1) {
+    process(items[i]);
+
+    if (i % 100 === 0) {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    }
   }
 }
 ```
 
-### Example 2: Shared Abstraction
-
-Move the behavior behind a shared abstraction when multiple teams repeat the same logic and the contract is stable.
-
-```text
-Consumer
-  -> stable interface
-  -> shared implementation
-  -> logs, metrics, tests, and ownership
-```
-
-### Example 3: Platform or Managed Capability
-
-Use a platform capability when correctness, scale, compliance, or operational cost is too important for every team to solve independently.
-
-```text
-Product team
-  -> platform API
-  -> centrally owned reliability, security, and observability
-```
+This gives the event loop a chance to run other tasks between batches.
 
 ## 9. Confusing / Tricky Examples
 
-### Confusion 1: The Name Sounds Simple
+### `setTimeout(..., 0)` Is Not Immediate
 
-Many developers can define Event Loop and Tasks, but cannot trace its lifecycle or failure modes. Interviewers often move quickly from definition to edge cases.
+```js
+setTimeout(() => console.log("timer"), 0);
 
-### Confusion 2: Local Behavior Differs From Production
+console.log("sync");
+```
 
-Local environments rarely reproduce production traffic, data shape, dependency latency, permissions, deploy overlap, or noisy neighbors.
+Output:
 
-### Confusion 3: The Happy Path Hides Ownership
+```txt
+sync
+timer
+```
 
-If no one owns the failure path, monitoring, documentation, migration plan, or rollback process, the design is incomplete.
+The timer callback waits until the current stack is empty.
 
-### Confusion 4: Optimization Before Measurement
+### Microtask Before Timer
 
-Optimizing Event Loop and Tasks without baseline data can make the system harder to debug while failing to improve the real bottleneck.
+```js
+setTimeout(() => console.log("timer"), 0);
+
+Promise.resolve().then(() => console.log("promise"));
+```
+
+Output:
+
+```txt
+promise
+timer
+```
+
+### Microtask Starvation
+
+```js
+function starve() {
+  queueMicrotask(starve);
+}
+
+starve();
+
+setTimeout(() => console.log("never reaches here"), 0);
+```
+
+The timer may never run because the microtask queue never empties.
+
+### Promise Constructor Runs Synchronously
+
+```js
+new Promise((resolve) => {
+  console.log("executor");
+  resolve();
+}).then(() => console.log("then"));
+
+console.log("sync");
+```
+
+Output:
+
+```txt
+executor
+sync
+then
+```
+
+The executor runs immediately. The `.then` callback is a microtask.
+
+### `await` Always Yields
+
+```js
+async function run() {
+  console.log("A");
+  await 1;
+  console.log("B");
+}
+
+run();
+console.log("C");
+```
+
+Output:
+
+```txt
+A
+C
+B
+```
+
+Even awaiting a non-promise value resumes asynchronously through promise semantics.
+
+### Node `nextTick` Surprise
+
+```js
+Promise.resolve().then(() => console.log("promise"));
+process.nextTick(() => console.log("nextTick"));
+```
+
+In Node.js:
+
+```txt
+nextTick
+promise
+```
+
+`process.nextTick` has special priority in Node and can also starve the event loop if abused.
 
 ## 10. Real Production Use Cases
 
-Event Loop and Tasks appears in production anywhere JavaScript Core needs predictable behavior across real users, real traffic, real failures, and real team boundaries.
+### Browser Responsiveness
 
-Used in:
+Event-loop knowledge helps prevent:
 
-- frontend apps, Node.js services, SDKs, libraries, build pipelines, and shared platform packages,
-- payment and billing workflows,
-- authentication and authorization flows,
-- admin and internal platforms,
-- realtime or async processing,
-- reporting and analytics,
-- compliance and audit trails,
-- incident response and operational runbooks.
+- frozen buttons,
+- delayed input,
+- janky animations,
+- slow hydration,
+- long tasks,
+- delayed rendering after state changes.
 
-Production makes this harder because:
+### Node.js API Latency
 
-- inputs are messy,
-- clients and services run different versions,
-- dependencies degrade before they fail,
-- retries multiply load,
-- dashboards show symptoms before root cause,
-- ownership is split across teams.
+Event-loop health determines whether a Node service can respond while other I/O is ready.
 
-## Architecture Decisions
+Blocking work causes:
 
-When designing around Event Loop and Tasks, compare multiple approaches.
+- p99 latency spikes,
+- timeout bursts,
+- slow health checks,
+- delayed socket handling,
+- poor throughput.
 
-| Approach | Use When | Trade-Off |
-|---|---|---|
-| Inline/local logic | Small scope, low risk, one owner | Fast to build, easier to duplicate |
-| Shared library | Same logic repeated across modules | Versioning and rollout become important |
-| Service/API boundary | Multiple consumers need stable behavior | Network, latency, and ownership overhead |
-| Platform capability | High scale, compliance, or reliability needs | Requires platform maturity and governance |
-| Managed service | Commodity capability with strong provider support | Less control, provider constraints |
+### Frontend Framework Scheduling
 
-Decision questions:
+React, Angular, and other frameworks coordinate rendering, effects, events, and change detection around the browser event loop.
 
-- What is the blast radius if this breaks?
-- Who owns the contract?
-- How often will it change?
-- What must be observable?
-- What happens during rollback?
-- What is the simplest design that satisfies current correctness and scale?
+Examples:
+
+- React state updates in event handlers,
+- effects running after paint,
+- Angular zone.js tracking async work,
+- hydration work competing with input responsiveness.
+
+### Batching And Debouncing
+
+Event-loop APIs are often used to batch or defer work:
+
+```js
+let timeoutId;
+
+function onSearchInput(query) {
+  clearTimeout(timeoutId);
+
+  timeoutId = setTimeout(() => {
+    search(query);
+  }, 300);
+}
+```
+
+### Observability
+
+Production systems measure:
+
+- long tasks in browsers,
+- event-loop delay in Node,
+- task duration,
+- microtask-heavy code paths,
+- timer drift,
+- queue backlog,
+- user interaction latency.
 
 ## 11. Interview Questions
 
-1. What is Event Loop and Tasks, and why does it matter in JavaScript Core?
-2. What problem does it solve inside 001.02 Execution Model?
-3. How does it work internally?
-4. What are the most common edge cases?
-5. What failure modes appear only in production?
-6. How would you implement a minimal version?
-7. How would you test it?
-8. How would you debug a production issue related to it?
-9. What metrics or logs would you add?
-10. How does the design change at 10x traffic, data, or team size?
-11. What trade-offs exist between simple implementation and platform abstraction?
-12. What senior-level mistake do engineers make with this topic?
+1. What is the event loop?
+2. What is the difference between call stack and event loop?
+3. What is a task?
+4. What is a microtask?
+5. Why does `setTimeout(..., 0)` run after synchronous code?
+6. Why do promise callbacks run before timers?
+7. What happens after `await`?
+8. Can microtasks starve rendering or timers?
+9. How does the browser rendering step relate to tasks?
+10. Why can a long synchronous function freeze the UI?
+11. Why can CPU-heavy code hurt a Node.js server?
+12. What is the difference between browser and Node event loops?
+13. What is `process.nextTick`?
+14. When would you use `queueMicrotask`?
+15. How would you debug event-loop delay in production?
 
 ## 12. Senior-Level Pitfalls
 
-### Pitfall 1: Treating It As Isolated Trivia
+### Pitfall 1: Blocking The Main Thread
 
-Event Loop and Tasks is connected to runtime behavior, architecture, operations, and team ownership. A narrow definition is not enough.
+```js
+button.addEventListener("click", () => {
+  expensiveCalculation();
+});
+```
 
-### Pitfall 2: Ignoring Failure Semantics
+If this takes hundreds of milliseconds, input and rendering are blocked.
 
-A design that only explains success is not production-ready. Define timeout, retry, cancellation, idempotency, rollback, and cleanup behavior.
+### Pitfall 2: Promise Chains That Starve Tasks
 
-### Pitfall 3: Missing Observability
+```js
+function loop() {
+  Promise.resolve().then(loop);
+}
+```
 
-If the system cannot prove what happened, debugging becomes guesswork. Add logs, metrics, traces, and structured identifiers at decision points.
+This can prevent timers and rendering from progressing.
 
-### Pitfall 4: Hidden Shared State
+### Pitfall 3: Assuming Timer Precision
 
-Shared state without clear ownership creates race conditions, stale reads, memory leaks, and cross-request contamination.
+Timers are not real-time guarantees. They are delayed by busy stacks, clamping, browser throttling, background tabs, and runtime scheduling.
 
-### Pitfall 5: Premature Abstraction
+### Pitfall 4: Abusing `process.nextTick`
 
-Abstracting too early can freeze weak assumptions. Wait until the repeated shape is stable, then extract a clear interface.
+`process.nextTick` can starve I/O in Node when recursively scheduled.
+
+### Pitfall 5: Missing Async Context
+
+Logs from separate tasks or microtasks may look unrelated unless request IDs or async context propagation are used.
+
+### Pitfall 6: Thinking Async Means Parallel
+
+Async callbacks do not automatically run in parallel on the main JavaScript thread. CPU work still blocks unless moved to another thread/process or broken into chunks.
 
 ## 13. Best Practices
 
-- Start with a precise definition.
-- Identify the owner and boundary.
-- Make inputs, outputs, and invariants explicit.
-- Prefer simple local design until the pressure for abstraction is real.
-- Test normal, edge, and failure paths.
-- Add observability before relying on the behavior in production.
-- Keep resource usage bounded.
-- Document assumptions and trade-offs.
-- Design rollback and migration paths.
-- Revisit the decision when scale, team count, or correctness requirements change.
+- Keep individual tasks short.
+- Use microtasks for small post-sync coordination, not heavy work.
+- Avoid recursive microtask or `nextTick` loops.
+- Break large browser work into chunks.
+- Use Web Workers for CPU-heavy frontend work.
+- Use Node worker threads or background jobs for CPU-heavy backend work.
+- Debounce high-frequency user input.
+- Clear timers and intervals during cleanup.
+- Measure event-loop delay in Node services.
+- Monitor long tasks and interaction latency in browsers.
+- Use correlation IDs for async workflows.
+- Do not assume exact timer ordering across browser and Node contexts.
 
 ## 14. Debugging Scenarios
 
-### Scenario 1: Works Locally, Fails In Production
+### Scenario 1: Button Click Feels Delayed
 
-Likely causes:
-
-- different configuration,
-- different data shape,
-- missing permissions,
-- dependency latency,
-- concurrency,
-- version mismatch.
-
-Debugging steps:
-
-1. Compare environment configuration.
-2. Capture one failing input.
-3. Trace the request or workflow end to end.
-4. Check deploy, data, and dependency timelines.
-5. Reproduce with production-like constraints.
-
-### Scenario 2: Intermittent Failure
-
-Likely causes:
-
-- race condition,
-- retry interaction,
-- shared mutable state,
-- timeout boundary,
-- cache inconsistency,
-- queue ordering.
-
-Debugging steps:
-
-1. Group failures by tenant, version, region, and dependency.
-2. Inspect p95 and p99 instead of averages.
-3. Add correlation IDs.
-4. Check whether retries amplify the issue.
-5. Verify cleanup and idempotency.
-
-### Scenario 3: Performance Regression
-
-Likely causes:
-
-- unbounded work,
-- inefficient query or algorithm,
-- larger payload,
-- cache miss pattern,
-- excessive serialization,
-- synchronous work on a critical path.
-
-Debugging steps:
-
-1. Establish baseline.
-2. Profile the hot path.
-3. Compare before and after deploy.
-4. Measure resource saturation.
-5. Optimize the proven bottleneck only.
-
-### Scenario 4: Memory Or Resource Growth
-
-Likely causes:
-
-- retained references,
-- unbounded queue,
-- missing cleanup,
-- long-lived subscriptions,
-- growing cache,
-- connection leak.
-
-Debugging steps:
-
-1. Capture heap, CPU, or resource profile.
-2. Inspect retainers or open handles.
-3. Confirm lifecycle cleanup.
-4. Add bounds and eviction.
-5. Verify recovery after load drops.
-
-## Diagrams
-
-Dedicated diagrams are available in [diagrams.md](./diagrams.md).
-
-### Concept Flow
-
-```mermaid
-flowchart TD
-  A[Input or trigger] --> B[Validate assumptions]
-  B --> C[Enter 001.02 Execution Model boundary]
-  C --> D[Apply Event Loop and Tasks]
-  D --> E[Read or change state]
-  E --> F[Return result]
-  F --> G[Emit telemetry]
+```js
+button.addEventListener("click", () => {
+  renderHugeList(items);
+});
 ```
 
-### Failure Flow
+Likely cause: one long task blocks input and rendering.
 
-```mermaid
-flowchart TD
-  A[Unexpected behavior] --> B{Input valid?}
-  B -->|No| C[Fix validation or caller contract]
-  B -->|Yes| D{State correct?}
-  D -->|No| E[Inspect ownership, mutation, cache, or ordering]
-  D -->|Yes| F{Dependency healthy?}
-  F -->|No| G[Check timeout, retry, fallback, and saturation]
-  F -->|Yes| H[Inspect implementation assumptions and edge cases]
+Debugging steps:
+
+1. Record browser performance profile.
+2. Look for long tasks over 50 ms.
+3. Identify the hot JavaScript function.
+4. Virtualize, chunk, memoize, or move work to a worker.
+5. Re-measure interaction latency.
+
+### Scenario 2: Timer Fires Late
+
+```js
+setTimeout(sendHeartbeat, 1000);
+heavySynchronousWork();
 ```
 
-### Production Readiness Loop
+Likely cause: the stack was busy when the timer became eligible.
 
-```text
-Design
-  -> implement
-  -> test
-  -> instrument
-  -> deploy safely
-  -> observe
-  -> learn
-  -> refine
+Fix:
+
+- reduce blocking work,
+- split work into chunks,
+- move CPU-heavy work off-thread,
+- avoid using timers as precise clocks.
+
+### Scenario 3: Node p99 Latency Spike
+
+```js
+app.post("/import", (req, res) => {
+  parseLargeCsv(req.body);
+  res.end("ok");
+});
 ```
+
+Likely cause: CPU-heavy parsing blocks the Node event loop.
+
+Debugging steps:
+
+1. Measure event-loop delay.
+2. Capture CPU profile.
+3. Check request size distribution.
+4. Move parsing to a worker/background job.
+5. Add payload limits and backpressure.
+
+### Scenario 4: Promise Callback Runs Before Timer
+
+```js
+setTimeout(() => log("timer"), 0);
+Promise.resolve().then(() => log("promise"));
+```
+
+This is expected. Microtasks drain before the next task.
+
+Debugging step: classify each callback as sync, microtask, or task before predicting output.
+
+### Scenario 5: Memory Leak From Interval
+
+```js
+function mount(data) {
+  setInterval(() => {
+    refresh(data);
+  }, 1000);
+}
+```
+
+Likely cause: interval is never cleared and retains `data`.
+
+Fix:
+
+```js
+function mount(data) {
+  const id = setInterval(() => {
+    refresh(data.id);
+  }, 1000);
+
+  return () => clearInterval(id);
+}
+```
+
+### Scenario 6: Logs Lose Request Order
+
+Async work splits execution across tasks and microtasks.
+
+Fix:
+
+- include request ID in every log,
+- use async context tooling where appropriate,
+- add trace/span IDs,
+- log before and after scheduling important work.
 
 ## 15. Exercises / Practice
 
 ### Exercise 1
 
-Explain Event Loop and Tasks in your own words using three levels:
+Predict the output:
 
-- beginner explanation,
-- intermediate internal explanation,
-- senior production explanation.
+```js
+console.log("A");
+setTimeout(() => console.log("B"), 0);
+Promise.resolve().then(() => console.log("C"));
+console.log("D");
+```
 
 ### Exercise 2
 
-Draw the lifecycle for Event Loop and Tasks:
+Predict the output:
 
-```text
-input -> decision -> state change -> output -> telemetry
+```js
+async function run() {
+  console.log(1);
+  await null;
+  console.log(2);
+}
+
+run();
+console.log(3);
 ```
-
-Mark where validation, failure handling, and cleanup happen.
 
 ### Exercise 3
 
-Write one example where Event Loop and Tasks works correctly and one where it fails because of an edge case.
+Fix this UI blocking issue:
+
+```js
+function onClick() {
+  for (const item of hugeList) {
+    process(item);
+  }
+}
+```
 
 ### Exercise 4
 
-Create a debugging checklist for a production incident involving Event Loop and Tasks. Include logs, metrics, traces, and rollback options.
+Explain why this timer may never run:
+
+```js
+function loop() {
+  queueMicrotask(loop);
+}
+
+loop();
+setTimeout(() => console.log("timer"), 0);
+```
 
 ### Exercise 5
 
-Compare two architecture choices for this topic and explain when each is better.
+Classify each as sync, task, or microtask:
+
+- function body,
+- `setTimeout`,
+- promise `.then`,
+- `queueMicrotask`,
+- click handler,
+- `await` continuation,
+- `requestAnimationFrame`,
+- `process.nextTick`.
+
+### Exercise 6
+
+Design a Node.js debugging plan for event-loop delay above 200 ms.
 
 ## 16. Comparison
 
-Compare Event Loop and Tasks with nearby or competing concepts.
+### Task vs Microtask
 
-Comparison prompts:
-
-- What problem does each option solve?
-- Which one is simpler?
-- Which one is safer?
-- Which one scales better?
-- Which one is easier to debug?
-- Which one has better ecosystem or platform support?
-
-Decision table:
-
-| Option | Prefer When | Avoid When |
+| Concept | Examples | Runs When |
 |---|---|---|
-| Event Loop and Tasks | It directly matches the invariant and ownership boundary | The abstraction hides important failure behavior |
-| Simpler local approach | Scope is small, low risk, and easy to test | Logic is duplicated across many teams |
-| Shared/platform approach | Correctness, scale, or governance matters | The contract is still changing rapidly |
+| Task | script, timer, click, message, I/O callback | selected by event loop when stack is empty |
+| Microtask | promise reaction, `queueMicrotask`, await continuation | drained after current stack/task before next task |
+
+### Browser vs Node Event Loop
+
+| Area | Browser | Node.js |
+|---|---|---|
+| Rendering | Has style/layout/paint opportunities | No rendering step |
+| Timers | `setTimeout`, `setInterval` | `setTimeout`, `setInterval` |
+| Microtasks | promises, `queueMicrotask`, mutation observers | promises, `queueMicrotask`, plus `process.nextTick` behavior |
+| CPU work impact | Freezes UI/input/rendering | Delays I/O and requests |
+| Offload option | Web Workers | Worker threads, child processes, background jobs |
+
+### `setTimeout` vs `queueMicrotask`
+
+| API | Use For | Avoid For |
+|---|---|---|
+| `setTimeout(fn, 0)` | Yielding to a future task | Precise immediate execution |
+| `queueMicrotask(fn)` | Small cleanup after current sync work | Heavy work or recursive loops |
+
+### Async vs Parallel
+
+| Word | Meaning |
+|---|---|
+| Async | Work continues later without blocking current stack |
+| Parallel | Work runs at the same time on another thread/core/process |
 
 ## 17. Related Concepts
 
-Event Loop and Tasks connects to the rest of the knowledge tree.
+Prerequisites:
 
-Study links:
+- Call Stack
+- Scope, Closures, and Hoisting
+- Functions Basics
 
-- Parent category: JavaScript Core
-- Parent topic: 001.02 Execution Model
-- Internal flow and diagrams: [diagrams.md](./diagrams.md)
-- Practice files in this folder: debugging, questions, exercises, and review notes
+Direct follow-ups:
 
-Related concept types:
+- Promises and Async/Await
+- Error Handling
+- Browser Rendering Pipeline
+- Node.js Event Loop
+- Streams and Buffers
+- Performance Profiling
+- Observability
 
-- prerequisites that make this topic easier,
-- follow-up topics that build on it,
-- architecture concepts that use it,
-- production concerns that expose its limits,
-- interview patterns that test it indirectly.
+Production connections:
+
+- frontend long tasks,
+- React and Angular scheduling,
+- Node event-loop delay,
+- async context propagation,
+- request timeouts,
+- queue backpressure,
+- background jobs,
+- worker threads and Web Workers.
+
+Knowledge graph:
+
+```txt
+Call Stack
+  -> current synchronous work
+  -> stack empty
+    -> drain microtasks
+    -> browser may render
+    -> event loop selects next task
+      -> callback runs on call stack
+```
 
 ## Advanced Add-ons
 
 ### Performance Impact
 
-- Time complexity: identify whether work is constant, linear, logarithmic, fan-out, or unbounded.
-- Memory usage: identify retained data, copied data, cached data, and cleanup timing.
-- Hot path risk: determine whether this runs per request, per render, per event, per query, or per deployment.
-- Measurement: use baselines, profiling, p95/p99, and resource saturation before optimizing.
+Event-loop health is directly tied to responsiveness and latency.
+
+Performance risks:
+
+- long synchronous tasks,
+- too many microtasks,
+- recursive `nextTick` or microtask loops,
+- heavy promise chains,
+- large JSON parsing/stringifying,
+- CPU-heavy request handlers,
+- rendering work that blocks input.
+
+Metrics:
+
+- browser long task count,
+- Interaction to Next Paint,
+- Total Blocking Time,
+- Node event-loop delay,
+- p95/p99 request latency,
+- timer drift,
+- CPU utilization.
 
 ### System Design Relevance
 
-Event Loop and Tasks matters in system design when it affects boundaries, contracts, scaling behavior, correctness, or operational ownership.
+Event-loop constraints influence architecture.
 
-Ask:
+Design choices:
 
-- Does it belong inside a module, service, shared library, platform layer, or managed service?
-- What is the blast radius if it fails?
-- What happens at 10x traffic, data, tenants, regions, or teams?
-- What reliability, observability, and rollback strategy is required?
+- keep CPU-heavy work out of request/render paths,
+- move expensive jobs to workers or queues,
+- apply backpressure when work arrives faster than it can be processed,
+- use streaming for large data,
+- separate interactive work from batch work,
+- use observability to detect event-loop saturation.
+
+Decision question:
+
+```txt
+Can this work safely run on the main event loop, or should it be chunked, deferred, streamed, queued, or moved to another execution environment?
+```
 
 ### Security Impact
 
-Security relevance depends on whether Event Loop and Tasks touches input, identity, authorization, secrets, user data, logs, dependencies, or execution boundaries.
+Event-loop misuse can become availability risk.
 
-Check:
+Risks:
 
-- validation and sanitization,
-- least privilege,
-- sensitive data exposure,
-- injection or confused-deputy risks,
-- auditability and compliance requirements.
+- denial of service through CPU-heavy payloads,
+- recursive microtask starvation,
+- unbounded timers or queued work,
+- expensive parsing of malicious input,
+- event-loop blocking that delays auth, rate limits, or health checks.
+
+Defenses:
+
+- input size limits,
+- timeouts and cancellation,
+- CPU budgets,
+- worker isolation,
+- rate limiting,
+- backpressure,
+- safe parser limits.
 
 ### Browser vs Node Behavior
 
-If this topic appears in JavaScript runtimes, compare browser and Node.js behavior:
+Browser:
 
-- global object and module scope,
-- event loop and task queues,
-- API availability,
-- security sandbox,
-- file, network, and process access,
-- debugging and profiling tools.
+- rendering competes with JavaScript work,
+- user input waits behind long tasks,
+- background tabs may throttle timers,
+- `requestAnimationFrame` aligns with paint,
+- Web Workers provide off-main-thread CPU work.
 
-For non-runtime topics, compare local development, CI, staging, and production behavior instead.
+Node.js:
+
+- event-loop delay affects all connections on that process,
+- libuv handles many I/O operations,
+- `process.nextTick` is Node-specific,
+- `setImmediate` is Node-specific,
+- worker threads help CPU-bound tasks,
+- event-loop delay should be monitored in production.
+
+Core shared rule:
+
+```txt
+Callbacks do not interrupt currently running JavaScript.
+```
 
 ### Polyfill / Implementation
 
-Staff-level understanding includes knowing whether you can implement a simplified version yourself.
+You cannot polyfill the real event loop because it is provided by the host runtime.
 
-Implementation prompts:
+You can model scheduling:
 
-- What is the smallest correct version?
-- Which edge cases are intentionally unsupported?
-- Which behavior must match platform semantics?
-- What tests prove compatibility?
-- When is using a proven library safer than custom implementation?
+```js
+const tasks = [];
+const microtasks = [];
+
+function scheduleTask(fn) {
+  tasks.push(fn);
+}
+
+function scheduleMicrotask(fn) {
+  microtasks.push(fn);
+}
+
+function runLoopOnce() {
+  const task = tasks.shift();
+
+  if (task) {
+    task();
+  }
+
+  while (microtasks.length > 0) {
+    const microtask = microtasks.shift();
+    microtask();
+  }
+}
+```
+
+This model is incomplete, but it teaches the ordering idea: run one task, drain microtasks, then continue.
+
+Staff-level takeaway: event-loop mastery means you can predict callback ordering, prevent starvation, keep user interactions responsive, protect Node servers from CPU blocking, and design async flows with observable boundaries.
 
 ## 18. Summary
 
-Event Loop and Tasks is a practical engineering topic, not just a vocabulary item. Mastery means you can define it, implement it, reason about internals, predict edge cases, debug failures, and explain trade-offs.
+The event loop coordinates asynchronous JavaScript execution.
 
 Remember:
 
-- Start from first principles.
-- Identify boundaries and ownership.
-- Understand execution and resource behavior.
-- Design for failure, not only success.
-- Add observability.
-- Keep the simplest design that satisfies correctness and scale.
-- Revisit the design as production pressure changes.
+- synchronous code runs first on the call stack,
+- callbacks do not interrupt running JavaScript,
+- tasks include timers, events, messages, and I/O callbacks,
+- microtasks include promise reactions, `await` continuations, and `queueMicrotask`,
+- microtasks drain before the next task,
+- too many microtasks can starve tasks and rendering,
+- `setTimeout(..., 0)` means later, not immediately,
+- browsers need event-loop gaps to render,
+- Node.js event-loop delay causes server latency,
+- async does not automatically mean parallel,
+- production systems need event-loop metrics, input limits, cleanup, and backpressure.
