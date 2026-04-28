@@ -464,6 +464,7 @@ Topic: ${topicName}
 - [Architecture Decisions](./architecture-decisions.md)
 - [Interview Focus](./interview-focus.md)
 - [Internal Flow](./internal-flow.md)
+- [Diagrams](./diagrams.md)
 - [Failure Scenarios](./failure-scenarios.md)
 - [Debugging Strategies](./debugging-strategies.md)
 - [Optimization Techniques](./optimization-techniques.md)
@@ -1045,6 +1046,70 @@ Caller intent
 - Every retryable operation is safe to retry.
 - Every failure mode has a visible signal.
 - Every expensive operation has a known limit.
+`,
+    ],
+    [
+      "diagrams.md",
+      `# Diagrams: ${subtopicName}
+
+Use these diagrams to explain ${subtopicName} visually during revision, mentoring, architecture review, and interviews.
+
+## Concept Flow
+
+\`\`\`mermaid
+flowchart TD
+  A[Input or trigger] --> B[Validate assumptions]
+  B --> C[Resolve ${topicName} context]
+  C --> D[Apply ${subtopicName} behavior]
+  D --> E[State or output changes]
+  E --> F[Observable result]
+  F --> G[Telemetry and feedback]
+\`\`\`
+
+## Internal Lifecycle
+
+\`\`\`text
+Start
+  -> identify boundary
+  -> load current state or context
+  -> apply core rule
+  -> handle edge case
+  -> produce result
+  -> emit logs, metrics, or traces where applicable
+\`\`\`
+
+## Failure Decision Tree
+
+\`\`\`mermaid
+flowchart TD
+  A[Unexpected behavior] --> B{Input valid?}
+  B -->|no| C[Fix validation or caller contract]
+  B -->|yes| D{State correct?}
+  D -->|no| E[Inspect ownership, mutation, caching, or ordering]
+  D -->|yes| F{Dependency healthy?}
+  F -->|no| G[Check timeout, retry, saturation, or fallback]
+  F -->|yes| H[Inspect implementation assumptions and edge cases]
+\`\`\`
+
+## Production Mental Model
+
+\`\`\`text
+Correctness
+  + lifecycle timing
+  + state ownership
+  + failure handling
+  + observability
+  + scale pressure
+  = production-ready understanding
+\`\`\`
+
+## Diagram Review Questions
+
+- What does the diagram make easier to explain?
+- Where is the first failure boundary?
+- Which state transition is most dangerous?
+- Which signal would prove the behavior in production?
+- How would the diagram change at 10x traffic, data, or team size?
 `,
     ],
     [

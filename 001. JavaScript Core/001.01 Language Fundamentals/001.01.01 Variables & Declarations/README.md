@@ -637,6 +637,116 @@ Debugging steps:
 3. Remove unused handlers.
 4. Avoid capturing large objects when only an ID is needed.
 
+## Diagrams
+
+Full diagrams are maintained in [diagrams.md](./diagrams.md).
+
+### Execution Context Creation vs Execution
+
+```mermaid
+flowchart TD
+  A[Source code enters engine] --> B[Parse code]
+  B --> C[Create execution context]
+  C --> D[Scan declarations]
+  D --> E[Create environment records]
+  E --> F[var bindings initialized to undefined]
+  E --> G[let and const bindings left uninitialized]
+  F --> H[Execution phase starts]
+  G --> H
+  H --> I[Run statements top to bottom]
+  I --> J[Initialize let and const when declaration executes]
+  I --> K[Assign var values when assignment executes]
+```
+
+Key idea: all declarations are discovered before execution, but not all bindings are initialized the same way.
+
+### `var` vs `let` / `const` Before Declaration
+
+```txt
+Creation phase
+
+var a;              let b; / const c;
+  |                      |
+  v                      v
+a = undefined       b/c = uninitialized
+  |                      |
+  v                      v
+read before line     read before line
+  |                      |
+  v                      v
+undefined            ReferenceError
+```
+
+### Scope Resolution
+
+```mermaid
+flowchart LR
+  A[Current block scope] -->|identifier not found| B[Outer function scope]
+  B -->|identifier not found| C[Module or global scope]
+  C -->|identifier not found| D[ReferenceError]
+  A -->|found binding| E[Use nearest binding]
+  B -->|found binding| E
+  C -->|found binding| E
+```
+
+The engine always uses the nearest matching binding. This is why shadowing can create confusing TDZ bugs.
+
+### Binding vs Value Memory Model
+
+```txt
+Primitive copy
+
+let a = 10;
+let b = a;
+
+a binding -> 10
+b binding -> 10
+
+Object reference
+
+const user1 = { name: "Ajay" };
+const user2 = user1;
+
+user1 binding ----\
+                  ---> object in heap { name: "Ajay" }
+user2 binding ----/
+```
+
+`const` freezes the arrow from binding to value. It does not freeze the object the arrow points to.
+
+### Loop Closure Behavior
+
+```txt
+var loop
+
+one shared i binding
+  i = 0 -> i = 1 -> i = 2 -> i = 3
+     \       \       \
+      callbacks all read final shared i: 3
+
+let loop
+
+per-iteration i bindings
+  iteration 0 -> callback reads i0: 0
+  iteration 1 -> callback reads i1: 1
+  iteration 2 -> callback reads i2: 2
+```
+
+### Debugging Decision Flow
+
+```mermaid
+flowchart TD
+  A[Variable bug observed] --> B{Value is undefined?}
+  B -->|yes| C[Check var hoisting or missing initialization]
+  B -->|no| D{ReferenceError?}
+  D -->|yes| E[Check TDZ, block scope, or shadowing]
+  D -->|no| F{Unexpected mutation?}
+  F -->|yes| G[Check shared object references and const misunderstanding]
+  F -->|no| H{Wrong async loop value?}
+  H -->|yes| I[Check var loop closure]
+  H -->|no| J[Inspect scope chain, reassignment, and lifecycle]
+```
+
 ## Mini Exercises
 
 ### Exercise 1
