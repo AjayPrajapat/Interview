@@ -4,7 +4,7 @@ Category: SSR / CSR / SSG / Hydration
 
 Topic: 071.04 Engineering Decisions
 
-## Definition
+## 1. Definition
 
 Debugging is a focused engineering concept inside 071.04 Engineering Decisions. It describes a behavior, design choice, implementation technique, or operational concern that engineers must understand deeply to build reliable systems in SSR / CSR / SSG / Hydration.
 
@@ -19,7 +19,7 @@ At a practical level, this topic answers:
 
 The goal is not only to recognize the term. The goal is to explain Debugging from first principles, apply it in code or architecture, debug it when it breaks, and defend trade-offs in an interview or design review.
 
-## Why It Exists
+## 2. Why It Exists
 
 Debugging exists because real systems need explicit rules for correctness, ownership, execution, and change. Without this concept, teams usually rely on implicit assumptions, and implicit assumptions become bugs when systems grow.
 
@@ -33,7 +33,7 @@ This topic matters because it helps engineers:
 
 You should understand this before moving deeper because later topics often depend on the same mental models: state ownership, lifecycle timing, API contracts, failure handling, scaling pressure, and observability.
 
-## Syntax / Interface Shape
+## 3. Syntax & Variants
 
 Not every engineering topic has programming syntax, but every topic has an interface shape. The interface shape is how the concept appears to the rest of the system.
 
@@ -67,7 +67,16 @@ When reading or writing code for this topic, identify:
 - the failure path,
 - the observability signal.
 
-## Internal Working
+Variants to identify:
+
+- direct language or framework syntax,
+- configuration shape,
+- API or interface shape,
+- runtime behavior shape,
+- rare edge syntax or unusual usage,
+- legacy forms that still appear in production.
+
+## 4. Internal Working
 
 The internal working of Debugging should be understood as a lifecycle, not as a definition.
 
@@ -93,7 +102,7 @@ For this topic, inspect the real mechanism behind the abstraction:
 
 Senior engineers do not stop at "it works." They ask what the runtime must do, what it keeps in memory, what it sends over the network, what can be retried, what can be duplicated, and what must be protected by invariants.
 
-## Memory Behavior
+## 5. Memory Behavior
 
 Every topic consumes or protects memory, state, or another resource. For Debugging, reason about memory and resource behavior explicitly.
 
@@ -128,7 +137,7 @@ Production questions:
 
 For SSR / CSR / SSG / Hydration, watch Core Web Vitals, p95 interaction latency, bundle size, hydration cost, error rate, and accessibility violations.
 
-## Execution Behavior
+## 6. Execution Behavior
 
 Execution behavior describes what actually happens when the system runs.
 
@@ -159,7 +168,30 @@ Failure
 
 The most important question is: what invariant must remain true even if the execution path is interrupted?
 
-## Common Examples
+## 7. Scope & Context Interaction
+
+Debugging should be understood in its surrounding scope and execution context, not as an isolated detail.
+
+Scope questions:
+
+- Where is this behavior visible?
+- Who can call or mutate it?
+- What module, component, service, tenant, request, thread, worker, or transaction owns it?
+- Does it cross frontend, backend, database, queue, cache, or platform boundaries?
+- Does it behave differently inside closures, async callbacks, dependency injection scopes, request scopes, or deployment environments?
+
+Context model:
+
+```text
+Local context
+  -> module or component context
+  -> service or runtime context
+  -> system or organization context
+```
+
+For JavaScript and TypeScript topics, also check lexical scope, closure retention, module scope, global scope, and `this` behavior where applicable.
+
+## 8. Common Examples
 
 ### Example 1: Local Implementation
 
@@ -203,7 +235,7 @@ Product team
   -> centrally owned reliability, security, and observability
 ```
 
-## Confusing Examples
+## 9. Confusing / Tricky Examples
 
 ### Confusion 1: The Name Sounds Simple
 
@@ -221,7 +253,7 @@ If no one owns the failure path, monitoring, documentation, migration plan, or r
 
 Optimizing Debugging without baseline data can make the system harder to debug while failing to improve the real bottleneck.
 
-## Production Use Cases
+## 10. Real Production Use Cases
 
 Debugging appears in production anywhere SSR / CSR / SSG / Hydration needs predictable behavior across real users, real traffic, real failures, and real team boundaries.
 
@@ -266,7 +298,7 @@ Decision questions:
 - What happens during rollback?
 - What is the simplest design that satisfies current correctness and scale?
 
-## Interview Questions
+## 11. Interview Questions
 
 1. What is Debugging, and why does it matter in SSR / CSR / SSG / Hydration?
 2. What problem does it solve inside 071.04 Engineering Decisions?
@@ -281,7 +313,7 @@ Decision questions:
 11. What trade-offs exist between simple implementation and platform abstraction?
 12. What senior-level mistake do engineers make with this topic?
 
-## Senior-Level Pitfalls
+## 12. Senior-Level Pitfalls
 
 ### Pitfall 1: Treating It As Isolated Trivia
 
@@ -303,7 +335,7 @@ Shared state without clear ownership creates race conditions, stale reads, memor
 
 Abstracting too early can freeze weak assumptions. Wait until the repeated shape is stable, then extract a clear interface.
 
-## Best Practices
+## 13. Best Practices
 
 - Start with a precise definition.
 - Identify the owner and boundary.
@@ -316,7 +348,7 @@ Abstracting too early can freeze weak assumptions. Wait until the repeated shape
 - Design rollback and migration paths.
 - Revisit the decision when scale, team count, or correctness requirements change.
 
-## Debugging Scenarios
+## 14. Debugging Scenarios
 
 ### Scenario 1: Works Locally, Fails In Production
 
@@ -436,7 +468,7 @@ Design
   -> refine
 ```
 
-## Mini Exercises
+## 15. Exercises / Practice
 
 ### Exercise 1
 
@@ -468,7 +500,104 @@ Create a debugging checklist for a production incident involving Debugging. Incl
 
 Compare two architecture choices for this topic and explain when each is better.
 
-## Summary
+## 16. Comparison
+
+Compare Debugging with nearby or competing concepts.
+
+Comparison prompts:
+
+- What problem does each option solve?
+- Which one is simpler?
+- Which one is safer?
+- Which one scales better?
+- Which one is easier to debug?
+- Which one has better ecosystem or platform support?
+
+Decision table:
+
+| Option | Prefer When | Avoid When |
+|---|---|---|
+| Debugging | It directly matches the invariant and ownership boundary | The abstraction hides important failure behavior |
+| Simpler local approach | Scope is small, low risk, and easy to test | Logic is duplicated across many teams |
+| Shared/platform approach | Correctness, scale, or governance matters | The contract is still changing rapidly |
+
+## 17. Related Concepts
+
+Debugging connects to the rest of the knowledge tree.
+
+Study links:
+
+- Parent category: SSR / CSR / SSG / Hydration
+- Parent topic: 071.04 Engineering Decisions
+- Internal flow and diagrams: [diagrams.md](./diagrams.md)
+- Practice files in this folder: debugging, questions, exercises, and review notes
+
+Related concept types:
+
+- prerequisites that make this topic easier,
+- follow-up topics that build on it,
+- architecture concepts that use it,
+- production concerns that expose its limits,
+- interview patterns that test it indirectly.
+
+## Advanced Add-ons
+
+### Performance Impact
+
+- Time complexity: identify whether work is constant, linear, logarithmic, fan-out, or unbounded.
+- Memory usage: identify retained data, copied data, cached data, and cleanup timing.
+- Hot path risk: determine whether this runs per request, per render, per event, per query, or per deployment.
+- Measurement: use baselines, profiling, p95/p99, and resource saturation before optimizing.
+
+### System Design Relevance
+
+Debugging matters in system design when it affects boundaries, contracts, scaling behavior, correctness, or operational ownership.
+
+Ask:
+
+- Does it belong inside a module, service, shared library, platform layer, or managed service?
+- What is the blast radius if it fails?
+- What happens at 10x traffic, data, tenants, regions, or teams?
+- What reliability, observability, and rollback strategy is required?
+
+### Security Impact
+
+Security relevance depends on whether Debugging touches input, identity, authorization, secrets, user data, logs, dependencies, or execution boundaries.
+
+Check:
+
+- validation and sanitization,
+- least privilege,
+- sensitive data exposure,
+- injection or confused-deputy risks,
+- auditability and compliance requirements.
+
+### Browser vs Node Behavior
+
+If this topic appears in JavaScript runtimes, compare browser and Node.js behavior:
+
+- global object and module scope,
+- event loop and task queues,
+- API availability,
+- security sandbox,
+- file, network, and process access,
+- debugging and profiling tools.
+
+For non-runtime topics, compare local development, CI, staging, and production behavior instead.
+
+### Polyfill / Implementation
+
+Staff-level understanding includes knowing whether you can implement a simplified version yourself.
+
+Implementation prompts:
+
+- What is the smallest correct version?
+- Which edge cases are intentionally unsupported?
+- Which behavior must match platform semantics?
+- What tests prove compatibility?
+- When is using a proven library safer than custom implementation?
+
+## 18. Summary
 
 Debugging is a practical engineering topic, not just a vocabulary item. Mastery means you can define it, implement it, reason about internals, predict edge cases, debug failures, and explain trade-offs.
 
