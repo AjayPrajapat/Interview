@@ -6,625 +6,1147 @@ Topic: 001.01 Language Fundamentals
 
 ## 1. Definition
 
-Prototypes and Object Model is a focused engineering concept inside 001.01 Language Fundamentals. It describes a behavior, design choice, implementation technique, or operational concern that engineers must understand deeply to build reliable systems in JavaScript Core.
+JavaScript objects are dynamic collections of properties with an internal link to another object called their prototype.
 
-At a practical level, this topic answers:
+The prototype chain is the lookup path JavaScript follows when a property is not found directly on an object.
 
-- what problem it solves,
-- what boundary it belongs to,
-- what assumptions it depends on,
-- how it behaves during normal execution,
-- how it fails under pressure,
-- and how to reason about it in production.
+One-line version:
 
-The goal is not only to recognize the term. The goal is to explain Prototypes and Object Model from first principles, apply it in code or architecture, debug it when it breaks, and defend trade-offs in an interview or design review.
+```txt
+JavaScript uses prototypes to share behavior between objects through delegation instead of classical inheritance.
+```
+
+Expanded explanation:
+
+- An object can have own properties.
+- An object can delegate missing property lookups to its prototype.
+- That prototype can have its own prototype.
+- Lookup continues until the property is found or the chain reaches `null`.
+- Constructor functions and `class` syntax both build on this prototype model.
+
+Important distinction:
+
+- `prototype` is a property found on functions used as constructors.
+- `[[Prototype]]` is the internal prototype link of an object.
+- `__proto__` is a legacy accessor for an object's internal prototype.
 
 ## 2. Why It Exists
 
-Prototypes and Object Model exists because real systems need explicit rules for correctness, ownership, execution, and change. Without this concept, teams usually rely on implicit assumptions, and implicit assumptions become bugs when systems grow.
+JavaScript needed a way to let objects share behavior without copying methods onto every instance.
 
-This topic matters because it helps engineers:
+Prototypes solve this problem:
 
-- reduce ambiguity in 001.01 Language Fundamentals,
-- make behavior easier to test and review,
-- prevent local decisions from creating system-level failures,
-- identify performance and reliability limits before production incidents,
-- communicate trade-offs clearly across frontend, backend, platform, security, and product teams.
+```js
+function User(name) {
+  this.name = name;
+}
 
-You should understand this before moving deeper because later topics often depend on the same mental models: state ownership, lifecycle timing, API contracts, failure handling, scaling pressure, and observability.
+User.prototype.sayHello = function () {
+  return `Hello, ${this.name}`;
+};
+
+const user = new User("Ajay");
+user.sayHello(); // "Hello, Ajay"
+```
+
+The `sayHello` method is stored once on `User.prototype`. Every instance can delegate to it.
+
+Why language designers used this model:
+
+- objects can be lightweight,
+- behavior can be shared by delegation,
+- dynamic extension is possible,
+- constructor functions can create families of related objects,
+- `class` syntax can be layered on top without changing the core object model.
+
+Senior-level reason:
+
+Prototypes are behind many things that look simple: object methods, arrays, classes, `instanceof`, property lookup, monkey patching, prototype pollution, hidden class optimization, and many framework internals.
 
 ## 3. Syntax & Variants
 
-Not every engineering topic has programming syntax, but every topic has an interface shape. The interface shape is how the concept appears to the rest of the system.
+### Object Literal
 
-In JavaScript Core, Prototypes and Object Model commonly appears as a function, type, object, runtime behavior, data structure, or algorithm.
+```js
+const user = {
+  name: "Ajay",
+  greet() {
+    return `Hi ${this.name}`;
+  },
+};
+```
 
-Typical shape:
+`user` has own properties and usually inherits from `Object.prototype`.
 
-```ts
-type PrototypesAndObjectModelInput = {
-  id: string;
-  payload: unknown;
+### Own Property
+
+```js
+const user = { name: "Ajay" };
+
+console.log(user.name); // own property
+```
+
+### Prototype Property Lookup
+
+```js
+const user = { name: "Ajay" };
+
+console.log(user.toString); // found on Object.prototype
+```
+
+`toString` is not usually an own property of `user`; it is inherited.
+
+### `Object.create`
+
+```js
+const baseUser = {
+  canLogin() {
+    return true;
+  },
 };
 
-type PrototypesAndObjectModelResult =
-  | { ok: true; value: unknown }
-  | { ok: false; error: string; retryable: boolean };
+const admin = Object.create(baseUser);
+admin.role = "admin";
 
-export function handlePrototypesAndObjectModel(
-  input: PrototypesAndObjectModelInput,
-): PrototypesAndObjectModelResult {
-  if (!input.id) {
-    return { ok: false, error: "missing_id", retryable: false };
+admin.canLogin(); // true
+```
+
+`baseUser` becomes the prototype of `admin`.
+
+### Constructor Function
+
+```js
+function User(name) {
+  this.name = name;
+}
+
+User.prototype.greet = function () {
+  return `Hi ${this.name}`;
+};
+
+const user = new User("Ajay");
+```
+
+`new` creates an object whose internal prototype points to `User.prototype`.
+
+### `class` Syntax
+
+```js
+class User {
+  constructor(name) {
+    this.name = name;
   }
 
-  try {
-    const value = input.payload;
-    return { ok: true, value };
-  } catch {
-    return { ok: false, error: "unexpected_failure", retryable: true };
+  greet() {
+    return `Hi ${this.name}`;
+  }
+}
+
+const user = new User("Ajay");
+```
+
+`class` is syntax over the prototype model. Methods are placed on `User.prototype`.
+
+### Static Methods
+
+```js
+class User {
+  static fromName(name) {
+    return new User(name);
+  }
+
+  constructor(name) {
+    this.name = name;
   }
 }
 ```
 
-When reading or writing code for this topic, identify:
+Static methods live on the constructor itself, not on instances.
 
-- the input boundary,
-- the output contract,
-- the state being read or changed,
-- the owner of the behavior,
-- the failure path,
-- the observability signal.
+### Null Prototype Object
 
-Variants to identify:
+```js
+const dictionary = Object.create(null);
+dictionary.key = "value";
 
-- direct language or framework syntax,
-- configuration shape,
-- API or interface shape,
-- runtime behavior shape,
-- rare edge syntax or unusual usage,
-- legacy forms that still appear in production.
+console.log(dictionary.toString); // undefined
+```
+
+This object has no prototype chain. It is useful for dictionaries but lacks common object methods.
+
+### Prototype Inspection
+
+```js
+Object.getPrototypeOf(user);
+Object.hasOwn(user, "name");
+user instanceof User;
+```
+
+Prefer standard APIs over `__proto__`.
 
 ## 4. Internal Working
 
-The internal working of Prototypes and Object Model should be understood as a lifecycle, not as a definition.
+Every ordinary object has an internal `[[Prototype]]` reference.
 
-```text
-Input / trigger
-  -> validate assumptions
-  -> enter 001.01 Language Fundamentals boundary
-  -> apply Prototypes and Object Model rules
-  -> read or update state
-  -> handle success, failure, or partial success
-  -> emit observable signal
-  -> return result or continue workflow
+Property read flow:
+
+```txt
+Read obj.property
+  -> check obj own properties
+  -> if found, return value
+  -> if not found, move to obj.[[Prototype]]
+  -> repeat lookup
+  -> stop at null
+  -> return undefined if not found
 ```
 
-For this topic, inspect the real mechanism behind the abstraction:
+Example:
 
-- engine, compiler, type system, memory model, call stack, event loop, and module boundary,
-- ordering and timing,
-- ownership of mutable state,
-- limits and resource usage,
-- retry, cancellation, cleanup, and rollback behavior,
-- how the behavior changes between local development, CI, staging, and production.
+```js
+const base = {
+  canRead() {
+    return true;
+  },
+};
 
-Senior engineers do not stop at "it works." They ask what the runtime must do, what it keeps in memory, what it sends over the network, what can be retried, what can be duplicated, and what must be protected by invariants.
+const user = Object.create(base);
+user.name = "Ajay";
+
+user.canRead(); // lookup finds method on base
+```
+
+Internal model:
+
+```txt
+user
+  own: name
+  [[Prototype]] -> base
+
+base
+  own: canRead
+  [[Prototype]] -> Object.prototype
+
+Object.prototype
+  own: toString, hasOwnProperty, ...
+  [[Prototype]] -> null
+```
+
+### What `new` Does
+
+```js
+const user = new User("Ajay");
+```
+
+Mental model:
+
+```txt
+1. Create a new empty object.
+2. Set object.[[Prototype]] to User.prototype.
+3. Call User with this bound to the new object.
+4. Return the object unless constructor returns another object explicitly.
+```
+
+Approximation:
+
+```js
+function createWithNew(Constructor, ...args) {
+  const instance = Object.create(Constructor.prototype);
+  const result = Constructor.apply(instance, args);
+
+  return result !== null && typeof result === "object" ? result : instance;
+}
+```
+
+### Method Lookup and `this`
+
+When a method is found on the prototype, `this` still points to the receiver object before the dot.
+
+```js
+const base = {
+  greet() {
+    return this.name;
+  },
+};
+
+const user = Object.create(base);
+user.name = "Ajay";
+
+user.greet(); // "Ajay"
+```
+
+The method lives on `base`, but `this` is `user`.
 
 ## 5. Memory Behavior
 
-Every topic consumes or protects memory, state, or another resource. For Prototypes and Object Model, reason about memory and resource behavior explicitly.
+Prototypes reduce memory duplication by sharing methods.
 
-Common resources:
+Bad for memory:
 
-- memory and retained references,
-- CPU and event-loop time,
-- network calls and connection pools,
-- database locks, indexes, and storage,
-- queue depth and worker capacity,
-- browser main-thread budget,
-- cloud cost and operational attention.
-
-Resource model:
-
-```text
-Work enters system
-  -> resource is allocated
-  -> work is processed
-  -> resource is released, retained, cached, or leaked
+```js
+function User(name) {
+  this.name = name;
+  this.greet = function () {
+    return `Hi ${this.name}`;
+  };
+}
 ```
 
-Production questions:
+Every instance gets a new `greet` function.
 
-- What grows with traffic?
-- What grows with data size?
-- What grows with number of tenants, teams, or services?
-- What is bounded?
-- What can leak?
-- What needs cleanup?
-- What metric proves the resource behavior is healthy?
+Better:
 
-For JavaScript Core, watch runtime errors, latency, memory growth, bundle size, CPU time, test failures, and defect rate.
+```js
+function User(name) {
+  this.name = name;
+}
+
+User.prototype.greet = function () {
+  return `Hi ${this.name}`;
+};
+```
+
+All instances share one `greet` function.
+
+Memory model:
+
+```txt
+user1 ----\
+          -> User.prototype -> greet function
+user2 ----/
+```
+
+But prototype chains can hurt performance and memory predictability when mutated dynamically.
+
+Risk patterns:
+
+- adding properties in inconsistent order,
+- deleting properties from hot objects,
+- changing prototypes after object creation,
+- monkey patching built-in prototypes,
+- creating deeply nested prototype chains,
+- storing large objects on prototypes accidentally.
 
 ## 6. Execution Behavior
 
-Execution behavior describes what actually happens when the system runs.
+Prototype behavior appears during property access, method calls, construction, and `instanceof`.
 
-Trace Prototypes and Object Model through:
+### Property Read
 
-- the happy path,
-- invalid input,
-- missing dependency,
-- slow dependency,
-- concurrent execution,
-- retry after timeout,
-- duplicate request or event,
-- deploy with old and new versions running together,
-- cleanup after failure.
-
-Execution timeline:
-
-```text
-Before
-  -> required state and configuration exist
-During
-  -> core behavior runs and may touch dependencies
-After
-  -> result, side effects, and telemetry are visible
-Failure
-  -> caller receives error, retry, fallback, or compensation path
+```js
+user.role;
 ```
 
-The most important question is: what invariant must remain true even if the execution path is interrupted?
+Execution:
 
-## 7. Scope & Context Interaction
-
-Prototypes and Object Model should be understood in its surrounding scope and execution context, not as an isolated detail.
-
-Scope questions:
-
-- Where is this behavior visible?
-- Who can call or mutate it?
-- What module, component, service, tenant, request, thread, worker, or transaction owns it?
-- Does it cross frontend, backend, database, queue, cache, or platform boundaries?
-- Does it behave differently inside closures, async callbacks, dependency injection scopes, request scopes, or deployment environments?
-
-Context model:
-
-```text
-Local context
-  -> module or component context
-  -> service or runtime context
-  -> system or organization context
+```txt
+check user.role
+  -> check prototype.role
+  -> check next prototype.role
+  -> return value or undefined
 ```
 
-For JavaScript and TypeScript topics, also check lexical scope, closure retention, module scope, global scope, and `this` behavior where applicable.
+### Property Write
 
-## 8. Common Examples
+```js
+user.role = "admin";
+```
 
-### Example 1: Local Implementation
+Usually writes an own property on `user`; it does not modify the prototype property unless a setter is involved.
 
-Use a local implementation when the behavior is simple, low-risk, and owned by one module or team.
+```js
+const base = { role: "viewer" };
+const user = Object.create(base);
 
-```ts
-type PrototypesAndObjectModelInput = {
-  id: string;
-  payload: unknown;
-};
+user.role = "admin";
 
-type PrototypesAndObjectModelResult =
-  | { ok: true; value: unknown }
-  | { ok: false; error: string; retryable: boolean };
+console.log(user.role); // "admin"
+console.log(base.role); // "viewer"
+```
 
-export function handlePrototypesAndObjectModel(
-  input: PrototypesAndObjectModelInput,
-): PrototypesAndObjectModelResult {
-  if (!input.id) {
-    return { ok: false, error: "missing_id", retryable: false };
-  }
+### Method Call
 
-  try {
-    const value = input.payload;
-    return { ok: true, value };
-  } catch {
-    return { ok: false, error: "unexpected_failure", retryable: true };
+```js
+user.greet();
+```
+
+Execution:
+
+```txt
+lookup greet through prototype chain
+  -> call function with this = user
+```
+
+### `instanceof`
+
+```js
+user instanceof User;
+```
+
+Checks whether `User.prototype` exists anywhere in `user`'s prototype chain.
+
+### Async Interaction
+
+Prototype lookup is synchronous, but methods found through prototypes can create async behavior.
+
+```js
+class ApiClient {
+  async getUser(id) {
+    return fetch(`/users/${id}`);
   }
 }
 ```
 
-### Example 2: Shared Abstraction
+The method lookup is synchronous. The method body returns a promise.
 
-Move the behavior behind a shared abstraction when multiple teams repeat the same logic and the contract is stable.
+## 7. Scope & Context Interaction
 
-```text
-Consumer
-  -> stable interface
-  -> shared implementation
-  -> logs, metrics, tests, and ownership
+Prototypes do not create lexical scope. They create delegation relationships between objects.
+
+This is a common confusion:
+
+```js
+const base = {
+  value: 1,
+  getValue() {
+    return this.value;
+  },
+};
+
+const child = Object.create(base);
+child.value = 2;
+
+child.getValue(); // 2
 ```
 
-### Example 3: Platform or Managed Capability
+`getValue` is found on `base`, but `this` is `child`.
 
-Use a platform capability when correctness, scale, compliance, or operational cost is too important for every team to solve independently.
+### Prototype vs Closure
 
-```text
-Product team
-  -> platform API
-  -> centrally owned reliability, security, and observability
+Closure private state:
+
+```js
+function createCounter() {
+  let count = 0;
+
+  return {
+    increment() {
+      count += 1;
+      return count;
+    },
+  };
+}
 ```
+
+Prototype shared behavior:
+
+```js
+class Counter {
+  constructor() {
+    this.count = 0;
+  }
+
+  increment() {
+    this.count += 1;
+    return this.count;
+  }
+}
+```
+
+Closure state is private per factory call. Prototype methods are shared across instances.
+
+### Module Context
+
+Classes and constructor functions are often exported from modules:
+
+```js
+export class User {
+  constructor(id) {
+    this.id = id;
+  }
+}
+```
+
+The class binding is module-scoped. Instances created from the class use the prototype chain.
+
+## 8. Common Examples
+
+### Shared Methods
+
+```js
+class Cart {
+  constructor() {
+    this.items = [];
+  }
+
+  add(item) {
+    this.items.push(item);
+  }
+}
+
+const cart = new Cart();
+cart.add("book");
+```
+
+`add` is shared through `Cart.prototype`.
+
+### Checking Own Properties
+
+```js
+const user = { name: "Ajay" };
+
+Object.hasOwn(user, "name"); // true
+Object.hasOwn(user, "toString"); // false
+```
+
+Use this when you need to distinguish own data from inherited behavior.
+
+### Safer Dictionary Object
+
+```js
+const counts = Object.create(null);
+counts.admin = 1;
+```
+
+No inherited keys like `toString` can collide with dictionary entries.
+
+### Using Built-In Prototypes
+
+```js
+const items = [1, 2, 3];
+
+items.map((item) => item * 2);
+```
+
+`map` is found on `Array.prototype`.
+
+### Extending With Composition Instead
+
+```js
+function createUserService({ logger, repository }) {
+  return {
+    async findUser(id) {
+      logger.info({ id }, "find user");
+      return repository.findById(id);
+    },
+  };
+}
+```
+
+Many production systems prefer composition for service objects because dependencies are explicit.
 
 ## 9. Confusing / Tricky Examples
 
-### Confusion 1: The Name Sounds Simple
+### `prototype` vs `__proto__`
 
-Many developers can define Prototypes and Object Model, but cannot trace its lifecycle or failure modes. Interviewers often move quickly from definition to edge cases.
+```js
+function User() {}
 
-### Confusion 2: Local Behavior Differs From Production
+const user = new User();
 
-Local environments rarely reproduce production traffic, data shape, dependency latency, permissions, deploy overlap, or noisy neighbors.
+console.log(User.prototype === Object.getPrototypeOf(user)); // true
+```
 
-### Confusion 3: The Happy Path Hides Ownership
+`User.prototype` is the object assigned as the prototype of instances created with `new User()`.
 
-If no one owns the failure path, monitoring, documentation, migration plan, or rollback process, the design is incomplete.
+### Method Extract Loses `this`
 
-### Confusion 4: Optimization Before Measurement
+```js
+const user = {
+  name: "Ajay",
+  greet() {
+    return this.name;
+  },
+};
 
-Optimizing Prototypes and Object Model without baseline data can make the system harder to debug while failing to improve the real bottleneck.
+const greet = user.greet;
+greet(); // undefined or TypeError depending on strict mode
+```
+
+The method is no longer called with `user` as the receiver.
+
+Fix:
+
+```js
+const greet = user.greet.bind(user);
+```
+
+### Shadowing Prototype Property
+
+```js
+const base = { role: "viewer" };
+const user = Object.create(base);
+
+user.role = "admin";
+
+console.log(user.role); // "admin"
+console.log(base.role); // "viewer"
+```
+
+The assignment creates an own property that shadows the prototype property.
+
+### `in` Checks Prototype Chain
+
+```js
+const user = { name: "Ajay" };
+
+console.log("toString" in user); // true
+console.log(Object.hasOwn(user, "toString")); // false
+```
+
+`in` checks inherited properties too.
+
+### Mutating Built-In Prototypes
+
+```js
+Array.prototype.first = function () {
+  return this[0];
+};
+```
+
+This can break enumeration, conflict with libraries, create security risk, and surprise other teams.
+
+### Prototype Pollution
+
+```js
+const payload = JSON.parse('{"__proto__":{"isAdmin":true}}');
+```
+
+If unsafe merge logic applies this payload into normal objects, inherited properties may be polluted.
 
 ## 10. Real Production Use Cases
 
-Prototypes and Object Model appears in production anywhere JavaScript Core needs predictable behavior across real users, real traffic, real failures, and real team boundaries.
+### Framework Classes
 
-Used in:
+Angular, NestJS, and many backend libraries use classes heavily.
 
-- frontend apps, Node.js services, SDKs, libraries, build pipelines, and shared platform packages,
-- payment and billing workflows,
-- authentication and authorization flows,
-- admin and internal platforms,
-- realtime or async processing,
-- reporting and analytics,
-- compliance and audit trails,
-- incident response and operational runbooks.
+```ts
+class UsersService {
+  findById(id: string) {
+    return { id };
+  }
+}
+```
 
-Production makes this harder because:
+Methods live on the prototype. Instances carry state and injected dependencies.
 
-- inputs are messy,
-- clients and services run different versions,
-- dependencies degrade before they fail,
-- retries multiply load,
-- dashboards show symptoms before root cause,
-- ownership is split across teams.
+### Built-In APIs
 
-## Architecture Decisions
+Arrays, dates, maps, sets, errors, promises, and typed arrays all use prototypes.
 
-When designing around Prototypes and Object Model, compare multiple approaches.
+```js
+Promise.resolve(1).then((value) => value + 1);
+```
 
-| Approach | Use When | Trade-Off |
-|---|---|---|
-| Inline/local logic | Small scope, low risk, one owner | Fast to build, easier to duplicate |
-| Shared library | Same logic repeated across modules | Versioning and rollout become important |
-| Service/API boundary | Multiple consumers need stable behavior | Network, latency, and ownership overhead |
-| Platform capability | High scale, compliance, or reliability needs | Requires platform maturity and governance |
-| Managed service | Commodity capability with strong provider support | Less control, provider constraints |
+`then` is found on `Promise.prototype`.
 
-Decision questions:
+### Error Types
 
-- What is the blast radius if this breaks?
-- Who owns the contract?
-- How often will it change?
-- What must be observable?
-- What happens during rollback?
-- What is the simplest design that satisfies current correctness and scale?
+```js
+class ValidationError extends Error {
+  constructor(message) {
+    super(message);
+    this.name = "ValidationError";
+  }
+}
+```
+
+Custom errors rely on prototype chains for `instanceof` and stack behavior.
+
+### Serialization Boundaries
+
+JSON does not preserve prototypes.
+
+```js
+const user = new User("Ajay");
+const copy = JSON.parse(JSON.stringify(user));
+
+copy instanceof User; // false
+```
+
+Production implication: data crossing API boundaries usually becomes plain objects.
+
+### Security Hardening
+
+Use null-prototype dictionaries or safe parsing/merge utilities for untrusted object keys.
+
+```js
+const safeMap = Object.create(null);
+```
+
+This helps avoid inherited key collisions.
 
 ## 11. Interview Questions
 
-1. What is Prototypes and Object Model, and why does it matter in JavaScript Core?
-2. What problem does it solve inside 001.01 Language Fundamentals?
-3. How does it work internally?
-4. What are the most common edge cases?
-5. What failure modes appear only in production?
-6. How would you implement a minimal version?
-7. How would you test it?
-8. How would you debug a production issue related to it?
-9. What metrics or logs would you add?
-10. How does the design change at 10x traffic, data, or team size?
-11. What trade-offs exist between simple implementation and platform abstraction?
-12. What senior-level mistake do engineers make with this topic?
+1. What is a prototype in JavaScript?
+2. What is the prototype chain?
+3. What is the difference between `prototype` and `[[Prototype]]`?
+4. What does `new` do internally?
+5. How does property lookup work?
+6. What is the difference between own and inherited properties?
+7. How does `class` relate to prototypes?
+8. What does `instanceof` check?
+9. Why can extracting a method lose `this`?
+10. What is prototype pollution?
+11. Why should you avoid modifying built-in prototypes?
+12. What happens to prototypes during JSON serialization?
+13. How do prototypes affect memory usage?
+14. How can prototype changes hurt performance?
+15. When would you use `Object.create(null)`?
 
 ## 12. Senior-Level Pitfalls
 
-### Pitfall 1: Treating It As Isolated Trivia
+### Pitfall 1: Treating `class` As Classical Inheritance
 
-Prototypes and Object Model is connected to runtime behavior, architecture, operations, and team ownership. A narrow definition is not enough.
+JavaScript `class` syntax still uses prototypes.
 
-### Pitfall 2: Ignoring Failure Semantics
+```js
+class User {}
 
-A design that only explains success is not production-ready. Define timeout, retry, cancellation, idempotency, rollback, and cleanup behavior.
+const user = new User();
 
-### Pitfall 3: Missing Observability
+Object.getPrototypeOf(user) === User.prototype; // true
+```
 
-If the system cannot prove what happened, debugging becomes guesswork. Add logs, metrics, traces, and structured identifiers at decision points.
+### Pitfall 2: Using `for...in` Without Own-Property Checks
 
-### Pitfall 4: Hidden Shared State
+```js
+for (const key in object) {
+  process(key, object[key]);
+}
+```
 
-Shared state without clear ownership creates race conditions, stale reads, memory leaks, and cross-request contamination.
+This iterates enumerable inherited properties too.
 
-### Pitfall 5: Premature Abstraction
+Safer:
 
-Abstracting too early can freeze weak assumptions. Wait until the repeated shape is stable, then extract a clear interface.
+```js
+for (const key of Object.keys(object)) {
+  process(key, object[key]);
+}
+```
+
+### Pitfall 3: Prototype Pollution Through Deep Merge
+
+Unsafe deep merge logic can write into `__proto__`, `constructor`, or `prototype`.
+
+### Pitfall 4: Runtime Prototype Mutation
+
+Changing prototypes after objects are created can deoptimize hot paths and confuse object shape assumptions.
+
+```js
+Object.setPrototypeOf(user, otherPrototype);
+```
+
+Use this rarely.
+
+### Pitfall 5: Shared Mutable Prototype State
+
+```js
+function User() {}
+
+User.prototype.roles = [];
+
+const a = new User();
+const b = new User();
+
+a.roles.push("admin");
+console.log(b.roles); // ["admin"]
+```
+
+The array is shared through the prototype.
 
 ## 13. Best Practices
 
-- Start with a precise definition.
-- Identify the owner and boundary.
-- Make inputs, outputs, and invariants explicit.
-- Prefer simple local design until the pressure for abstraction is real.
-- Test normal, edge, and failure paths.
-- Add observability before relying on the behavior in production.
-- Keep resource usage bounded.
-- Document assumptions and trade-offs.
-- Design rollback and migration paths.
-- Revisit the decision when scale, team count, or correctness requirements change.
+- Prefer `class` syntax for constructor-style object creation in modern code.
+- Understand that `class` still uses prototypes.
+- Put methods on prototypes, not inside constructors, unless per-instance closure state is required.
+- Store mutable per-instance data on the instance, not on the prototype.
+- Prefer `Object.hasOwn` for own-property checks.
+- Avoid mutating built-in prototypes.
+- Avoid changing an object's prototype after creation.
+- Use `Object.create(null)` for untrusted dictionary-like maps when appropriate.
+- Prefer `Map` for arbitrary key/value collections.
+- Treat JSON data as plain objects with no trusted prototype semantics.
+- Sanitize `__proto__`, `constructor`, and `prototype` keys when merging untrusted data.
 
 ## 14. Debugging Scenarios
 
-### Scenario 1: Works Locally, Fails In Production
+### Scenario 1: Method Is Undefined
 
-Likely causes:
-
-- different configuration,
-- different data shape,
-- missing permissions,
-- dependency latency,
-- concurrency,
-- version mismatch.
-
-Debugging steps:
-
-1. Compare environment configuration.
-2. Capture one failing input.
-3. Trace the request or workflow end to end.
-4. Check deploy, data, and dependency timelines.
-5. Reproduce with production-like constraints.
-
-### Scenario 2: Intermittent Failure
-
-Likely causes:
-
-- race condition,
-- retry interaction,
-- shared mutable state,
-- timeout boundary,
-- cache inconsistency,
-- queue ordering.
-
-Debugging steps:
-
-1. Group failures by tenant, version, region, and dependency.
-2. Inspect p95 and p99 instead of averages.
-3. Add correlation IDs.
-4. Check whether retries amplify the issue.
-5. Verify cleanup and idempotency.
-
-### Scenario 3: Performance Regression
-
-Likely causes:
-
-- unbounded work,
-- inefficient query or algorithm,
-- larger payload,
-- cache miss pattern,
-- excessive serialization,
-- synchronous work on a critical path.
-
-Debugging steps:
-
-1. Establish baseline.
-2. Profile the hot path.
-3. Compare before and after deploy.
-4. Measure resource saturation.
-5. Optimize the proven bottleneck only.
-
-### Scenario 4: Memory Or Resource Growth
-
-Likely causes:
-
-- retained references,
-- unbounded queue,
-- missing cleanup,
-- long-lived subscriptions,
-- growing cache,
-- connection leak.
-
-Debugging steps:
-
-1. Capture heap, CPU, or resource profile.
-2. Inspect retainers or open handles.
-3. Confirm lifecycle cleanup.
-4. Add bounds and eviction.
-5. Verify recovery after load drops.
-
-## Diagrams
-
-Dedicated diagrams are available in [diagrams.md](./diagrams.md).
-
-### Concept Flow
-
-```mermaid
-flowchart TD
-  A[Input or trigger] --> B[Validate assumptions]
-  B --> C[Enter 001.01 Language Fundamentals boundary]
-  C --> D[Apply Prototypes and Object Model]
-  D --> E[Read or change state]
-  E --> F[Return result]
-  F --> G[Emit telemetry]
+```js
+user.greet();
 ```
 
-### Failure Flow
+Debug:
 
-```mermaid
-flowchart TD
-  A[Unexpected behavior] --> B{Input valid?}
-  B -->|No| C[Fix validation or caller contract]
-  B -->|Yes| D{State correct?}
-  D -->|No| E[Inspect ownership, mutation, cache, or ordering]
-  D -->|Yes| F{Dependency healthy?}
-  F -->|No| G[Check timeout, retry, fallback, and saturation]
-  F -->|Yes| H[Inspect implementation assumptions and edge cases]
+```js
+console.log(Object.keys(user));
+console.log(Object.getPrototypeOf(user));
+console.log("greet" in user);
+console.log(Object.hasOwn(user, "greet"));
 ```
 
-### Production Readiness Loop
+Likely causes:
 
-```text
-Design
-  -> implement
-  -> test
-  -> instrument
-  -> deploy safely
-  -> observe
-  -> learn
-  -> refine
+- wrong instance type,
+- prototype lost during serialization,
+- method name typo,
+- object created with `Object.create(null)`,
+- method exists but not on this object's prototype chain.
+
+### Scenario 2: `instanceof` Fails After API Call
+
+```js
+const user = await fetchUser();
+user instanceof User; // false
 ```
+
+Cause: JSON response creates plain objects.
+
+Fix:
+
+```js
+const user = Object.assign(new User(), await fetchUser());
+```
+
+Or better: keep transport DTOs separate from domain objects.
+
+### Scenario 3: Shared State Across Instances
+
+```js
+User.prototype.items = [];
+```
+
+Fix:
+
+```js
+function User() {
+  this.items = [];
+}
+```
+
+Mutable per-instance state belongs on the instance.
+
+### Scenario 4: Unexpected Property Appears
+
+```js
+if (user.isAdmin) {
+  allow();
+}
+```
+
+If `isAdmin` is inherited through polluted prototype, this can become dangerous.
+
+Fix:
+
+```js
+if (Object.hasOwn(user, "isAdmin") && user.isAdmin === true) {
+  allow();
+}
+```
+
+Also fix the unsafe input merge path.
+
+### Scenario 5: Performance Regression
+
+Symptoms:
+
+- code becomes slower after dynamic object mutation,
+- hot path creates objects with inconsistent property order,
+- frequent `delete`,
+- `Object.setPrototypeOf` in runtime path.
+
+Debugging:
+
+- profile CPU,
+- inspect object construction patterns,
+- avoid changing shapes after hot objects are created,
+- prefer stable object layouts.
 
 ## 15. Exercises / Practice
 
 ### Exercise 1
 
-Explain Prototypes and Object Model in your own words using three levels:
+Predict the output:
 
-- beginner explanation,
-- intermediate internal explanation,
-- senior production explanation.
+```js
+const base = { value: 1 };
+const child = Object.create(base);
+
+child.value = 2;
+
+console.log(child.value);
+console.log(base.value);
+```
 
 ### Exercise 2
 
-Draw the lifecycle for Prototypes and Object Model:
+Predict the output:
 
-```text
-input -> decision -> state change -> output -> telemetry
+```js
+function User(name) {
+  this.name = name;
+}
+
+User.prototype.greet = function () {
+  return this.name;
+};
+
+const user = new User("Ajay");
+const greet = user.greet;
+
+console.log(greet());
 ```
-
-Mark where validation, failure handling, and cleanup happen.
 
 ### Exercise 3
 
-Write one example where Prototypes and Object Model works correctly and one where it fails because of an edge case.
+Fix the shared mutable prototype bug:
+
+```js
+function Cart() {}
+
+Cart.prototype.items = [];
+```
 
 ### Exercise 4
 
-Create a debugging checklist for a production incident involving Prototypes and Object Model. Include logs, metrics, traces, and rollback options.
+Implement a simplified `new` operator as a function.
+
+```js
+function create(Constructor, ...args) {
+  // your implementation
+}
+```
 
 ### Exercise 5
 
-Compare two architecture choices for this topic and explain when each is better.
+Explain why this is true:
+
+```js
+const items = [];
+
+console.log(items.map === Array.prototype.map);
+```
+
+### Exercise 6
+
+Write a safe property check for user input:
+
+```js
+const input = JSON.parse(body);
+
+if (input.isAdmin) {
+  allow();
+}
+```
 
 ## 16. Comparison
 
-Compare Prototypes and Object Model with nearby or competing concepts.
+### Prototype vs Class
 
-Comparison prompts:
-
-- What problem does each option solve?
-- Which one is simpler?
-- Which one is safer?
-- Which one scales better?
-- Which one is easier to debug?
-- Which one has better ecosystem or platform support?
-
-Decision table:
-
-| Option | Prefer When | Avoid When |
+| Concept | Meaning | Reality |
 |---|---|---|
-| Prototypes and Object Model | It directly matches the invariant and ownership boundary | The abstraction hides important failure behavior |
-| Simpler local approach | Scope is small, low risk, and easy to test | Logic is duplicated across many teams |
-| Shared/platform approach | Correctness, scale, or governance matters | The contract is still changing rapidly |
+| Prototype | Object used for delegation | Core JavaScript object model |
+| Class | Syntax for constructor/prototype pattern | Built on prototypes |
+
+### Own vs Inherited Property
+
+| Property Type | Where It Lives | How To Check |
+|---|---|---|
+| Own | Directly on object | `Object.hasOwn(obj, key)` |
+| Inherited | Somewhere in prototype chain | `key in obj` |
+
+### Prototype State vs Instance State
+
+| State Location | Use For | Avoid For |
+|---|---|---|
+| Prototype | Shared methods, immutable shared behavior | Mutable per-instance data |
+| Instance | Per-object data | Shared methods repeated per instance |
+| Closure | Private state | Large hidden retained state |
+
+### Object vs Map
+
+| Tool | Prefer When | Watch Out |
+|---|---|---|
+| Object | Structured records with known keys | Prototype keys and inherited properties |
+| `Object.create(null)` | Dictionary without inherited keys | Missing normal object methods |
+| `Map` | Arbitrary keys and frequent add/remove | Serialization differs from plain object |
 
 ## 17. Related Concepts
 
-Prototypes and Object Model connects to the rest of the knowledge tree.
+Prerequisites:
 
-Study links:
+- Variables & Declarations
+- Scope, Closures, and Hoisting
+- Functions Basics
+- Objects Basics
 
-- Parent category: JavaScript Core
-- Parent topic: 001.01 Language Fundamentals
-- Internal flow and diagrams: [diagrams.md](./diagrams.md)
-- Practice files in this folder: debugging, questions, exercises, and review notes
+Direct follow-ups:
 
-Related concept types:
+- `this` keyword
+- Classes
+- Inheritance
+- Object property descriptors
+- Modules
+- Error handling
+- TypeScript structural typing
 
-- prerequisites that make this topic easier,
-- follow-up topics that build on it,
-- architecture concepts that use it,
-- production concerns that expose its limits,
-- interview patterns that test it indirectly.
+Production connections:
+
+- prototype pollution security issues,
+- custom error classes,
+- DTO vs domain model mapping,
+- serialization boundaries,
+- framework decorators and metadata,
+- object shape performance,
+- class-based Angular and NestJS patterns.
+
+Knowledge graph:
+
+```txt
+Object
+  -> own properties
+  -> [[Prototype]]
+    -> prototype chain
+      -> property lookup
+      -> method delegation
+      -> instanceof
+      -> class syntax
+      -> prototype pollution risks
+```
 
 ## Advanced Add-ons
 
 ### Performance Impact
 
-- Time complexity: identify whether work is constant, linear, logarithmic, fan-out, or unbounded.
-- Memory usage: identify retained data, copied data, cached data, and cleanup timing.
-- Hot path risk: determine whether this runs per request, per render, per event, per query, or per deployment.
-- Measurement: use baselines, profiling, p95/p99, and resource saturation before optimizing.
+Prototype lookup is usually fast when object shapes are stable.
+
+Performance risks:
+
+- changing prototypes at runtime,
+- adding properties in inconsistent order,
+- deleting properties from hot objects,
+- megamorphic call sites,
+- monkey patching built-ins,
+- deep prototype chains,
+- per-instance methods when thousands of instances are created.
+
+Guideline: keep object layout stable and measure before optimizing.
 
 ### System Design Relevance
 
-Prototypes and Object Model matters in system design when it affects boundaries, contracts, scaling behavior, correctness, or operational ownership.
+Prototypes matter at system boundaries because object identity and behavior do not always survive serialization.
 
-Ask:
+Examples:
 
-- Does it belong inside a module, service, shared library, platform layer, or managed service?
-- What is the blast radius if it fails?
-- What happens at 10x traffic, data, tenants, regions, or teams?
-- What reliability, observability, and rollback strategy is required?
+- API responses are plain objects, not class instances.
+- Worker messages clone data and may lose prototype behavior.
+- JSON persistence stores data, not methods.
+- Domain models may need hydration from DTOs.
+- Error instances may lose prototype/stack details across process boundaries.
+
+Design question:
+
+```txt
+Is this data model behavior-rich inside one runtime, or plain data crossing a boundary?
+```
 
 ### Security Impact
 
-Security relevance depends on whether Prototypes and Object Model touches input, identity, authorization, secrets, user data, logs, dependencies, or execution boundaries.
+Prototype pollution is the major security concern.
 
-Check:
+Risky keys:
 
-- validation and sanitization,
-- least privilege,
-- sensitive data exposure,
-- injection or confused-deputy risks,
-- auditability and compliance requirements.
+- `__proto__`
+- `constructor`
+- `prototype`
+
+Risky operations:
+
+- unsafe deep merge,
+- trusting JSON objects,
+- recursively assigning user-controlled keys,
+- authorization checks that trust inherited properties.
+
+Defenses:
+
+- validate schemas,
+- reject dangerous keys,
+- use `Object.hasOwn`,
+- use `Object.create(null)` or `Map` for dictionaries,
+- keep dependencies patched.
 
 ### Browser vs Node Behavior
 
-If this topic appears in JavaScript runtimes, compare browser and Node.js behavior:
+The core prototype model is the same in browser and Node.js.
 
-- global object and module scope,
-- event loop and task queues,
-- API availability,
-- security sandbox,
-- file, network, and process access,
-- debugging and profiling tools.
+Differences appear in host objects:
 
-For non-runtime topics, compare local development, CI, staging, and production behavior instead.
+- browser DOM objects have browser-provided prototype chains,
+- Node.js objects may inherit from EventEmitter or stream prototypes,
+- cross-realm objects can make `instanceof` surprising,
+- iframe/window boundaries can create different constructor identities.
+
+Example cross-realm issue:
+
+```js
+// An array from another iframe may fail:
+value instanceof Array;
+
+// Safer:
+Array.isArray(value);
+```
 
 ### Polyfill / Implementation
 
-Staff-level understanding includes knowing whether you can implement a simplified version yourself.
+You can implement simple delegation with `Object.create`.
 
-Implementation prompts:
+```js
+const userMethods = {
+  greet() {
+    return `Hi ${this.name}`;
+  },
+};
 
-- What is the smallest correct version?
-- Which edge cases are intentionally unsupported?
-- Which behavior must match platform semantics?
-- What tests prove compatibility?
-- When is using a proven library safer than custom implementation?
+function createUser(name) {
+  const user = Object.create(userMethods);
+  user.name = name;
+  return user;
+}
+```
+
+Simplified `new`:
+
+```js
+function createNew(Constructor, ...args) {
+  const instance = Object.create(Constructor.prototype);
+  const result = Constructor.apply(instance, args);
+
+  if ((typeof result === "object" && result !== null) || typeof result === "function") {
+    return result;
+  }
+
+  return instance;
+}
+```
+
+Staff-level takeaway: do not memorize prototypes as syntax. Understand property lookup, delegation, `this`, instance state, serialization boundaries, and security implications.
 
 ## 18. Summary
 
-Prototypes and Object Model is a practical engineering topic, not just a vocabulary item. Mastery means you can define it, implement it, reason about internals, predict edge cases, debug failures, and explain trade-offs.
+Prototypes are the foundation of JavaScript's object model.
 
 Remember:
 
-- Start from first principles.
-- Identify boundaries and ownership.
-- Understand execution and resource behavior.
-- Design for failure, not only success.
-- Add observability.
-- Keep the simplest design that satisfies correctness and scale.
-- Revisit the design as production pressure changes.
+- objects have own properties and an internal prototype link,
+- property lookup walks the prototype chain,
+- `prototype` and `[[Prototype]]` are not the same thing,
+- `class` syntax is built on prototypes,
+- `new` links an instance to a constructor's prototype,
+- methods on prototypes are shared across instances,
+- mutable data on prototypes is usually a bug,
+- `this` is determined by call site, not where the method was found,
+- `in` checks inherited properties, while `Object.hasOwn` checks own properties,
+- JSON does not preserve prototypes,
+- prototype pollution is a real production security issue,
+- stable object shapes help performance.
