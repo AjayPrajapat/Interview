@@ -1,630 +1,1337 @@
 # 002.02.03 Microtasks and Macrotasks
 
-Category: JavaScript Internals
-
+Category: JavaScript Internals<br>
 Topic: 002.02 Runtime Semantics
+
+Microtasks and macrotasks describe how JavaScript runtimes schedule asynchronous work around the call stack. The precise web-platform term is usually "task" rather than "macrotask," but "macrotask" is widely used in interviews and teaching to distinguish task-queue work from microtask-queue work.
+
+This topic explains why Promise callbacks run before timers, why too many microtasks can starve rendering or I/O, why Node's `process.nextTick` needs special care, and why async ordering bugs are often scheduling bugs rather than Promise bugs.
+
+---
 
 ## 1. Definition
 
-Microtasks and Macrotasks is a focused engineering concept inside 002.02 Runtime Semantics. It describes a behavior, design choice, implementation technique, or operational concern that engineers must understand deeply to build reliable systems in JavaScript Internals.
+A task, commonly called a macrotask, is a unit of work scheduled by the host environment, such as script execution, timers, I/O callbacks, UI events, or message events.
 
-At a practical level, this topic answers:
+A microtask is a higher-priority job that runs after the current JavaScript stack becomes empty and before the runtime moves to the next task or rendering checkpoint.
 
-- what problem it solves,
-- what boundary it belongs to,
-- what assumptions it depends on,
-- how it behaves during normal execution,
-- how it fails under pressure,
-- and how to reason about it in production.
+One-line definition:
 
-The goal is not only to recognize the term. The goal is to explain Microtasks and Macrotasks from first principles, apply it in code or architecture, debug it when it breaks, and defend trade-offs in an interview or design review.
+- Tasks start turns of the event loop; microtasks run at checkpoints before the next task proceeds.
+
+Expanded explanation:
+
+- JavaScript execution is single-threaded per agent/event loop, but hosts schedule work queues.
+- A task enters the call stack and runs to completion.
+- When the stack is empty, the runtime drains the microtask queue.
+- Promise reactions, `queueMicrotask`, and mutation observer callbacks are typical browser microtasks.
+- Timers, events, network callbacks, and message callbacks are typical tasks.
+- Node.js has additional scheduling details, including `process.nextTick`, timers, poll, check, and close phases.
+
+Core model:
+
+```text
+Take one task
+  -> run JavaScript until stack is empty
+  -> drain microtasks
+  -> maybe render / perform host work
+  -> take next task
+```
+
+---
 
 ## 2. Why It Exists
 
-Microtasks and Macrotasks exists because real systems need explicit rules for correctness, ownership, execution, and change. Without this concept, teams usually rely on implicit assumptions, and implicit assumptions become bugs when systems grow.
+JavaScript needs scheduling queues because asynchronous work cannot all run immediately.
 
-This topic matters because it helps engineers:
+The runtime must coordinate:
 
-- reduce ambiguity in 002.02 Runtime Semantics,
-- make behavior easier to test and review,
-- prevent local decisions from creating system-level failures,
-- identify performance and reliability limits before production incidents,
-- communicate trade-offs clearly across frontend, backend, platform, security, and product teams.
+- initial script execution,
+- timers,
+- user input,
+- network callbacks,
+- Promise continuations,
+- async/await resumption,
+- rendering,
+- I/O,
+- cleanup callbacks,
+- host APIs.
 
-You should understand this before moving deeper because later topics often depend on the same mental models: state ownership, lifecycle timing, API contracts, failure handling, scaling pressure, and observability.
+Microtasks exist because some asynchronous continuations should run very soon after current code completes, before other external events run.
+
+Examples:
+
+- Promise `.then()` should run after current synchronous code.
+- `await` continuation should resume predictably through Promise jobs.
+- frameworks can batch state updates before browser rendering.
+- mutation observers can report DOM changes at consistent checkpoints.
+
+Tasks exist because host events need turns:
+
+- click events,
+- `setTimeout`,
+- `setInterval`,
+- message channels,
+- I/O callbacks,
+- script loading,
+- rendering-related work.
+
+Production relevance:
+
+- Promise callbacks can run before timers and surprise ordering assumptions.
+- Recursive microtasks can starve rendering or I/O.
+- Long tasks block input and paint.
+- Node `process.nextTick` can starve Promise microtasks and I/O when abused.
+- Test flakiness often comes from not flushing the right queue.
+- UI frameworks rely on microtask/task scheduling for batching and rendering.
+
+---
 
 ## 3. Syntax & Variants
 
-Not every engineering topic has programming syntax, but every topic has an interface shape. The interface shape is how the concept appears to the rest of the system.
+### Promise microtasks
 
-In JavaScript Internals, Microtasks and Macrotasks commonly appears as a function, type, object, runtime behavior, data structure, or algorithm.
+```js
+Promise.resolve().then(() => {
+  console.log("promise");
+});
+```
 
-Typical shape:
+The `.then` callback runs as a microtask after the current synchronous stack completes.
 
-```ts
-type MicrotasksAndMacrotasksInput = {
-  id: string;
-  payload: unknown;
-};
+### `queueMicrotask`
 
-type MicrotasksAndMacrotasksResult =
-  | { ok: true; value: unknown }
-  | { ok: false; error: string; retryable: boolean };
+```js
+queueMicrotask(() => {
+  console.log("microtask");
+});
+```
 
-export function handleMicrotasksAndMacrotasks(
-  input: MicrotasksAndMacrotasksInput,
-): MicrotasksAndMacrotasksResult {
-  if (!input.id) {
-    return { ok: false, error: "missing_id", retryable: false };
-  }
+Use when you need microtask scheduling without creating a Promise chain for control flow.
 
-  try {
-    const value = input.payload;
-    return { ok: true, value };
-  } catch {
-    return { ok: false, error: "unexpected_failure", retryable: true };
-  }
+### `async` / `await`
+
+```js
+async function run() {
+  console.log("A");
+  await null;
+  console.log("B");
 }
 ```
 
-When reading or writing code for this topic, identify:
+Code after `await` resumes through microtask scheduling.
 
-- the input boundary,
-- the output contract,
-- the state being read or changed,
-- the owner of the behavior,
-- the failure path,
-- the observability signal.
+### Timer task
 
-Variants to identify:
+```js
+setTimeout(() => {
+  console.log("timer");
+}, 0);
+```
 
-- direct language or framework syntax,
-- configuration shape,
-- API or interface shape,
-- runtime behavior shape,
-- rare edge syntax or unusual usage,
-- legacy forms that still appear in production.
+The callback is scheduled as a future task. `0` does not mean immediate execution.
+
+### Interval task
+
+```js
+const id = setInterval(() => {
+  console.log("tick");
+}, 1000);
+
+clearInterval(id);
+```
+
+Intervals schedule repeated tasks, but execution can drift if the event loop is busy.
+
+### Browser message task
+
+```js
+const channel = new MessageChannel();
+
+channel.port1.onmessage = () => {
+  console.log("message task");
+};
+
+channel.port2.postMessage(null);
+```
+
+Message channels are often used for scheduling task-like work.
+
+### Browser rendering callback
+
+```js
+requestAnimationFrame(() => {
+  console.log("before paint");
+});
+```
+
+`requestAnimationFrame` is aligned with rendering, not simply a microtask or timer.
+
+### Node `process.nextTick`
+
+```js
+process.nextTick(() => {
+  console.log("nextTick");
+});
+```
+
+In Node, `nextTick` callbacks run before Promise microtasks after the current operation. Overuse can starve the event loop.
+
+### Node `setImmediate`
+
+```js
+setImmediate(() => {
+  console.log("immediate");
+});
+```
+
+`setImmediate` runs in Node's check phase. Its ordering relative to timers can depend on where it is scheduled.
+
+---
 
 ## 4. Internal Working
 
-The internal working of Microtasks and Macrotasks should be understood as a lifecycle, not as a definition.
+### Browser event loop model
 
-```text
-Input / trigger
-  -> validate assumptions
-  -> enter 002.02 Runtime Semantics boundary
-  -> apply Microtasks and Macrotasks rules
-  -> read or update state
-  -> handle success, failure, or partial success
-  -> emit observable signal
-  -> return result or continue workflow
+```mermaid
+flowchart TD
+  A["Pick Task"] --> B["Run JS Stack To Completion"]
+  B --> C["Drain Microtask Queue"]
+  C --> D{"Microtasks Added?"}
+  D -->|Yes| C
+  D -->|No| E["Render Opportunity / Host Work"]
+  E --> F["Pick Next Task"]
+  F --> B
 ```
 
-For this topic, inspect the real mechanism behind the abstraction:
+Important rule:
 
-- engine, compiler, type system, memory model, call stack, event loop, and module boundary,
-- ordering and timing,
-- ownership of mutable state,
-- limits and resource usage,
-- retry, cancellation, cleanup, and rollback behavior,
-- how the behavior changes between local development, CI, staging, and production.
+- microtasks are drained until the queue is empty.
 
-Senior engineers do not stop at "it works." They ask what the runtime must do, what it keeps in memory, what it sends over the network, what can be retried, what can be duplicated, and what must be protected by invariants.
+That means a microtask can schedule another microtask, and the runtime keeps draining before moving on.
+
+### Example ordering
+
+```js
+console.log("sync");
+
+setTimeout(() => console.log("timer"), 0);
+
+Promise.resolve().then(() => console.log("promise"));
+
+console.log("end");
+```
+
+Output:
+
+```text
+sync
+end
+promise
+timer
+```
+
+Why:
+
+```text
+Initial script task runs
+  -> sync logs
+  -> timer task scheduled
+  -> promise microtask scheduled
+  -> script stack ends
+  -> microtask queue drains
+  -> next task runs timer
+```
+
+### Async/await transformation mental model
+
+```js
+async function run() {
+  console.log("A");
+  await Promise.resolve();
+  console.log("B");
+}
+```
+
+Mental model:
+
+```text
+run starts synchronously
+  -> logs A
+  -> returns pending Promise
+  -> schedules continuation when awaited promise settles
+  -> continuation runs as microtask
+```
+
+### Node event loop model
+
+Node has phases such as:
+
+```text
+timers
+pending callbacks
+idle / prepare
+poll
+check
+close callbacks
+```
+
+Between these operations, Node also processes:
+
+- `process.nextTick` queue,
+- Promise microtask queue.
+
+Practical ordering:
+
+```js
+console.log("sync");
+
+setTimeout(() => console.log("timeout"), 0);
+setImmediate(() => console.log("immediate"));
+
+Promise.resolve().then(() => console.log("promise"));
+process.nextTick(() => console.log("nextTick"));
+```
+
+Common top-level Node output:
+
+```text
+sync
+nextTick
+promise
+timeout/immediate order can vary by context
+```
+
+The exact timer vs immediate ordering depends on scheduling context and event loop phase.
+
+### Microtask checkpoint
+
+A microtask checkpoint is when the runtime drains microtasks. It commonly happens:
+
+- after a script/task finishes,
+- after Promise settlement jobs,
+- before returning control to host work,
+- at specific host-defined checkpoints.
+
+---
 
 ## 5. Memory Behavior
 
-Every topic consumes or protects memory, state, or another resource. For Microtasks and Macrotasks, reason about memory and resource behavior explicitly.
+Scheduled callbacks keep their closures alive until they run or are canceled.
 
-Common resources:
+### Timer retention
 
-- memory and retained references,
-- CPU and event-loop time,
-- network calls and connection pools,
-- database locks, indexes, and storage,
-- queue depth and worker capacity,
-- browser main-thread budget,
-- cloud cost and operational attention.
-
-Resource model:
-
-```text
-Work enters system
-  -> resource is allocated
-  -> work is processed
-  -> resource is released, retained, cached, or leaked
+```js
+function schedule(payload) {
+  setTimeout(() => {
+    console.log(payload.id);
+  }, 60_000);
+}
 ```
 
-Production questions:
+The timer callback retains `payload` for up to 60 seconds.
 
-- What grows with traffic?
-- What grows with data size?
-- What grows with number of tenants, teams, or services?
-- What is bounded?
-- What can leak?
-- What needs cleanup?
-- What metric proves the resource behavior is healthy?
+### Promise retention
 
-For JavaScript Internals, watch runtime errors, latency, memory growth, bundle size, CPU time, test failures, and defect rate.
+```js
+function process(payload) {
+  return Promise.resolve().then(() => payload.records.length);
+}
+```
+
+The microtask retains `payload` until it runs.
+
+### Long promise chain
+
+```js
+let promise = Promise.resolve();
+
+for (const item of largeList) {
+  promise = promise.then(() => processItem(item));
+}
+```
+
+This can create many queued continuations and retain data longer than expected.
+
+### Recursive microtask memory pressure
+
+```js
+function loop() {
+  queueMicrotask(loop);
+}
+
+loop();
+```
+
+This can starve the runtime and prevent tasks, rendering, timers, or I/O from progressing.
+
+### Resource model
+
+```mermaid
+flowchart TD
+  A["Schedule Callback"] --> B["Closure Captures State"]
+  B --> C{"Callback Runs Or Is Canceled?"}
+  C -->|Runs| D["State May Be Released"]
+  C -->|Canceled| D
+  C -->|Never| E["State Retained"]
+```
+
+Production risks:
+
+- timers retain stale request state,
+- unbounded Promise queues retain payloads,
+- microtask storms increase memory and CPU,
+- missing `clearTimeout` or `AbortController` causes stale work,
+- UI components unmount but scheduled callbacks still reference them.
+
+---
 
 ## 6. Execution Behavior
 
-Execution behavior describes what actually happens when the system runs.
+### Run-to-completion
 
-Trace Microtasks and Macrotasks through:
+JavaScript does not interrupt a currently running stack to run another callback.
 
-- the happy path,
-- invalid input,
-- missing dependency,
-- slow dependency,
-- concurrent execution,
-- retry after timeout,
-- duplicate request or event,
-- deploy with old and new versions running together,
-- cleanup after failure.
+```js
+setTimeout(() => console.log("timer"), 0);
 
-Execution timeline:
+for (let i = 0; i < 1_000_000_000; i += 1) {
+  // blocks
+}
 
-```text
-Before
-  -> required state and configuration exist
-During
-  -> core behavior runs and may touch dependencies
-After
-  -> result, side effects, and telemetry are visible
-Failure
-  -> caller receives error, retry, fallback, or compensation path
+console.log("done");
 ```
 
-The most important question is: what invariant must remain true even if the execution path is interrupted?
+The timer cannot run until the loop finishes and the stack clears.
+
+### Microtasks before next task
+
+```js
+setTimeout(() => console.log("timer"), 0);
+
+queueMicrotask(() => console.log("microtask"));
+
+console.log("sync");
+```
+
+Output:
+
+```text
+sync
+microtask
+timer
+```
+
+### Microtask drain can chain
+
+```js
+queueMicrotask(() => {
+  console.log("a");
+  queueMicrotask(() => console.log("b"));
+});
+
+setTimeout(() => console.log("timer"), 0);
+```
+
+Output:
+
+```text
+a
+b
+timer
+```
+
+### Rendering interaction
+
+In browsers, rendering generally cannot happen while JavaScript is running. A long task or endless microtask chain can delay paint.
+
+```js
+button.addEventListener("click", () => {
+  while (performance.now() < start + 200) {
+    // long task
+  }
+});
+```
+
+This blocks input responsiveness and rendering.
+
+### Async function ordering
+
+```js
+async function run() {
+  console.log("1");
+  await null;
+  console.log("2");
+}
+
+run();
+console.log("3");
+```
+
+Output:
+
+```text
+1
+3
+2
+```
+
+### Node `nextTick` starvation
+
+```js
+function spin() {
+  process.nextTick(spin);
+}
+
+spin();
+```
+
+This can starve I/O and Promise jobs. Do not use `nextTick` for unbounded recursion.
+
+---
 
 ## 7. Scope & Context Interaction
 
-Microtasks and Macrotasks should be understood in its surrounding scope and execution context, not as an isolated detail.
+Scheduled callbacks capture lexical environments and run in later execution contexts.
 
-Scope questions:
+### Closure across task boundary
 
-- Where is this behavior visible?
-- Who can call or mutate it?
-- What module, component, service, tenant, request, thread, worker, or transaction owns it?
-- Does it cross frontend, backend, database, queue, cache, or platform boundaries?
-- Does it behave differently inside closures, async callbacks, dependency injection scopes, request scopes, or deployment environments?
-
-Context model:
-
-```text
-Local context
-  -> module or component context
-  -> service or runtime context
-  -> system or organization context
+```js
+function start(user) {
+  setTimeout(() => {
+    console.log(user.id);
+  }, 1000);
+}
 ```
 
-For JavaScript and TypeScript topics, also check lexical scope, closure retention, module scope, global scope, and `this` behavior where applicable.
+The timer callback runs in a later task but still has access to `user` through closure retention.
+
+### Closure across microtask boundary
+
+```js
+function start(user) {
+  Promise.resolve().then(() => {
+    console.log(user.id);
+  });
+}
+```
+
+The Promise reaction runs as a microtask after the current stack completes.
+
+### Execution context vs scheduling queue
+
+```text
+Callback scheduled
+  -> lexical environment retained
+  -> later queue selects callback
+  -> new execution context created for callback
+  -> callback runs
+```
+
+### `this` in scheduled callbacks
+
+```js
+const service = {
+  id: "svc",
+  start() {
+    setTimeout(function () {
+      console.log(this.id);
+    }, 0);
+  },
+};
+```
+
+The callback's `this` is not automatically the service object.
+
+Fix:
+
+```js
+setTimeout(() => {
+  console.log(this.id);
+}, 0);
+```
+
+or bind explicitly.
+
+### AsyncLocalStorage / context propagation
+
+In Node, application request context may need to flow through async boundaries.
+
+```ts
+import { AsyncLocalStorage } from "node:async_hooks";
+
+const storage = new AsyncLocalStorage<{ requestId: string }>();
+```
+
+This is not the same as lexical scope. It is runtime async context propagation provided by Node.
+
+---
 
 ## 8. Common Examples
 
-### Example 1: Local Implementation
+### Example 1: Promise beats timer
 
-Use a local implementation when the behavior is simple, low-risk, and owned by one module or team.
+```js
+setTimeout(() => console.log("timeout"), 0);
+Promise.resolve().then(() => console.log("promise"));
+console.log("sync");
+```
 
-```ts
-type MicrotasksAndMacrotasksInput = {
-  id: string;
-  payload: unknown;
-};
+Output:
 
-type MicrotasksAndMacrotasksResult =
-  | { ok: true; value: unknown }
-  | { ok: false; error: string; retryable: boolean };
+```text
+sync
+promise
+timeout
+```
 
-export function handleMicrotasksAndMacrotasks(
-  input: MicrotasksAndMacrotasksInput,
-): MicrotasksAndMacrotasksResult {
-  if (!input.id) {
-    return { ok: false, error: "missing_id", retryable: false };
-  }
+### Example 2: Await yields
 
-  try {
-    const value = input.payload;
-    return { ok: true, value };
-  } catch {
-    return { ok: false, error: "unexpected_failure", retryable: true };
+```js
+async function main() {
+  console.log("A");
+  await Promise.resolve();
+  console.log("B");
+}
+
+main();
+console.log("C");
+```
+
+Output:
+
+```text
+A
+C
+B
+```
+
+### Example 3: Microtask batching
+
+```js
+let pending = false;
+const updates = [];
+
+function scheduleUpdate(update) {
+  updates.push(update);
+
+  if (!pending) {
+    pending = true;
+    queueMicrotask(() => {
+      pending = false;
+      flush(updates.splice(0));
+    });
   }
 }
 ```
 
-### Example 2: Shared Abstraction
+This batches synchronous calls into one microtask flush.
 
-Move the behavior behind a shared abstraction when multiple teams repeat the same logic and the contract is stable.
+### Example 4: Yielding to tasks
 
-```text
-Consumer
-  -> stable interface
-  -> shared implementation
-  -> logs, metrics, tests, and ownership
+```js
+async function processInChunks(items) {
+  for (let i = 0; i < items.length; i += 100) {
+    processChunk(items.slice(i, i + 100));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  }
+}
 ```
 
-### Example 3: Platform or Managed Capability
+This yields to the task queue between chunks. In browsers, it gives the UI chances to respond.
 
-Use a platform capability when correctness, scale, compliance, or operational cost is too important for every team to solve independently.
+### Example 5: Node immediate after I/O
 
-```text
-Product team
-  -> platform API
-  -> centrally owned reliability, security, and observability
+```js
+import { readFile } from "node:fs";
+
+readFile("data.txt", () => {
+  setTimeout(() => console.log("timeout"), 0);
+  setImmediate(() => console.log("immediate"));
+});
 ```
+
+Inside an I/O callback, `setImmediate` often runs before `setTimeout(0)` because of Node's event loop phases.
+
+---
 
 ## 9. Confusing / Tricky Examples
 
-### Confusion 1: The Name Sounds Simple
+### Trap 1: `setTimeout(fn, 0)` is not immediate
 
-Many developers can define Microtasks and Macrotasks, but cannot trace its lifecycle or failure modes. Interviewers often move quickly from definition to edge cases.
+It schedules a future task. Current stack and microtasks run first.
 
-### Confusion 2: Local Behavior Differs From Production
+### Trap 2: Microtasks can starve tasks
 
-Local environments rarely reproduce production traffic, data shape, dependency latency, permissions, deploy overlap, or noisy neighbors.
+```js
+function repeat() {
+  queueMicrotask(repeat);
+}
 
-### Confusion 3: The Happy Path Hides Ownership
+repeat();
+setTimeout(() => console.log("never soon"), 0);
+```
 
-If no one owns the failure path, monitoring, documentation, migration plan, or rollback process, the design is incomplete.
+The timer may not get a chance if microtasks never stop.
 
-### Confusion 4: Optimization Before Measurement
+### Trap 3: `await` does not block the thread
 
-Optimizing Microtasks and Macrotasks without baseline data can make the system harder to debug while failing to improve the real bottleneck.
+`await` suspends the async function and lets the current stack finish. It does not pause the entire runtime.
+
+### Trap 4: Node and browser ordering differ
+
+`process.nextTick` has no browser equivalent and runs before Promise microtasks in Node's processing model.
+
+### Trap 5: Timer delay is minimum-ish, not guaranteed
+
+```js
+setTimeout(fn, 10);
+```
+
+The callback cannot run before the delay, but it may run later due to busy event loop, clamping, throttling, tab backgrounding, or host scheduling.
+
+### Trap 6: Promise executor is synchronous
+
+```js
+new Promise((resolve) => {
+  console.log("executor");
+  resolve();
+}).then(() => console.log("then"));
+```
+
+The executor runs immediately; `.then` runs as a microtask.
+
+---
 
 ## 10. Real Production Use Cases
 
-Microtasks and Macrotasks appears in production anywhere JavaScript Internals needs predictable behavior across real users, real traffic, real failures, and real team boundaries.
+### UI state batching
 
-Used in:
+Frameworks schedule updates to batch multiple synchronous changes.
 
-- frontend apps, Node.js services, SDKs, libraries, build pipelines, and shared platform packages,
-- payment and billing workflows,
-- authentication and authorization flows,
-- admin and internal platforms,
-- realtime or async processing,
-- reporting and analytics,
-- compliance and audit trails,
-- incident response and operational runbooks.
+Risk:
 
-Production makes this harder because:
+- reading DOM or state immediately after scheduling may observe old values.
 
-- inputs are messy,
-- clients and services run different versions,
-- dependencies degrade before they fail,
-- retries multiply load,
-- dashboards show symptoms before root cause,
-- ownership is split across teams.
+Debugging:
 
-## Architecture Decisions
+- identify whether update flush happens in microtask, task, animation frame, or framework scheduler.
 
-When designing around Microtasks and Macrotasks, compare multiple approaches.
+### Long task causing input delay
 
-| Approach | Use When | Trade-Off |
-|---|---|---|
-| Inline/local logic | Small scope, low risk, one owner | Fast to build, easier to duplicate |
-| Shared library | Same logic repeated across modules | Versioning and rollout become important |
-| Service/API boundary | Multiple consumers need stable behavior | Network, latency, and ownership overhead |
-| Platform capability | High scale, compliance, or reliability needs | Requires platform maturity and governance |
-| Managed service | Commodity capability with strong provider support | Less control, provider constraints |
+Problem:
 
-Decision questions:
+- user clicks but UI responds late.
 
-- What is the blast radius if this breaks?
-- Who owns the contract?
-- How often will it change?
-- What must be observable?
-- What happens during rollback?
-- What is the simplest design that satisfies current correctness and scale?
+Cause:
+
+- JavaScript task runs too long before event loop can handle input.
+
+Fix:
+
+- split work,
+- move work to worker,
+- yield between chunks,
+- reduce synchronous computation.
+
+### Promise storm in API client
+
+Problem:
+
+- thousands of resolved Promises enqueue continuations and block rendering.
+
+Fix:
+
+- batch work,
+- limit concurrency,
+- yield to tasks when UI responsiveness matters.
+
+### Node I/O starvation
+
+Problem:
+
+- service stops processing sockets while CPU appears busy.
+
+Cause:
+
+- recursive `process.nextTick` or heavy microtask chain.
+
+Fix:
+
+- use bounded queues,
+- use `setImmediate` to yield to I/O,
+- move CPU work off event loop.
+
+### Test flakiness
+
+Problem:
+
+- tests assert before Promise callbacks, timers, or framework flushes complete.
+
+Fix:
+
+- flush microtasks for Promise work,
+- advance fake timers for timer work,
+- wait for framework-specific render flush,
+- avoid mixing real and fake timers carelessly.
+
+---
 
 ## 11. Interview Questions
 
-1. What is Microtasks and Macrotasks, and why does it matter in JavaScript Internals?
-2. What problem does it solve inside 002.02 Runtime Semantics?
-3. How does it work internally?
-4. What are the most common edge cases?
-5. What failure modes appear only in production?
-6. How would you implement a minimal version?
-7. How would you test it?
-8. How would you debug a production issue related to it?
-9. What metrics or logs would you add?
-10. How does the design change at 10x traffic, data, or team size?
-11. What trade-offs exist between simple implementation and platform abstraction?
-12. What senior-level mistake do engineers make with this topic?
+### Basic
+
+1. What is a microtask?
+2. What is a task/macrotask?
+3. Why does a Promise `.then` run before `setTimeout(..., 0)`?
+4. Is a Promise executor synchronous or asynchronous?
+5. What does run-to-completion mean?
+
+### Intermediate
+
+1. Explain the output of Promise/timer ordering examples.
+2. How does `await` schedule continuation?
+3. Why can microtasks starve rendering?
+4. What is the difference between `queueMicrotask` and `setTimeout`?
+5. How does `requestAnimationFrame` fit into browser scheduling?
+
+### Advanced
+
+1. How does Node's `process.nextTick` differ from Promise microtasks?
+2. Why can `setImmediate` beat `setTimeout(0)` after I/O in Node?
+3. How would you debug event-loop delay in a Node service?
+4. How would you chunk CPU-heavy browser work without freezing the UI?
+5. How do fake timers interact with Promise microtasks in tests?
+
+### Tricky
+
+1. Can a microtask schedule another microtask before timers run?
+2. Does `await` always resume after all timers?
+3. Is `setTimeout(0)` guaranteed to run after exactly 0 ms?
+4. Are browser tasks and Node event-loop phases the same?
+5. Can too many resolved Promises hurt performance?
+
+Strong answers should identify the queue, timing checkpoint, host environment, and whether work runs before rendering/I/O.
+
+---
 
 ## 12. Senior-Level Pitfalls
 
-### Pitfall 1: Treating It As Isolated Trivia
+### Pitfall 1: Using microtasks for unbounded work
 
-Microtasks and Macrotasks is connected to runtime behavior, architecture, operations, and team ownership. A narrow definition is not enough.
+Microtasks drain before moving to the next task.
 
-### Pitfall 2: Ignoring Failure Semantics
+Senior correction:
 
-A design that only explains success is not production-ready. Define timeout, retry, cancellation, idempotency, rollback, and cleanup behavior.
+- use tasks or chunking for long-running work,
+- yield to rendering/I/O when needed.
 
-### Pitfall 3: Missing Observability
+### Pitfall 2: Assuming browser and Node queues are identical
 
-If the system cannot prove what happened, debugging becomes guesswork. Add logs, metrics, traces, and structured identifiers at decision points.
+Node has `process.nextTick`, event-loop phases, and server-side I/O behavior.
 
-### Pitfall 4: Hidden Shared State
+Senior correction:
 
-Shared state without clear ownership creates race conditions, stale reads, memory leaks, and cross-request contamination.
+- reason by runtime,
+- test in the actual environment.
 
-### Pitfall 5: Premature Abstraction
+### Pitfall 3: Blocking the main thread with "async" code
 
-Abstracting too early can freeze weak assumptions. Wait until the repeated shape is stable, then extract a clear interface.
+`async` does not make CPU work parallel.
+
+```js
+async function heavy() {
+  computeForTwoSeconds();
+}
+```
+
+Senior correction:
+
+- use workers, chunking, streaming, or offloading.
+
+### Pitfall 4: Test utilities flush the wrong queue
+
+Advancing timers may not flush Promise microtasks unless the test tool integrates both.
+
+Senior correction:
+
+- explicitly flush microtasks and timers according to the code path.
+
+### Pitfall 5: Recursive `process.nextTick`
+
+`nextTick` can starve I/O.
+
+Senior correction:
+
+- prefer `setImmediate` or bounded queues for yielding in Node.
+
+### Pitfall 6: Assuming timer order is stable everywhere
+
+Timer clamping, background tabs, event loop load, and Node phases affect order.
+
+Senior correction:
+
+- avoid correctness depending on fragile timer ordering.
+
+---
 
 ## 13. Best Practices
 
-- Start with a precise definition.
-- Identify the owner and boundary.
-- Make inputs, outputs, and invariants explicit.
-- Prefer simple local design until the pressure for abstraction is real.
-- Test normal, edge, and failure paths.
-- Add observability before relying on the behavior in production.
-- Keep resource usage bounded.
-- Document assumptions and trade-offs.
-- Design rollback and migration paths.
-- Revisit the decision when scale, team count, or correctness requirements change.
+### Browser
+
+- Keep tasks short.
+- Break CPU-heavy work into chunks.
+- Use `requestAnimationFrame` for work tied to painting.
+- Use `queueMicrotask` for immediate post-stack consistency work.
+- Avoid endless Promise chains.
+- Use Web Workers for heavy computation.
+- Measure long tasks and INP when user interaction matters.
+
+### Node
+
+- Avoid CPU-heavy work on the event loop.
+- Monitor event-loop delay.
+- Use `setImmediate` to yield after chunks when appropriate.
+- Avoid recursive `process.nextTick`.
+- Limit concurrency for Promise-heavy workflows.
+- Prefer streams/backpressure for large I/O.
+
+### Testing
+
+- Know whether code schedules microtasks, timers, animation frames, or framework flushes.
+- Use fake timers carefully.
+- Await Promise work explicitly.
+- Avoid arbitrary sleeps.
+
+### Architecture
+
+- Do not use scheduling as a correctness crutch.
+- Make ordering explicit through state machines, queues, or acknowledgments when correctness matters.
+- Use backpressure for producer/consumer systems.
+- Keep user-facing main-thread budgets visible.
+
+---
 
 ## 14. Debugging Scenarios
 
-### Scenario 1: Works Locally, Fails In Production
+### Scenario 1: Promise callback runs before timer
 
-Likely causes:
+Symptoms:
 
-- different configuration,
-- different data shape,
-- missing permissions,
-- dependency latency,
-- concurrency,
-- version mismatch.
+- test expected timer result first.
 
-Debugging steps:
-
-1. Compare environment configuration.
-2. Capture one failing input.
-3. Trace the request or workflow end to end.
-4. Check deploy, data, and dependency timelines.
-5. Reproduce with production-like constraints.
-
-### Scenario 2: Intermittent Failure
-
-Likely causes:
-
-- race condition,
-- retry interaction,
-- shared mutable state,
-- timeout boundary,
-- cache inconsistency,
-- queue ordering.
-
-Debugging steps:
-
-1. Group failures by tenant, version, region, and dependency.
-2. Inspect p95 and p99 instead of averages.
-3. Add correlation IDs.
-4. Check whether retries amplify the issue.
-5. Verify cleanup and idempotency.
-
-### Scenario 3: Performance Regression
-
-Likely causes:
-
-- unbounded work,
-- inefficient query or algorithm,
-- larger payload,
-- cache miss pattern,
-- excessive serialization,
-- synchronous work on a critical path.
-
-Debugging steps:
-
-1. Establish baseline.
-2. Profile the hot path.
-3. Compare before and after deploy.
-4. Measure resource saturation.
-5. Optimize the proven bottleneck only.
-
-### Scenario 4: Memory Or Resource Growth
-
-Likely causes:
-
-- retained references,
-- unbounded queue,
-- missing cleanup,
-- long-lived subscriptions,
-- growing cache,
-- connection leak.
-
-Debugging steps:
-
-1. Capture heap, CPU, or resource profile.
-2. Inspect retainers or open handles.
-3. Confirm lifecycle cleanup.
-4. Add bounds and eviction.
-5. Verify recovery after load drops.
-
-## Diagrams
-
-Dedicated diagrams are available in [diagrams.md](./diagrams.md).
-
-### Concept Flow
-
-```mermaid
-flowchart TD
-  A[Input or trigger] --> B[Validate assumptions]
-  B --> C[Enter 002.02 Runtime Semantics boundary]
-  C --> D[Apply Microtasks and Macrotasks]
-  D --> E[Read or change state]
-  E --> F[Return result]
-  F --> G[Emit telemetry]
-```
-
-### Failure Flow
-
-```mermaid
-flowchart TD
-  A[Unexpected behavior] --> B{Input valid?}
-  B -->|No| C[Fix validation or caller contract]
-  B -->|Yes| D{State correct?}
-  D -->|No| E[Inspect ownership, mutation, cache, or ordering]
-  D -->|Yes| F{Dependency healthy?}
-  F -->|No| G[Check timeout, retry, fallback, and saturation]
-  F -->|Yes| H[Inspect implementation assumptions and edge cases]
-```
-
-### Production Readiness Loop
+Debugging flow:
 
 ```text
-Design
-  -> implement
-  -> test
-  -> instrument
-  -> deploy safely
-  -> observe
-  -> learn
-  -> refine
+List scheduled work
+  -> classify sync / microtask / task
+  -> trace current stack end
+  -> drain microtasks
+  -> run next task
 ```
+
+Root cause:
+
+- Promise reaction is microtask; timer is task.
+
+### Scenario 2: Browser freezes after API response
+
+Symptoms:
+
+- network is fast,
+- UI freezes after data arrives.
+
+Debugging flow:
+
+```text
+Record Performance trace
+  -> inspect long task
+  -> inspect microtask chain
+  -> split render/data processing
+  -> yield or move work to worker
+```
+
+Root cause:
+
+- synchronous processing or microtask storm blocks rendering.
+
+### Scenario 3: Node service event-loop delay high
+
+Symptoms:
+
+- CPU high,
+- I/O latency rises,
+- event-loop delay metric spikes.
+
+Debugging flow:
+
+```text
+Capture CPU profile
+  -> inspect nextTick / Promise chains
+  -> find synchronous hot work
+  -> chunk/offload/bound concurrency
+```
+
+Root cause:
+
+- event loop is busy, so I/O callbacks wait.
+
+### Scenario 4: Fake timer test hangs
+
+Symptoms:
+
+- test advances timers but Promise callback never observed.
+
+Debugging flow:
+
+```text
+Identify scheduler
+  -> flush pending Promises
+  -> advance timers
+  -> flush framework updates
+  -> avoid mixing real/fake scheduling
+```
+
+Root cause:
+
+- only the task queue was advanced, not microtasks or framework scheduler.
+
+### Scenario 5: Recursive microtask starvation
+
+Symptoms:
+
+- timers do not fire,
+- browser does not repaint,
+- process appears stuck.
+
+Debugging flow:
+
+```text
+Search queueMicrotask / Promise recursion
+  -> add bound/yield
+  -> replace with task-based chunking
+  -> monitor responsiveness
+```
+
+Root cause:
+
+- microtask queue never drains.
+
+---
 
 ## 15. Exercises / Practice
 
-### Exercise 1
+### Exercise 1: Predict output
 
-Explain Microtasks and Macrotasks in your own words using three levels:
+```js
+console.log("A");
 
-- beginner explanation,
-- intermediate internal explanation,
-- senior production explanation.
+setTimeout(() => console.log("B"), 0);
 
-### Exercise 2
+Promise.resolve().then(() => console.log("C"));
 
-Draw the lifecycle for Microtasks and Macrotasks:
-
-```text
-input -> decision -> state change -> output -> telemetry
+console.log("D");
 ```
 
-Mark where validation, failure handling, and cleanup happen.
+Explain every step.
 
-### Exercise 3
+### Exercise 2: Chained microtask
 
-Write one example where Microtasks and Macrotasks works correctly and one where it fails because of an edge case.
+```js
+setTimeout(() => console.log("timer"), 0);
 
-### Exercise 4
+Promise.resolve().then(() => {
+  console.log("p1");
+  queueMicrotask(() => console.log("m1"));
+});
+```
 
-Create a debugging checklist for a production incident involving Microtasks and Macrotasks. Include logs, metrics, traces, and rollback options.
+Predict output.
 
-### Exercise 5
+### Exercise 3: Await ordering
 
-Compare two architecture choices for this topic and explain when each is better.
+```js
+async function run() {
+  console.log("1");
+  await null;
+  console.log("2");
+}
+
+run();
+Promise.resolve().then(() => console.log("3"));
+console.log("4");
+```
+
+Predict output and explain microtask ordering.
+
+### Exercise 4: Fix starvation
+
+Refactor:
+
+```js
+function process(items) {
+  if (items.length === 0) return;
+  handle(items.shift());
+  queueMicrotask(() => process(items));
+}
+```
+
+Goal:
+
+- preserve responsiveness,
+- process all items,
+- avoid starving timers/rendering.
+
+### Exercise 5: Choose scheduler
+
+Choose the right scheduling primitive:
+
+```text
+1. Run after current sync code but before next task.
+2. Run before next browser paint.
+3. Yield a Node CPU loop so I/O can progress.
+4. Run after at least 500 ms.
+5. Move CPU-heavy image processing off main thread.
+```
+
+Explain each choice.
+
+---
 
 ## 16. Comparison
 
-Compare Microtasks and Macrotasks with nearby or competing concepts.
+### Microtask vs task/macrotask
 
-Comparison prompts:
+| Dimension | Microtask | Task / Macrotask |
+| --- | --- | --- |
+| Runs | After current stack, before next task | On a future event loop turn |
+| Examples | Promise reactions, `queueMicrotask` | timers, events, messages, I/O callbacks |
+| Draining | Queue drains fully | Usually one task selected per turn |
+| Risk | Starvation if recursively scheduled | Long task blocks microtasks/rendering while running |
+| Use | consistency after current operation | yielding, timers, events, host work |
 
-- What problem does each option solve?
-- Which one is simpler?
-- Which one is safer?
-- Which one scales better?
-- Which one is easier to debug?
-- Which one has better ecosystem or platform support?
+### `queueMicrotask` vs `Promise.then`
 
-Decision table:
+| Feature | `queueMicrotask` | `Promise.resolve().then` |
+| --- | --- | --- |
+| Intent | Explicit microtask scheduling | Promise continuation |
+| Allocation | Avoids extra Promise chain intent | Creates/uses Promise machinery |
+| Error handling | thrown error reports like normal async exception behavior | rejection path |
+| Readability | Clear for scheduling | Clear for Promise flow |
 
-| Option | Prefer When | Avoid When |
-|---|---|---|
-| Microtasks and Macrotasks | It directly matches the invariant and ownership boundary | The abstraction hides important failure behavior |
-| Simpler local approach | Scope is small, low risk, and easy to test | Logic is duplicated across many teams |
-| Shared/platform approach | Correctness, scale, or governance matters | The contract is still changing rapidly |
+### `setTimeout(0)` vs `setImmediate` in Node
+
+| API | Phase / Behavior | Use |
+| --- | --- | --- |
+| `setTimeout(fn, 0)` | timers phase after minimum delay | timer-style scheduling |
+| `setImmediate(fn)` | check phase | yield after I/O / run soon after poll |
+
+Ordering can vary depending on where they are scheduled.
+
+### Browser scheduling choices
+
+| API | Best For |
+| --- | --- |
+| `queueMicrotask` | post-stack consistency work |
+| `setTimeout` | delayed/future task |
+| `requestAnimationFrame` | visual updates before paint |
+| `requestIdleCallback` | non-critical idle work where supported |
+| Web Worker | CPU-heavy parallel work |
+
+---
 
 ## 17. Related Concepts
 
-Microtasks and Macrotasks connects to the rest of the knowledge tree.
+Microtasks and Macrotasks connect to:
 
-Study links:
+- `001.02.02 Event Loop and Tasks`: user-level event loop model.
+- `001.02.03 Promises and Async-Await`: Promise jobs and async continuation.
+- `002.02.01 Execution Contexts`: callbacks create execution contexts when run.
+- `002.02.02 Lexical Environments`: scheduled callbacks retain closures.
+- Browser Fundamentals: rendering and input events.
+- Web Performance: long tasks, INP, responsiveness.
+- Node.js: event loop phases, I/O, `process.nextTick`.
+- Testing: fake timers, microtask flushing, async assertions.
+- Production Debugging: event-loop delay, starvation, ordering races.
 
-- Parent category: JavaScript Internals
-- Parent topic: 002.02 Runtime Semantics
-- Internal flow and diagrams: [diagrams.md](./diagrams.md)
-- Practice files in this folder: debugging, questions, exercises, and review notes
+Knowledge graph:
 
-Related concept types:
+```mermaid
+flowchart LR
+  A["Current Task"] --> B["Call Stack Runs"]
+  B --> C["Stack Empty"]
+  C --> D["Drain Microtasks"]
+  D --> E["Render / Host Checkpoint"]
+  E --> F["Next Task"]
+  D --> G["Promise Continuations"]
+  F --> H["Timers / Events / I/O"]
+```
 
-- prerequisites that make this topic easier,
-- follow-up topics that build on it,
-- architecture concepts that use it,
-- production concerns that expose its limits,
-- interview patterns that test it indirectly.
+---
 
 ## Advanced Add-ons
 
 ### Performance Impact
 
-- Time complexity: identify whether work is constant, linear, logarithmic, fan-out, or unbounded.
-- Memory usage: identify retained data, copied data, cached data, and cleanup timing.
-- Hot path risk: determine whether this runs per request, per render, per event, per query, or per deployment.
-- Measurement: use baselines, profiling, p95/p99, and resource saturation before optimizing.
+Microtask/task scheduling affects:
+
+- input responsiveness,
+- rendering delay,
+- event-loop delay,
+- timer drift,
+- I/O latency,
+- memory retention,
+- test runtime,
+- CPU fairness.
+
+Performance guidance:
+
+- keep tasks under user-facing latency budgets,
+- avoid unbounded microtask chains,
+- yield with tasks for long work,
+- use workers for CPU-heavy operations,
+- monitor browser long tasks and Node event-loop delay,
+- limit Promise concurrency.
 
 ### System Design Relevance
 
-Microtasks and Macrotasks matters in system design when it affects boundaries, contracts, scaling behavior, correctness, or operational ownership.
+Scheduling choices affect architecture:
 
-Ask:
+- client apps need responsive main-thread scheduling,
+- Node services need event-loop fairness,
+- job processors need bounded queues,
+- realtime systems need backpressure,
+- tests need deterministic async control,
+- UI frameworks need predictable batching.
 
-- Does it belong inside a module, service, shared library, platform layer, or managed service?
-- What is the blast radius if it fails?
-- What happens at 10x traffic, data, tenants, regions, or teams?
-- What reliability, observability, and rollback strategy is required?
+Decision framework:
+
+```mermaid
+flowchart TD
+  A["Need To Schedule Work"] --> B{"Must Run Before Next Task?"}
+  B -->|Yes| C["Microtask"]
+  B -->|No| D{"Visual Work?"}
+  D -->|Yes| E["requestAnimationFrame"]
+  D -->|No| F{"CPU Heavy?"}
+  F -->|Yes| G["Worker / Chunk + Yield"]
+  F -->|No| H["Task / Timer / Host Queue"]
+```
 
 ### Security Impact
 
-Security relevance depends on whether Microtasks and Macrotasks touches input, identity, authorization, secrets, user data, logs, dependencies, or execution boundaries.
+Scheduling bugs can become security bugs:
 
-Check:
+- authorization state checked before async policy update completes,
+- cleanup task delayed by microtask storm,
+- time-of-check/time-of-use races in UI flows,
+- unhandled rejections hiding failed security checks,
+- stale closure using old permissions.
 
-- validation and sanitization,
-- least privilege,
-- sensitive data exposure,
-- injection or confused-deputy risks,
-- auditability and compliance requirements.
+Practices:
+
+- do not rely on fragile timer ordering for security,
+- await critical checks explicitly,
+- fail closed on async policy failures,
+- handle Promise rejections,
+- avoid stale permission snapshots.
 
 ### Browser vs Node Behavior
 
-If this topic appears in JavaScript runtimes, compare browser and Node.js behavior:
+Browser:
 
-- global object and module scope,
-- event loop and task queues,
-- API availability,
-- security sandbox,
-- file, network, and process access,
-- debugging and profiling tools.
+- tasks include UI events, timers, messages, and script execution,
+- microtasks drain before rendering opportunities,
+- long tasks hurt responsiveness and INP,
+- background tabs may throttle timers,
+- `requestAnimationFrame` aligns with rendering.
 
-For non-runtime topics, compare local development, CI, staging, and production behavior instead.
+Node:
+
+- event loop has phases,
+- `process.nextTick` runs before Promise microtasks in Node's model,
+- `setImmediate` is tied to the check phase,
+- I/O progress depends on not starving the poll phase,
+- event-loop delay is an important production metric.
+
+Shared:
+
+- current JavaScript stack runs to completion,
+- Promise reactions are microtasks,
+- timers are future tasks,
+- scheduling does not make CPU work parallel.
 
 ### Polyfill / Implementation
 
-Staff-level understanding includes knowing whether you can implement a simplified version yourself.
+You cannot fully polyfill host event loops, but you can model queues.
 
-Implementation prompts:
+```ts
+class TinyLoop {
+  private tasks: Array<() => void> = [];
+  private microtasks: Array<() => void> = [];
 
-- What is the smallest correct version?
-- Which edge cases are intentionally unsupported?
-- Which behavior must match platform semantics?
-- What tests prove compatibility?
-- When is using a proven library safer than custom implementation?
+  queueTask(task: () => void) {
+    this.tasks.push(task);
+  }
+
+  queueMicrotask(task: () => void) {
+    this.microtasks.push(task);
+  }
+
+  runOneTurn() {
+    const task = this.tasks.shift();
+    if (!task) return;
+
+    task();
+
+    while (this.microtasks.length > 0) {
+      const microtask = this.microtasks.shift()!;
+      microtask();
+    }
+  }
+}
+
+const loop = new TinyLoop();
+
+loop.queueTask(() => {
+  console.log("task");
+  loop.queueMicrotask(() => console.log("microtask"));
+});
+
+loop.queueTask(() => console.log("next task"));
+
+loop.runOneTurn();
+loop.runOneTurn();
+```
+
+Output:
+
+```text
+task
+microtask
+next task
+```
+
+This model omits rendering, timers, I/O, Node phases, priorities, and host-specific details, but it captures the key checkpoint idea.
+
+---
 
 ## 18. Summary
 
-Microtasks and Macrotasks is a practical engineering topic, not just a vocabulary item. Mastery means you can define it, implement it, reason about internals, predict edge cases, debug failures, and explain trade-offs.
+Microtasks and tasks are the scheduling backbone of asynchronous JavaScript.
 
-Remember:
+Quick recall:
 
-- Start from first principles.
-- Identify boundaries and ownership.
-- Understand execution and resource behavior.
-- Design for failure, not only success.
-- Add observability.
-- Keep the simplest design that satisfies correctness and scale.
-- Revisit the design as production pressure changes.
+- The current stack runs to completion.
+- Promise reactions and `queueMicrotask` callbacks are microtasks.
+- Timers, events, messages, and I/O callbacks are tasks/macrotasks.
+- Microtasks drain before the next task.
+- Recursive microtasks can starve tasks, rendering, and I/O.
+- `setTimeout(0)` is not immediate.
+- Promise executors run synchronously; `.then` callbacks do not.
+- `await` resumes through microtask scheduling.
+- Node has `process.nextTick`, Promise microtasks, `setImmediate`, and event-loop phases.
+- Scheduling is not parallelism.
+
+Staff-level takeaway:
+
+- Mastery is not memorizing one output puzzle. It is knowing which queue owns the work, when that queue drains, what can be starved, and how the scheduling choice affects users, tests, Node I/O, rendering, and production latency.

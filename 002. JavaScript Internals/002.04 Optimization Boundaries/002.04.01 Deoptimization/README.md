@@ -1,630 +1,1072 @@
 # 002.04.01 Deoptimization
 
-Category: JavaScript Internals
-
+Category: JavaScript Internals<br>
 Topic: 002.04 Optimization Boundaries
+
+Deoptimization is the runtime process of abandoning optimized machine code and falling back to a safer execution tier when the assumptions used by the optimizer are no longer valid.
+
+It is one of the most important JavaScript performance concepts because modern engines are fast by speculating. When speculation is correct, hot code runs quickly. When speculation breaks often, the engine spends time bailing out, recompiling, and running generic paths.
+
+---
 
 ## 1. Definition
 
-Deoptimization is a focused engineering concept inside 002.04 Optimization Boundaries. It describes a behavior, design choice, implementation technique, or operational concern that engineers must understand deeply to build reliable systems in JavaScript Internals.
+Deoptimization is a correctness-preserving fallback from optimized code to less optimized code.
 
-At a practical level, this topic answers:
+One-line definition:
 
-- what problem it solves,
-- what boundary it belongs to,
-- what assumptions it depends on,
-- how it behaves during normal execution,
-- how it fails under pressure,
-- and how to reason about it in production.
+- Deoptimization happens when optimized JavaScript code hits a case that violates the assumptions used to make it fast.
 
-The goal is not only to recognize the term. The goal is to explain Deoptimization from first principles, apply it in code or architecture, debug it when it breaks, and defend trade-offs in an interview or design review.
+Expanded explanation:
+
+- The interpreter runs bytecode and collects runtime feedback.
+- The optimizer compiles hot code using assumptions based on observed types, shapes, call targets, and operations.
+- Optimized code includes guards that check whether those assumptions still hold.
+- If a guard fails, the engine reconstructs a safe execution state and continues in a lower tier.
+
+Simplified flow:
+
+```text
+Hot function
+  -> optimize using feedback
+  -> execute fast path
+  -> guard fails
+  -> reconstruct interpreter/baseline state
+  -> continue safely
+```
+
+Deoptimization is not a bug. It is how dynamic JavaScript remains correct while still getting optimized performance.
+
+---
 
 ## 2. Why It Exists
 
-Deoptimization exists because real systems need explicit rules for correctness, ownership, execution, and change. Without this concept, teams usually rely on implicit assumptions, and implicit assumptions become bugs when systems grow.
+JavaScript is dynamic:
 
-This topic matters because it helps engineers:
+```ts
+function add(a, b) {
+  return a + b;
+}
 
-- reduce ambiguity in 002.04 Optimization Boundaries,
-- make behavior easier to test and review,
-- prevent local decisions from creating system-level failures,
-- identify performance and reliability limits before production incidents,
-- communicate trade-offs clearly across frontend, backend, platform, security, and product teams.
+add(1, 2);
+add("1", "2");
+```
 
-You should understand this before moving deeper because later topics often depend on the same mental models: state ownership, lifecycle timing, API contracts, failure handling, scaling pressure, and observability.
+The same operation can mean numeric addition or string concatenation.
+
+To run fast, engines speculate:
+
+- this property access usually sees one object shape,
+- this arithmetic usually uses numbers,
+- this call usually targets the same function,
+- this array usually contains packed numbers,
+- this branch usually sees a stable type.
+
+Deoptimization exists because speculation must never break correctness.
+
+It solves:
+
+- safe fallback when runtime behavior changes,
+- ability to optimize dynamic language code,
+- correctness across rare/unusual values,
+- support for prototype changes, accessors, proxies, and dynamic features.
+
+Production relevance:
+
+- frequent deopt can cause CPU spikes,
+- p99 latency may worsen under unusual tenant data,
+- benchmarks can lie if they avoid deopt cases,
+- hot API paths can slow after one polymorphic input,
+- frontend rendering can degrade when props/state shapes vary wildly.
+
+---
 
 ## 3. Syntax & Variants
 
-Not every engineering topic has programming syntax, but every topic has an interface shape. The interface shape is how the concept appears to the rest of the system.
+There is no standard JavaScript syntax for deoptimization. You influence it through runtime behavior.
 
-In JavaScript Internals, Deoptimization commonly appears as a function, type, object, runtime behavior, data structure, or algorithm.
-
-Typical shape:
+### Stable numeric operation
 
 ```ts
-type DeoptimizationInput = {
-  id: string;
-  payload: unknown;
-};
-
-type DeoptimizationResult =
-  | { ok: true; value: unknown }
-  | { ok: false; error: string; retryable: boolean };
-
-export function handleDeoptimization(
-  input: DeoptimizationInput,
-): DeoptimizationResult {
-  if (!input.id) {
-    return { ok: false, error: "missing_id", retryable: false };
-  }
-
-  try {
-    const value = input.payload;
-    return { ok: true, value };
-  } catch {
-    return { ok: false, error: "unexpected_failure", retryable: true };
-  }
+function multiply(a: number, b: number) {
+  return a * b;
 }
+
+multiply(2, 3);
+multiply(4, 5);
 ```
 
-When reading or writing code for this topic, identify:
+This is optimization-friendly when runtime values are consistently numbers.
 
-- the input boundary,
-- the output contract,
-- the state being read or changed,
-- the owner of the behavior,
-- the failure path,
-- the observability signal.
+### Type instability
 
-Variants to identify:
+```ts
+function multiply(a: any, b: any) {
+  return a * b;
+}
 
-- direct language or framework syntax,
-- configuration shape,
-- API or interface shape,
-- runtime behavior shape,
-- rare edge syntax or unusual usage,
-- legacy forms that still appear in production.
+multiply(2, 3);
+multiply("4", 5);
+```
+
+The string input can break numeric assumptions.
+
+### Shape instability
+
+```ts
+function readTotal(order: { total: number }) {
+  return order.total;
+}
+
+readTotal({ id: "1", total: 100 });
+readTotal({ total: 200, id: "2" });
+```
+
+Same visible fields, different creation order may produce different shapes.
+
+### Prototype mutation
+
+```ts
+Object.setPrototypeOf(obj, newProto);
+```
+
+Changing prototypes can invalidate optimized property lookups.
+
+### Delete
+
+```ts
+delete user.active;
+```
+
+Deleting properties can change object layout and hurt optimized access paths.
+
+### Dynamic code
+
+```js
+eval("var injected = 1");
+```
+
+Direct `eval` and `with` complicate scope and optimization.
+
+### Diagnostic flags
+
+V8/Node local diagnostics:
+
+```bash
+node --trace-opt --trace-deopt app.js
+```
+
+These are for learning and deep diagnostics. They are noisy and engine-specific.
+
+---
 
 ## 4. Internal Working
 
-The internal working of Deoptimization should be understood as a lifecycle, not as a definition.
+### Optimization and deoptimization lifecycle
 
-```text
-Input / trigger
-  -> validate assumptions
-  -> enter 002.04 Optimization Boundaries boundary
-  -> apply Deoptimization rules
-  -> read or update state
-  -> handle success, failure, or partial success
-  -> emit observable signal
-  -> return result or continue workflow
+```mermaid
+flowchart TD
+  A["Bytecode Runs"] --> B["Collect Feedback"]
+  B --> C{"Function Hot?"}
+  C -->|No| A
+  C -->|Yes| D["Optimize With Assumptions"]
+  D --> E["Install Optimized Code"]
+  E --> F["Run Fast Path"]
+  F --> G{"Guard Passes?"}
+  G -->|Yes| F
+  G -->|No| H["Deopt Bailout"]
+  H --> I["Reconstruct Safe State"]
+  I --> J["Resume In Lower Tier"]
 ```
 
-For this topic, inspect the real mechanism behind the abstraction:
+### Runtime feedback
 
-- engine, compiler, type system, memory model, call stack, event loop, and module boundary,
-- ordering and timing,
-- ownership of mutable state,
-- limits and resource usage,
-- retry, cancellation, cleanup, and rollback behavior,
-- how the behavior changes between local development, CI, staging, and production.
+The engine records:
 
-Senior engineers do not stop at "it works." They ask what the runtime must do, what it keeps in memory, what it sends over the network, what can be retried, what can be duplicated, and what must be protected by invariants.
+- argument types,
+- object shapes,
+- property locations,
+- call targets,
+- array element kinds,
+- branch behavior,
+- arithmetic result types.
 
-## 5. Memory Behavior
+### Optimized assumptions
 
-Every topic consumes or protects memory, state, or another resource. For Deoptimization, reason about memory and resource behavior explicitly.
-
-Common resources:
-
-- memory and retained references,
-- CPU and event-loop time,
-- network calls and connection pools,
-- database locks, indexes, and storage,
-- queue depth and worker capacity,
-- browser main-thread budget,
-- cloud cost and operational attention.
-
-Resource model:
-
-```text
-Work enters system
-  -> resource is allocated
-  -> work is processed
-  -> resource is released, retained, cached, or leaked
-```
-
-Production questions:
-
-- What grows with traffic?
-- What grows with data size?
-- What grows with number of tenants, teams, or services?
-- What is bounded?
-- What can leak?
-- What needs cleanup?
-- What metric proves the resource behavior is healthy?
-
-For JavaScript Internals, watch runtime errors, latency, memory growth, bundle size, CPU time, test failures, and defect rate.
-
-## 6. Execution Behavior
-
-Execution behavior describes what actually happens when the system runs.
-
-Trace Deoptimization through:
-
-- the happy path,
-- invalid input,
-- missing dependency,
-- slow dependency,
-- concurrent execution,
-- retry after timeout,
-- duplicate request or event,
-- deploy with old and new versions running together,
-- cleanup after failure.
-
-Execution timeline:
-
-```text
-Before
-  -> required state and configuration exist
-During
-  -> core behavior runs and may touch dependencies
-After
-  -> result, side effects, and telemetry are visible
-Failure
-  -> caller receives error, retry, fallback, or compensation path
-```
-
-The most important question is: what invariant must remain true even if the execution path is interrupted?
-
-## 7. Scope & Context Interaction
-
-Deoptimization should be understood in its surrounding scope and execution context, not as an isolated detail.
-
-Scope questions:
-
-- Where is this behavior visible?
-- Who can call or mutate it?
-- What module, component, service, tenant, request, thread, worker, or transaction owns it?
-- Does it cross frontend, backend, database, queue, cache, or platform boundaries?
-- Does it behave differently inside closures, async callbacks, dependency injection scopes, request scopes, or deployment environments?
-
-Context model:
-
-```text
-Local context
-  -> module or component context
-  -> service or runtime context
-  -> system or organization context
-```
-
-For JavaScript and TypeScript topics, also check lexical scope, closure retention, module scope, global scope, and `this` behavior where applicable.
-
-## 8. Common Examples
-
-### Example 1: Local Implementation
-
-Use a local implementation when the behavior is simple, low-risk, and owned by one module or team.
+Example:
 
 ```ts
-type DeoptimizationInput = {
-  id: string;
-  payload: unknown;
-};
-
-type DeoptimizationResult =
-  | { ok: true; value: unknown }
-  | { ok: false; error: string; retryable: boolean };
-
-export function handleDeoptimization(
-  input: DeoptimizationInput,
-): DeoptimizationResult {
-  if (!input.id) {
-    return { ok: false, error: "missing_id", retryable: false };
-  }
-
-  try {
-    const value = input.payload;
-    return { ok: true, value };
-  } catch {
-    return { ok: false, error: "unexpected_failure", retryable: true };
-  }
+function getPrice(product) {
+  return product.price;
 }
 ```
 
-### Example 2: Shared Abstraction
+Optimizer may assume:
 
-Move the behavior behind a shared abstraction when multiple teams repeat the same logic and the contract is stable.
+- `product` has a known hidden class,
+- `price` is at a known offset,
+- no relevant prototype/accessor/proxy behavior interferes.
 
-```text
-Consumer
-  -> stable interface
-  -> shared implementation
-  -> logs, metrics, tests, and ownership
-```
-
-### Example 3: Platform or Managed Capability
-
-Use a platform capability when correctness, scale, compliance, or operational cost is too important for every team to solve independently.
+Optimized fast path:
 
 ```text
-Product team
-  -> platform API
-  -> centrally owned reliability, security, and observability
+if object.shape === expectedShape
+  load field at offset
+else
+  deopt/fallback
 ```
+
+### Bailout
+
+A bailout is the moment optimized code cannot continue safely.
+
+The engine must:
+
+- stop optimized execution,
+- reconstruct logical call frames,
+- restore values that may have been optimized away,
+- continue from equivalent bytecode/baseline state.
+
+### On-stack replacement
+
+On-stack replacement, often called OSR, lets an engine enter optimized code while a long-running function or loop is already executing.
+
+Deoptimization may also exit optimized code while execution is in progress.
+
+### Deopt churn
+
+Bad pattern:
+
+```text
+optimize
+  -> deopt
+  -> reoptimize
+  -> deopt again
+```
+
+This churn can be worse than never optimizing.
+
+---
+
+## 5. Memory Behavior
+
+Deoptimization uses memory for optimized code and metadata.
+
+### Optimization artifacts
+
+```text
+Bytecode
+  -> feedback vector
+  -> optimized machine code
+  -> guards
+  -> deopt metadata
+  -> source position / frame reconstruction data
+```
+
+### Why metadata matters
+
+If optimized code removes or stores values in registers, the engine still needs enough information to reconstruct the visible JavaScript state during deopt.
+
+Example:
+
+```ts
+function calculate(a, b) {
+  const total = a + b;
+  return total * 2;
+}
+```
+
+Optimized code may not store `total` as a normal heap object, but if deopt or debugging needs it, the engine must reconstruct state.
+
+### Code memory pressure
+
+Too much optimized code can consume code memory.
+
+Engines manage this through:
+
+- tiering,
+- code flushing,
+- selective optimization,
+- deoptimizing unstable code,
+- avoiding optimization for cold code.
+
+### Deopt and allocation
+
+Deoptimization can allocate:
+
+- reconstructed objects,
+- materialized stack frames,
+- boxed values,
+- metadata structures.
+
+Frequent deopt can add CPU and memory pressure.
+
+### Production symptoms
+
+- CPU spikes,
+- profile frames in runtime/deopt machinery,
+- increased latency for unusual inputs,
+- more allocations after rare code paths,
+- inconsistent benchmark results.
+
+---
+
+## 6. Execution Behavior
+
+Deoptimization is usually invisible to program correctness but visible to performance.
+
+### Stable execution
+
+```ts
+function total(order) {
+  return order.subtotal + order.tax;
+}
+
+total({ subtotal: 100, tax: 18 });
+total({ subtotal: 200, tax: 36 });
+```
+
+Stable shapes and number operations can stay optimized.
+
+### Guard failure
+
+```ts
+total({ subtotal: "100", tax: 18 });
+```
+
+The optimizer may have assumed numeric addition. A string changes semantics.
+
+### Shape guard failure
+
+```ts
+total({ tax: 18, subtotal: 100 });
+```
+
+Different object layout may fail a shape guard.
+
+### Execution timeline
+
+```mermaid
+sequenceDiagram
+  participant Code
+  participant Optimized
+  participant Guard
+  participant Runtime
+  participant Baseline
+
+  Code->>Optimized: call hot function
+  Optimized->>Guard: check assumptions
+  Guard-->>Optimized: failed
+  Optimized->>Runtime: bailout
+  Runtime->>Baseline: reconstruct frame
+  Baseline-->>Code: continue correctly
+```
+
+### User-visible effect
+
+The returned value should still be correct.
+
+The cost may appear as:
+
+- one slow request,
+- repeated slow path,
+- CPU regression,
+- tail latency spike,
+- benchmark instability.
+
+---
+
+## 7. Scope & Context Interaction
+
+Some language features make optimization harder because they affect scope or object semantics.
+
+### Direct eval
+
+```js
+function run(source) {
+  const local = 1;
+  return eval(source);
+}
+```
+
+Direct eval can access local scope, making assumptions harder.
+
+### With statement
+
+```js
+with (obj) {
+  console.log(value);
+}
+```
+
+`with` makes identifier lookup dynamic and is disallowed in strict mode.
+
+### Closures
+
+```ts
+function outer(value) {
+  return function inner() {
+    return value;
+  };
+}
+```
+
+Closures are normal and optimized by modern engines, but captured environments affect allocation and optimization.
+
+### Try/catch
+
+Modern engines handle `try/catch` far better than older engines, but exceptions still create unusual control flow. Do not avoid `try/catch` blindly; measure hot paths.
+
+### Prototypes and accessors
+
+```ts
+Object.defineProperty(product, "price", {
+  get() {
+    return computePrice();
+  },
+});
+```
+
+An accessor is not the same as a simple data property. Optimized code must preserve the semantics.
+
+### Proxies
+
+```ts
+const proxy = new Proxy(target, {
+  get(obj, key) {
+    return obj[key];
+  },
+});
+```
+
+Proxies can intercept fundamental operations and block many normal assumptions.
+
+---
+
+## 8. Common Examples
+
+### Example 1: Stable hot mapper
+
+```ts
+type Row = {
+  id: string;
+  amount: number;
+};
+
+function toAmount(row: Row) {
+  return row.amount;
+}
+```
+
+This can optimize well if callers pass consistent row shapes.
+
+### Example 2: Megamorphic input
+
+```ts
+function getId(entity: any) {
+  return entity.id;
+}
+
+getId({ id: "user-1", name: "Ava" });
+getId({ id: "order-1", total: 100 });
+getId({ id: "invoice-1", dueAt: "2026-01-01" });
+```
+
+Many shapes at one access site can make inline caches less useful and cause slower generic paths.
+
+### Example 3: Numeric to string instability
+
+```ts
+function addTax(amount: any) {
+  return amount + amount * 0.18;
+}
+
+addTax(100);
+addTax("100");
+```
+
+`"100" + 18` creates string behavior.
+
+### Example 4: Delete in hot path
+
+```ts
+function sanitize(user: any) {
+  delete user.passwordHash;
+  return user;
+}
+```
+
+Better:
+
+```ts
+function toPublicUser(user: User) {
+  return {
+    id: user.id,
+    name: user.name,
+    role: user.role,
+  };
+}
+```
+
+This avoids mutating shape and is safer for security.
+
+### Example 5: Packed array to mixed array
+
+```ts
+const values = [1, 2, 3];
+values.push("4" as any);
+```
+
+Mixed element kinds can force less specialized array handling.
+
+---
 
 ## 9. Confusing / Tricky Examples
 
-### Confusion 1: The Name Sounds Simple
+### Trap 1: Deopt is not incorrectness
 
-Many developers can define Deoptimization, but cannot trace its lifecycle or failure modes. Interviewers often move quickly from definition to edge cases.
+If optimized assumptions fail, the engine falls back to preserve semantics.
 
-### Confusion 2: Local Behavior Differs From Production
+### Trap 2: One rare input can poison a hot call site
 
-Local environments rarely reproduce production traffic, data shape, dependency latency, permissions, deploy overlap, or noisy neighbors.
+A function that is fast for numeric values may become less optimized after seeing strings or objects.
 
-### Confusion 3: The Happy Path Hides Ownership
+### Trap 3: TypeScript does not guarantee runtime type stability
 
-If no one owns the failure path, monitoring, documentation, migration plan, or rollback process, the design is incomplete.
+```ts
+function add(a: number, b: number) {
+  return a + b;
+}
 
-### Confusion 4: Optimization Before Measurement
+add("1" as any, 2 as any);
+```
 
-Optimizing Deoptimization without baseline data can make the system harder to debug while failing to improve the real bottleneck.
+Type annotations are erased.
+
+### Trap 4: Microbenchmarks can hide deopt
+
+Benchmarks with perfectly stable data may not represent production input variation.
+
+### Trap 5: Engine-specific advice expires
+
+Optimization heuristics change. Avoid writing strange code based on old engine folklore.
+
+### Trap 6: Polymorphism is not always bad
+
+Engines can handle small, stable polymorphism. The problem is uncontrolled megamorphic churn in hot paths.
+
+---
 
 ## 10. Real Production Use Cases
 
-Deoptimization appears in production anywhere JavaScript Internals needs predictable behavior across real users, real traffic, real failures, and real team boundaries.
+### API serializer regression
 
-Used in:
+Problem:
 
-- frontend apps, Node.js services, SDKs, libraries, build pipelines, and shared platform packages,
-- payment and billing workflows,
-- authentication and authorization flows,
-- admin and internal platforms,
-- realtime or async processing,
-- reporting and analytics,
-- compliance and audit trails,
-- incident response and operational runbooks.
+- CPU increases after adding optional fields.
 
-Production makes this harder because:
+Cause:
 
-- inputs are messy,
-- clients and services run different versions,
-- dependencies degrade before they fail,
-- retries multiply load,
-- dashboards show symptoms before root cause,
-- ownership is split across teams.
+- serializer sees many DTO shapes and deopts/generic paths increase.
 
-## Architecture Decisions
+Fix:
 
-When designing around Deoptimization, compare multiple approaches.
+- normalize DTO shape,
+- construct public response objects,
+- profile with realistic payloads.
 
-| Approach | Use When | Trade-Off |
-|---|---|---|
-| Inline/local logic | Small scope, low risk, one owner | Fast to build, easier to duplicate |
-| Shared library | Same logic repeated across modules | Versioning and rollout become important |
-| Service/API boundary | Multiple consumers need stable behavior | Network, latency, and ownership overhead |
-| Platform capability | High scale, compliance, or reliability needs | Requires platform maturity and governance |
-| Managed service | Commodity capability with strong provider support | Less control, provider constraints |
+### Data import worker
 
-Decision questions:
+Problem:
 
-- What is the blast radius if this breaks?
-- Who owns the contract?
-- How often will it change?
-- What must be observable?
-- What happens during rollback?
-- What is the simplest design that satisfies current correctness and scale?
+- worker is fast for small customers but slow for enterprise imports.
+
+Cause:
+
+- mixed row types, sparse arrays, string/number instability.
+
+Fix:
+
+- validate/normalize at boundary,
+- split code paths by data type,
+- avoid one hot function handling every shape.
+
+### Frontend table rendering
+
+Problem:
+
+- hot cell renderer slows after supporting custom rows.
+
+Cause:
+
+- renderer reads properties from many unrelated row shapes.
+
+Fix:
+
+- convert rows into stable view models before rendering.
+
+### Serverless benchmark mismatch
+
+Problem:
+
+- local warmed benchmark is fast, production cold path is slow.
+
+Cause:
+
+- optimized tier not reached or deopt happens on real input.
+
+Fix:
+
+- measure cold and warm behavior separately.
+
+### Feature flag payload variation
+
+Problem:
+
+- dynamic flag objects produce unpredictable shapes.
+
+Fix:
+
+- use stable metadata fields plus `Map`/entries for dynamic keys.
+
+---
 
 ## 11. Interview Questions
 
-1. What is Deoptimization, and why does it matter in JavaScript Internals?
-2. What problem does it solve inside 002.04 Optimization Boundaries?
-3. How does it work internally?
-4. What are the most common edge cases?
-5. What failure modes appear only in production?
-6. How would you implement a minimal version?
-7. How would you test it?
-8. How would you debug a production issue related to it?
-9. What metrics or logs would you add?
-10. How does the design change at 10x traffic, data, or team size?
-11. What trade-offs exist between simple implementation and platform abstraction?
-12. What senior-level mistake do engineers make with this topic?
+### Basic
+
+1. What is deoptimization?
+2. Why do JavaScript engines deoptimize?
+3. Is deoptimization a bug?
+4. What is an optimized assumption?
+5. What is a guard?
+
+### Intermediate
+
+1. How can type instability cause deoptimization?
+2. How can object shape instability affect optimization?
+3. Why can `delete` hurt hot-path performance?
+4. How do inline caches relate to deoptimization?
+5. Why do microbenchmarks need warmup and realistic data?
+
+### Advanced
+
+1. Explain bailout and frame reconstruction.
+2. What is on-stack replacement?
+3. How can proxies affect optimization?
+4. How would you investigate frequent deopt in Node?
+5. How can deopt churn affect p99 latency?
+
+### Tricky
+
+1. Does TypeScript prevent deoptimization?
+2. Is polymorphic code always slow?
+3. Should you remove all `try/catch` for performance?
+4. Can one unusual tenant input slow a hot path?
+5. Is optimized code always faster overall if it deopts frequently?
+
+Strong answers should connect runtime feedback, speculative optimization, guards, bailout, correctness, and measurement.
+
+---
 
 ## 12. Senior-Level Pitfalls
 
-### Pitfall 1: Treating It As Isolated Trivia
+### Pitfall 1: Performance folklore
 
-Deoptimization is connected to runtime behavior, architecture, operations, and team ownership. A narrow definition is not enough.
+Senior correction:
 
-### Pitfall 2: Ignoring Failure Semantics
+- profile current runtime and workload.
 
-A design that only explains success is not production-ready. Define timeout, retry, cancellation, idempotency, rollback, and cleanup behavior.
+### Pitfall 2: Optimizing non-hot code
 
-### Pitfall 3: Missing Observability
+Senior correction:
 
-If the system cannot prove what happened, debugging becomes guesswork. Add logs, metrics, traces, and structured identifiers at decision points.
+- do not trade readability for theoretical deopt avoidance.
 
-### Pitfall 4: Hidden Shared State
+### Pitfall 3: Ignoring production data variation
 
-Shared state without clear ownership creates race conditions, stale reads, memory leaks, and cross-request contamination.
+Senior correction:
 
-### Pitfall 5: Premature Abstraction
+- benchmark with real shapes, sizes, nulls, outliers, and tenant diversity.
 
-Abstracting too early can freeze weak assumptions. Wait until the repeated shape is stable, then extract a clear interface.
+### Pitfall 4: Unsafe TypeScript casts
+
+Senior correction:
+
+- validate at boundaries and preserve runtime type stability.
+
+### Pitfall 5: Mixing many concerns in one hot function
+
+Senior correction:
+
+- split paths by stable domain shape or normalize input.
+
+### Pitfall 6: Treating diagnostics as portable truth
+
+Senior correction:
+
+- V8 flags are useful but engine-specific.
+
+---
 
 ## 13. Best Practices
 
-- Start with a precise definition.
-- Identify the owner and boundary.
-- Make inputs, outputs, and invariants explicit.
-- Prefer simple local design until the pressure for abstraction is real.
-- Test normal, edge, and failure paths.
-- Add observability before relying on the behavior in production.
-- Keep resource usage bounded.
-- Document assumptions and trade-offs.
-- Design rollback and migration paths.
-- Revisit the decision when scale, team count, or correctness requirements change.
+### Code shape
+
+- Keep hot-path input shapes stable.
+- Normalize external data at boundaries.
+- Avoid deleting properties on hot objects.
+- Avoid mixing strings/numbers/objects in hot arithmetic paths.
+- Prefer stable DTO factories for high-throughput serializers.
+- Avoid proxies and dynamic property tricks in measured hot paths.
+
+### Measurement
+
+- Use CPU profiles before changing code.
+- Measure cold start and steady state separately.
+- Use realistic input variation.
+- Compare p95/p99, not only average.
+- Use engine diagnostics only when needed.
+
+### Maintainability
+
+- Keep performance-sensitive code isolated.
+- Document measured reasons for less-obvious code.
+- Add regression benchmarks for critical hot paths.
+- Avoid broad rewrites based on one microbenchmark.
+
+### Architecture
+
+- Separate rare flexible paths from common hot paths.
+- Pre-normalize data before rendering/serialization.
+- Use workers/services for CPU-heavy workloads.
+- Bound dynamic key/value systems.
+
+---
 
 ## 14. Debugging Scenarios
 
-### Scenario 1: Works Locally, Fails In Production
+### Scenario 1: CPU regression after adding optional fields
 
-Likely causes:
+Symptoms:
 
-- different configuration,
-- different data shape,
-- missing permissions,
-- dependency latency,
-- concurrency,
-- version mismatch.
+- serializer hot in CPU profile,
+- p99 increased.
 
-Debugging steps:
-
-1. Compare environment configuration.
-2. Capture one failing input.
-3. Trace the request or workflow end to end.
-4. Check deploy, data, and dependency timelines.
-5. Reproduce with production-like constraints.
-
-### Scenario 2: Intermittent Failure
-
-Likely causes:
-
-- race condition,
-- retry interaction,
-- shared mutable state,
-- timeout boundary,
-- cache inconsistency,
-- queue ordering.
-
-Debugging steps:
-
-1. Group failures by tenant, version, region, and dependency.
-2. Inspect p95 and p99 instead of averages.
-3. Add correlation IDs.
-4. Check whether retries amplify the issue.
-5. Verify cleanup and idempotency.
-
-### Scenario 3: Performance Regression
-
-Likely causes:
-
-- unbounded work,
-- inefficient query or algorithm,
-- larger payload,
-- cache miss pattern,
-- excessive serialization,
-- synchronous work on a critical path.
-
-Debugging steps:
-
-1. Establish baseline.
-2. Profile the hot path.
-3. Compare before and after deploy.
-4. Measure resource saturation.
-5. Optimize the proven bottleneck only.
-
-### Scenario 4: Memory Or Resource Growth
-
-Likely causes:
-
-- retained references,
-- unbounded queue,
-- missing cleanup,
-- long-lived subscriptions,
-- growing cache,
-- connection leak.
-
-Debugging steps:
-
-1. Capture heap, CPU, or resource profile.
-2. Inspect retainers or open handles.
-3. Confirm lifecycle cleanup.
-4. Add bounds and eviction.
-5. Verify recovery after load drops.
-
-## Diagrams
-
-Dedicated diagrams are available in [diagrams.md](./diagrams.md).
-
-### Concept Flow
-
-```mermaid
-flowchart TD
-  A[Input or trigger] --> B[Validate assumptions]
-  B --> C[Enter 002.04 Optimization Boundaries boundary]
-  C --> D[Apply Deoptimization]
-  D --> E[Read or change state]
-  E --> F[Return result]
-  F --> G[Emit telemetry]
-```
-
-### Failure Flow
-
-```mermaid
-flowchart TD
-  A[Unexpected behavior] --> B{Input valid?}
-  B -->|No| C[Fix validation or caller contract]
-  B -->|Yes| D{State correct?}
-  D -->|No| E[Inspect ownership, mutation, cache, or ordering]
-  D -->|Yes| F{Dependency healthy?}
-  F -->|No| G[Check timeout, retry, fallback, and saturation]
-  F -->|Yes| H[Inspect implementation assumptions and edge cases]
-```
-
-### Production Readiness Loop
+Debugging flow:
 
 ```text
-Design
-  -> implement
-  -> test
-  -> instrument
-  -> deploy safely
-  -> observe
-  -> learn
-  -> refine
+Capture CPU profile
+  -> inspect object shapes
+  -> compare old/new DTO creation
+  -> normalize shape
+  -> re-profile with production data
 ```
+
+### Scenario 2: Benchmark fast, production slow
+
+Symptoms:
+
+- local benchmark stable,
+- production p99 bad.
+
+Debugging flow:
+
+```text
+Compare inputs
+  -> add null/string/outlier cases
+  -> measure warmup and deopt
+  -> profile production-like workload
+```
+
+### Scenario 3: Hot function gets many entity types
+
+Symptoms:
+
+- one helper reads `entity.id` for many domains.
+
+Debugging flow:
+
+```text
+Find call sites
+  -> classify shapes
+  -> split helper or normalize input
+  -> verify readability and performance
+```
+
+### Scenario 4: Node trace shows repeated deopt
+
+Symptoms:
+
+- `--trace-deopt` shows same function repeatedly.
+
+Debugging flow:
+
+```text
+Identify deopt reason
+  -> inspect function source
+  -> inspect runtime inputs
+  -> create minimal reproduction
+  -> fix data stability if hot
+```
+
+### Scenario 5: Proxies slow state access
+
+Symptoms:
+
+- profile shows many proxy traps.
+
+Debugging flow:
+
+```text
+Measure proxy access path
+  -> snapshot plain data before hot loop
+  -> avoid proxy access in inner loop
+  -> verify behavior
+```
+
+---
 
 ## 15. Exercises / Practice
 
-### Exercise 1
+### Exercise 1: Type instability
 
-Explain Deoptimization in your own words using three levels:
+```ts
+function add(a, b) {
+  return a + b;
+}
 
-- beginner explanation,
-- intermediate internal explanation,
-- senior production explanation.
-
-### Exercise 2
-
-Draw the lifecycle for Deoptimization:
-
-```text
-input -> decision -> state change -> output -> telemetry
+add(1, 2);
+add(3, 4);
+add("5", 6);
 ```
 
-Mark where validation, failure handling, and cleanup happen.
+Explain which assumption may break.
 
-### Exercise 3
+### Exercise 2: Shape variation
 
-Write one example where Deoptimization works correctly and one where it fails because of an edge case.
+```ts
+const a = { id: "1", total: 100 };
+const b = { total: 200, id: "2" };
+```
 
-### Exercise 4
+Why might these differ internally?
 
-Create a debugging checklist for a production incident involving Deoptimization. Include logs, metrics, traces, and rollback options.
+### Exercise 3: Fix hot sanitizer
 
-### Exercise 5
+```ts
+function sanitize(user) {
+  delete user.password;
+  return user;
+}
+```
 
-Compare two architecture choices for this topic and explain when each is better.
+Rewrite as a stable public DTO.
+
+### Exercise 4: Benchmark realism
+
+Design benchmark inputs for a function that handles order rows. Include normal, missing, string, null, and large cases.
+
+### Exercise 5: Deopt or allocation?
+
+CPU profile shows slow path after a release. What evidence separates deopt from allocation pressure?
+
+---
 
 ## 16. Comparison
 
-Compare Deoptimization with nearby or competing concepts.
+### Optimization vs deoptimization
 
-Comparison prompts:
+| Concept | Meaning | Goal |
+| --- | --- | --- |
+| Optimization | compile hot code using assumptions | speed |
+| Deoptimization | fall back when assumptions fail | correctness |
 
-- What problem does each option solve?
-- Which one is simpler?
-- Which one is safer?
-- Which one scales better?
-- Which one is easier to debug?
-- Which one has better ecosystem or platform support?
+### Monomorphic vs polymorphic vs megamorphic
 
-Decision table:
+| State | Shapes Seen | Impact |
+| --- | --- | --- |
+| Monomorphic | one | easiest to optimize |
+| Polymorphic | few | often okay |
+| Megamorphic | many | generic path likely |
 
-| Option | Prefer When | Avoid When |
-|---|---|---|
-| Deoptimization | It directly matches the invariant and ownership boundary | The abstraction hides important failure behavior |
-| Simpler local approach | Scope is small, low risk, and easy to test | Logic is duplicated across many teams |
-| Shared/platform approach | Correctness, scale, or governance matters | The contract is still changing rapidly |
+### Cold vs hot code
+
+| Code | Strategy |
+| --- | --- |
+| Cold | readability and startup matter most |
+| Hot stable | optimization matters |
+| Hot unstable | normalize/split/measure |
+
+### TypeScript type vs runtime value
+
+| Layer | Guarantees |
+| --- | --- |
+| TypeScript | compile-time model |
+| JavaScript runtime | actual values and shapes |
+| Optimizer | observed runtime behavior |
+
+---
 
 ## 17. Related Concepts
 
-Deoptimization connects to the rest of the knowledge tree.
+Deoptimization connects to:
 
-Study links:
+- `002.01.02 Bytecode and JIT`: deopt exits optimized code.
+- `002.01.03 Inline Caches and Hidden Classes`: IC feedback drives assumptions.
+- `002.04.02 Shape Changes`: shape instability triggers fallback.
+- `002.04.03 Benchmarking Pitfalls`: warmup and deopt distort results.
+- `001.04.02 Performance Profiling`: profiles reveal hot unstable paths.
+- TypeScript Runtime Boundaries: types are erased and must be validated.
+- Node Performance: CPU hot paths and p99 latency.
+- Frontend Rendering: shape-stable props/view models in hot render paths.
 
-- Parent category: JavaScript Internals
-- Parent topic: 002.04 Optimization Boundaries
-- Internal flow and diagrams: [diagrams.md](./diagrams.md)
-- Practice files in this folder: debugging, questions, exercises, and review notes
+Knowledge graph:
 
-Related concept types:
+```mermaid
+flowchart LR
+  A["Runtime Feedback"] --> B["Optimized Code"]
+  B --> C["Guards"]
+  C --> D{"Assumption Holds?"}
+  D -->|Yes| E["Fast Path"]
+  D -->|No| F["Deopt"]
+  F --> G["Baseline / Interpreter"]
+  G --> A
+```
 
-- prerequisites that make this topic easier,
-- follow-up topics that build on it,
-- architecture concepts that use it,
-- production concerns that expose its limits,
-- interview patterns that test it indirectly.
+---
 
 ## Advanced Add-ons
 
 ### Performance Impact
 
-- Time complexity: identify whether work is constant, linear, logarithmic, fan-out, or unbounded.
-- Memory usage: identify retained data, copied data, cached data, and cleanup timing.
-- Hot path risk: determine whether this runs per request, per render, per event, per query, or per deployment.
-- Measurement: use baselines, profiling, p95/p99, and resource saturation before optimizing.
+Deoptimization affects:
+
+- CPU throughput,
+- p99 latency,
+- benchmark stability,
+- code memory,
+- allocation from frame reconstruction,
+- runtime predictability.
+
+Optimization principles:
+
+- stabilize hot inputs,
+- normalize at boundaries,
+- split rare cases out of hot loops,
+- reduce shape chaos,
+- measure before and after.
 
 ### System Design Relevance
 
-Deoptimization matters in system design when it affects boundaries, contracts, scaling behavior, correctness, or operational ownership.
+Deoptimization shapes architecture in CPU-sensitive JavaScript systems:
 
-Ask:
+- API gateways normalize payloads before hot middleware.
+- Data workers convert input to stable row models.
+- Frontend tables convert API data to stable view models.
+- Realtime systems use stable message envelopes.
+- Serverless handlers keep cold and hot paths separate.
 
-- Does it belong inside a module, service, shared library, platform layer, or managed service?
-- What is the blast radius if it fails?
-- What happens at 10x traffic, data, tenants, regions, or teams?
-- What reliability, observability, and rollback strategy is required?
+Decision framework:
+
+```mermaid
+flowchart TD
+  A["Hot Function Slow"] --> B{"Inputs Stable?"}
+  B -->|No| C["Normalize / Split Paths"]
+  B -->|Yes| D{"Allocation High?"}
+  D -->|Yes| E["Reduce Allocation"]
+  D -->|No| F["Inspect I/O / Algorithm / Runtime"]
+```
 
 ### Security Impact
 
-Security relevance depends on whether Deoptimization touches input, identity, authorization, secrets, user data, logs, dependencies, or execution boundaries.
+Deoptimization itself is an engine behavior, but related patterns matter:
 
-Check:
+- `eval` and `new Function` are security risks,
+- deleting sensitive fields can mutate shared objects,
+- unsafe casts can let unvalidated data into trusted paths,
+- proxies can hide behavior from simple review.
 
-- validation and sanitization,
-- least privilege,
-- sensitive data exposure,
-- injection or confused-deputy risks,
-- auditability and compliance requirements.
+Practices:
+
+- validate external input,
+- create safe DTOs instead of mutating secrets away,
+- avoid dynamic code execution,
+- keep security-sensitive code explicit.
 
 ### Browser vs Node Behavior
 
-If this topic appears in JavaScript runtimes, compare browser and Node.js behavior:
+Browser:
 
-- global object and module scope,
-- event loop and task queues,
-- API availability,
-- security sandbox,
-- file, network, and process access,
-- debugging and profiling tools.
+- JIT/deopt affects render and interaction hot paths,
+- mobile devices amplify unstable hot code,
+- devtools profiles may show optimized/inlined frames differently.
 
-For non-runtime topics, compare local development, CI, staging, and production behavior instead.
+Node:
+
+- long-running services can warm and optimize hot paths,
+- unusual tenant payloads can trigger deopt and p99 spikes,
+- `--trace-opt` and `--trace-deopt` help local diagnostics.
+
+Shared:
+
+- engine heuristics vary,
+- correctness is preserved,
+- frequent deopt is a performance smell only when measured.
 
 ### Polyfill / Implementation
 
-Staff-level understanding includes knowing whether you can implement a simplified version yourself.
+You cannot polyfill deoptimization, but you can model guarded fast paths.
 
-Implementation prompts:
+```ts
+type Shape = "number" | "string" | "other";
 
-- What is the smallest correct version?
-- Which edge cases are intentionally unsupported?
-- Which behavior must match platform semantics?
-- What tests prove compatibility?
-- When is using a proven library safer than custom implementation?
+function shapeOf(value: unknown): Shape {
+  if (typeof value === "number") return "number";
+  if (typeof value === "string") return "string";
+  return "other";
+}
+
+function createOptimisticAdder() {
+  let expected: Shape | undefined;
+
+  return function add(a: unknown, b: unknown) {
+    const current = shapeOf(a);
+
+    if (!expected) {
+      expected = current;
+    }
+
+    if (expected === "number" && current === "number" && typeof b === "number") {
+      return a + b;
+    }
+
+    // Conceptual bailout to generic JavaScript semantics.
+    return (a as any) + (b as any);
+  };
+}
+```
+
+Real engines are vastly more sophisticated, but the idea is similar: fast path guarded by assumptions, generic fallback when assumptions fail.
+
+---
 
 ## 18. Summary
 
-Deoptimization is a practical engineering topic, not just a vocabulary item. Mastery means you can define it, implement it, reason about internals, predict edge cases, debug failures, and explain trade-offs.
+Deoptimization is the safety valve that lets engines optimize dynamic JavaScript without sacrificing correctness.
 
-Remember:
+Quick recall:
 
-- Start from first principles.
-- Identify boundaries and ownership.
-- Understand execution and resource behavior.
-- Design for failure, not only success.
-- Add observability.
-- Keep the simplest design that satisfies correctness and scale.
-- Revisit the design as production pressure changes.
+- Optimizers speculate based on runtime feedback.
+- Guards check assumptions.
+- Deopt happens when a guard fails.
+- Deopt reconstructs safe execution state.
+- Type instability, shape changes, proxies, dynamic scope, and rare values can trigger fallback.
+- Deopt is normal; repeated deopt churn in hot paths is the problem.
+- TypeScript does not guarantee runtime stability.
+- Profile before optimizing.
+- Keep hot inputs stable and normalize external data.
+
+Staff-level takeaway:
+
+- Deoptimization is not something to fear everywhere. It is something to understand deeply enough that when a hot production path becomes unstable, you can prove why, fix the data shape or boundary, and keep the code maintainable.

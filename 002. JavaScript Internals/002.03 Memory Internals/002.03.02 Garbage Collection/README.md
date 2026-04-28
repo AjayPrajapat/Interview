@@ -1,630 +1,1236 @@
 # 002.03.02 Garbage Collection
 
-Category: JavaScript Internals
-
+Category: JavaScript Internals<br>
 Topic: 002.03 Memory Internals
+
+Garbage collection is the runtime process that automatically reclaims heap memory that is no longer reachable by the program. It is why JavaScript developers usually do not manually free objects, and also why memory bugs can feel mysterious: objects are collected by reachability, not by whether humans still consider them useful.
+
+GC mastery is not "the engine cleans memory." GC mastery is knowing roots, reachability, generations, promotion, pauses, allocation pressure, retained graphs, weak references, and how these details turn into production latency or OOM incidents.
+
+---
 
 ## 1. Definition
 
-Garbage Collection is a focused engineering concept inside 002.03 Memory Internals. It describes a behavior, design choice, implementation technique, or operational concern that engineers must understand deeply to build reliable systems in JavaScript Internals.
+Garbage collection is automatic memory reclamation performed by the JavaScript engine.
 
-At a practical level, this topic answers:
+One-line definition:
 
-- what problem it solves,
-- what boundary it belongs to,
-- what assumptions it depends on,
-- how it behaves during normal execution,
-- how it fails under pressure,
-- and how to reason about it in production.
+- Garbage collection finds heap objects that are no longer reachable from runtime roots and makes their memory reusable.
 
-The goal is not only to recognize the term. The goal is to explain Garbage Collection from first principles, apply it in code or architecture, debug it when it breaks, and defend trade-offs in an interview or design review.
+Expanded explanation:
+
+- JavaScript values are allocated as code runs.
+- Some values remain reachable through variables, closures, modules, timers, DOM nodes, native handles, queues, or caches.
+- Other values become unreachable after code stops referencing them.
+- The garbage collector traces reachable objects from roots.
+- Anything not reachable can be reclaimed.
+
+Important:
+
+- GC does not know whether an object is "needed" by the business.
+- GC only knows whether an object is reachable.
+
+Example:
+
+```ts
+let user: { id: string } | null = { id: "u1" };
+user = null;
+```
+
+The object may become collectable if no other reference points to it. It is not necessarily collected immediately.
+
+---
 
 ## 2. Why It Exists
 
-Garbage Collection exists because real systems need explicit rules for correctness, ownership, execution, and change. Without this concept, teams usually rely on implicit assumptions, and implicit assumptions become bugs when systems grow.
+JavaScript programs allocate constantly:
 
-This topic matters because it helps engineers:
+```ts
+const labels = users.map((user) => `${user.id}:${user.name}`);
+const response = await fetch("/api/items").then((r) => r.json());
+const state = { loading: false, items: response.items };
+```
 
-- reduce ambiguity in 002.03 Memory Internals,
-- make behavior easier to test and review,
-- prevent local decisions from creating system-level failures,
-- identify performance and reliability limits before production incidents,
-- communicate trade-offs clearly across frontend, backend, platform, security, and product teams.
+Manual memory management would make everyday JavaScript far more error-prone.
 
-You should understand this before moving deeper because later topics often depend on the same mental models: state ownership, lifecycle timing, API contracts, failure handling, scaling pressure, and observability.
+GC exists to solve:
+
+- automatic memory reclamation,
+- safety from use-after-free bugs,
+- simpler programming model,
+- support for closures and dynamic object graphs,
+- memory reuse without developer-managed lifetimes.
+
+But GC introduces trade-offs:
+
+- collection uses CPU,
+- some phases can pause JavaScript,
+- high allocation rates can create latency spikes,
+- long-lived objects increase old-space pressure,
+- retained objects still leak even with GC,
+- finalization is nondeterministic.
+
+Why it matters in production:
+
+- Node APIs can show p99 spikes due to major GC.
+- Browser UIs can freeze from allocation bursts and GC pauses.
+- Workers can lose throughput when GC consumes CPU.
+- Serverless functions can cold-start slowly and churn memory.
+- Unbounded caches eventually outgrow heap limits.
+
+---
 
 ## 3. Syntax & Variants
 
-Not every engineering topic has programming syntax, but every topic has an interface shape. The interface shape is how the concept appears to the rest of the system.
+JavaScript does not expose normal manual GC control. You influence GC through reachability and allocation patterns.
 
-In JavaScript Internals, Garbage Collection commonly appears as a function, type, object, runtime behavior, data structure, or algorithm.
-
-Typical shape:
+### Making an object unreachable
 
 ```ts
-type GarbageCollectionInput = {
-  id: string;
-  payload: unknown;
-};
+let payload: Payload | null = await loadPayload();
 
-type GarbageCollectionResult =
-  | { ok: true; value: unknown }
-  | { ok: false; error: string; retryable: boolean };
+await process(payload);
 
-export function handleGarbageCollection(
-  input: GarbageCollectionInput,
-): GarbageCollectionResult {
-  if (!input.id) {
-    return { ok: false, error: "missing_id", retryable: false };
-  }
+payload = null;
+```
 
-  try {
-    const value = input.payload;
-    return { ok: true, value };
-  } catch {
-    return { ok: false, error: "unexpected_failure", retryable: true };
-  }
+This removes one reference. It helps only if no other references remain.
+
+### Function-local objects
+
+```ts
+function buildLabel(user: User) {
+  const label = `${user.id}:${user.name}`;
+  return label;
 }
 ```
 
-When reading or writing code for this topic, identify:
+`label` becomes collectable after the call if the returned string is not retained elsewhere. Engines may optimize details differently.
 
-- the input boundary,
-- the output contract,
-- the state being read or changed,
-- the owner of the behavior,
-- the failure path,
-- the observability signal.
+### Closure retention
 
-Variants to identify:
+```ts
+function createReader(payload: BigPayload) {
+  return () => payload.id;
+}
+```
 
-- direct language or framework syntax,
-- configuration shape,
-- API or interface shape,
-- runtime behavior shape,
-- rare edge syntax or unusual usage,
-- legacy forms that still appear in production.
+`payload` remains reachable through the returned function.
+
+### WeakMap
+
+```ts
+const metadata = new WeakMap<object, Metadata>();
+
+function attachMetadata(target: object, data: Metadata) {
+  metadata.set(target, data);
+}
+```
+
+The WeakMap does not keep `target` alive. If `target` becomes unreachable elsewhere, its WeakMap entry can disappear.
+
+### WeakRef
+
+```ts
+const ref = new WeakRef(expensiveObject);
+const value = ref.deref();
+```
+
+WeakRef lets code observe an object only if it has not been collected. It should be rare in application code.
+
+### FinalizationRegistry
+
+```ts
+const registry = new FinalizationRegistry((id: string) => {
+  console.log("object collected", id);
+});
+
+registry.register(object, object.id);
+```
+
+Finalizers are nondeterministic. Do not use them for required cleanup.
+
+### Node GC flags
+
+Development diagnostics may use:
+
+```bash
+node --trace-gc app.js
+```
+
+Manual GC is available only when explicitly enabled:
+
+```bash
+node --expose-gc app.js
+```
+
+Then:
+
+```js
+global.gc();
+```
+
+This is for diagnostics, not normal production control.
+
+---
 
 ## 4. Internal Working
 
-The internal working of Garbage Collection should be understood as a lifecycle, not as a definition.
+Most modern JavaScript collectors are tracing, generational collectors with multiple optimizations.
 
-```text
-Input / trigger
-  -> validate assumptions
-  -> enter 002.03 Memory Internals boundary
-  -> apply Garbage Collection rules
-  -> read or update state
-  -> handle success, failure, or partial success
-  -> emit observable signal
-  -> return result or continue workflow
+### Core reachability flow
+
+```mermaid
+flowchart TD
+  A["GC Starts"] --> B["Identify Roots"]
+  B --> C["Trace References"]
+  C --> D["Mark Reachable Objects"]
+  D --> E["Unmarked Objects Are Garbage"]
+  E --> F["Sweep / Reclaim Memory"]
+  F --> G["Maybe Compact / Promote"]
 ```
 
-For this topic, inspect the real mechanism behind the abstraction:
+### GC roots
 
-- engine, compiler, type system, memory model, call stack, event loop, and module boundary,
-- ordering and timing,
-- ownership of mutable state,
-- limits and resource usage,
-- retry, cancellation, cleanup, and rollback behavior,
-- how the behavior changes between local development, CI, staging, and production.
+Common roots include:
 
-Senior engineers do not stop at "it works." They ask what the runtime must do, what it keeps in memory, what it sends over the network, what can be retried, what can be duplicated, and what must be protected by invariants.
+- global object references,
+- module bindings,
+- active stack frames,
+- closure environments,
+- pending Promise reactions,
+- timers,
+- event listeners,
+- native handles,
+- DOM references,
+- internal engine structures.
+
+### Mark and sweep
+
+Mark:
+
+- start from roots,
+- walk references,
+- mark every reachable object.
+
+Sweep:
+
+- reclaim unmarked objects,
+- return memory to free lists or heap spaces.
+
+### Mark and compact
+
+Compaction moves live objects closer together to reduce fragmentation.
+
+Trade-off:
+
+- improves memory layout,
+- costs CPU,
+- requires updating references.
+
+### Generational GC
+
+Generational hypothesis:
+
+- most objects die young.
+
+Flow:
+
+```mermaid
+flowchart LR
+  A["New Object"] --> B["Young Generation"]
+  B --> C{"Survives Minor GC?"}
+  C -->|No| D["Collected"]
+  C -->|Yes| E["Survives Again?"]
+  E -->|Yes| F["Promoted To Old Generation"]
+  E -->|No| D
+```
+
+### Minor GC
+
+Minor GC collects young generation.
+
+Characteristics:
+
+- frequent,
+- usually faster,
+- optimized for short-lived objects,
+- may copy survivors,
+- can promote objects.
+
+### Major GC
+
+Major GC collects old generation.
+
+Characteristics:
+
+- less frequent,
+- more expensive,
+- more likely to cause noticeable pauses,
+- often includes marking, sweeping, and compaction strategies.
+
+### Incremental and concurrent GC
+
+To reduce pause times, engines can split GC work:
+
+- incremental: break marking into smaller chunks,
+- concurrent: perform some work on helper threads,
+- parallel: multiple threads cooperate during a phase.
+
+JavaScript still may pause during parts of GC because the heap must remain consistent.
+
+### Write barriers
+
+When old objects reference young objects, the collector needs bookkeeping so minor GC does not miss young objects reachable from old objects.
+
+Conceptual example:
+
+```ts
+const longLivedCache = new Map();
+longLivedCache.set("latest", { id: "new" });
+```
+
+The old cache now points to a young object. The engine tracks that relationship.
+
+---
 
 ## 5. Memory Behavior
 
-Every topic consumes or protects memory, state, or another resource. For Garbage Collection, reason about memory and resource behavior explicitly.
+GC behavior is shaped by allocation rate, reachability, generation survival, and heap limits.
 
-Common resources:
-
-- memory and retained references,
-- CPU and event-loop time,
-- network calls and connection pools,
-- database locks, indexes, and storage,
-- queue depth and worker capacity,
-- browser main-thread budget,
-- cloud cost and operational attention.
-
-Resource model:
-
-```text
-Work enters system
-  -> resource is allocated
-  -> work is processed
-  -> resource is released, retained, cached, or leaked
-```
-
-Production questions:
-
-- What grows with traffic?
-- What grows with data size?
-- What grows with number of tenants, teams, or services?
-- What is bounded?
-- What can leak?
-- What needs cleanup?
-- What metric proves the resource behavior is healthy?
-
-For JavaScript Internals, watch runtime errors, latency, memory growth, bundle size, CPU time, test failures, and defect rate.
-
-## 6. Execution Behavior
-
-Execution behavior describes what actually happens when the system runs.
-
-Trace Garbage Collection through:
-
-- the happy path,
-- invalid input,
-- missing dependency,
-- slow dependency,
-- concurrent execution,
-- retry after timeout,
-- duplicate request or event,
-- deploy with old and new versions running together,
-- cleanup after failure.
-
-Execution timeline:
-
-```text
-Before
-  -> required state and configuration exist
-During
-  -> core behavior runs and may touch dependencies
-After
-  -> result, side effects, and telemetry are visible
-Failure
-  -> caller receives error, retry, fallback, or compensation path
-```
-
-The most important question is: what invariant must remain true even if the execution path is interrupted?
-
-## 7. Scope & Context Interaction
-
-Garbage Collection should be understood in its surrounding scope and execution context, not as an isolated detail.
-
-Scope questions:
-
-- Where is this behavior visible?
-- Who can call or mutate it?
-- What module, component, service, tenant, request, thread, worker, or transaction owns it?
-- Does it cross frontend, backend, database, queue, cache, or platform boundaries?
-- Does it behave differently inside closures, async callbacks, dependency injection scopes, request scopes, or deployment environments?
-
-Context model:
-
-```text
-Local context
-  -> module or component context
-  -> service or runtime context
-  -> system or organization context
-```
-
-For JavaScript and TypeScript topics, also check lexical scope, closure retention, module scope, global scope, and `this` behavior where applicable.
-
-## 8. Common Examples
-
-### Example 1: Local Implementation
-
-Use a local implementation when the behavior is simple, low-risk, and owned by one module or team.
+### Allocation rate
 
 ```ts
-type GarbageCollectionInput = {
-  id: string;
-  payload: unknown;
-};
-
-type GarbageCollectionResult =
-  | { ok: true; value: unknown }
-  | { ok: false; error: string; retryable: boolean };
-
-export function handleGarbageCollection(
-  input: GarbageCollectionInput,
-): GarbageCollectionResult {
-  if (!input.id) {
-    return { ok: false, error: "missing_id", retryable: false };
-  }
-
-  try {
-    const value = input.payload;
-    return { ok: true, value };
-  } catch {
-    return { ok: false, error: "unexpected_failure", retryable: true };
-  }
+for (const item of items) {
+  result.push({
+    id: item.id,
+    label: `${item.name}:${item.type}`,
+  });
 }
 ```
 
-### Example 2: Shared Abstraction
+This may be fine. In a hot path with large `items`, it creates many allocations and can trigger frequent minor GC.
 
-Move the behavior behind a shared abstraction when multiple teams repeat the same logic and the contract is stable.
+### Object survival
+
+Objects that survive collections can be promoted.
+
+Long-lived examples:
+
+- caches,
+- global registries,
+- module state,
+- queues,
+- active sessions,
+- long-running timers,
+- unresolved Promise chains,
+- retained DOM nodes.
+
+### GC pressure without leak
+
+Memory can return to baseline but still cause latency.
+
+Pattern:
 
 ```text
-Consumer
-  -> stable interface
-  -> shared implementation
-  -> logs, metrics, tests, and ownership
+request arrives
+  -> allocates many short-lived objects
+  -> minor GC runs frequently
+  -> CPU and latency increase
+  -> heap returns to normal
 ```
 
-### Example 3: Platform or Managed Capability
+No leak, but still a performance problem.
 
-Use a platform capability when correctness, scale, compliance, or operational cost is too important for every team to solve independently.
+### Leak with GC
+
+Pattern:
 
 ```text
-Product team
-  -> platform API
-  -> centrally owned reliability, security, and observability
+object no longer useful
+  -> still referenced by Map/listener/timer/closure
+  -> reachable from root
+  -> GC keeps it
+  -> old space grows
 ```
+
+### Heap limit
+
+When the heap approaches its limit:
+
+- GC runs more aggressively,
+- CPU time can rise sharply,
+- latency increases,
+- process may crash with out-of-memory.
+
+### External memory interaction
+
+GC tracks JS wrappers for external memory, but RSS can grow due to:
+
+- Buffers,
+- ArrayBuffers,
+- native add-ons,
+- DOM/native objects,
+- image/PDF libraries,
+- compression libraries.
+
+High RSS is not always explained by JS heap alone.
+
+---
+
+## 6. Execution Behavior
+
+GC can happen between or during execution phases as the engine decides.
+
+### Run-to-completion and GC
+
+JavaScript callbacks run to completion, but the engine may schedule GC at safe points.
+
+Safe points include:
+
+- allocation sites,
+- function returns,
+- loop backedges in some engines,
+- event-loop boundaries,
+- explicit diagnostic GC calls.
+
+### User-visible pause
+
+```text
+request handling starts
+  -> many allocations
+  -> GC pause
+  -> request completes late
+```
+
+GC pauses can show up as:
+
+- p99 latency spikes,
+- browser long tasks,
+- event-loop delay,
+- animation jank,
+- worker throughput drops.
+
+### Minor collection behavior
+
+```text
+young space fills
+  -> minor GC
+  -> dead young objects reclaimed
+  -> survivors copied/promoted
+```
+
+### Major collection behavior
+
+```text
+old space pressure grows
+  -> major marking starts
+  -> live graph traced
+  -> sweeping/compaction
+  -> old-space memory freed or compacted
+```
+
+### Finalization behavior
+
+Finalizers do not run immediately when an object becomes unreachable.
+
+```ts
+const registry = new FinalizationRegistry(() => {
+  cleanup();
+});
+```
+
+The cleanup callback:
+
+- may run later,
+- may not run before process exit,
+- must not be required for correctness.
+
+### Async behavior
+
+Pending async work retains closures.
+
+```ts
+async function handle(payload) {
+  await slowOperation();
+  return payload.id;
+}
+```
+
+`payload` can stay alive until the async function resumes and no longer needs it.
+
+---
+
+## 7. Scope & Context Interaction
+
+Reachability is created by scope and references.
+
+### Local scope
+
+```ts
+function read() {
+  const temp = { value: 1 };
+  return temp.value;
+}
+```
+
+`temp` is not reachable after the function returns unless it escapes.
+
+### Closure scope
+
+```ts
+function makeReader(temp) {
+  return () => temp.value;
+}
+```
+
+`temp` escapes through the closure and remains reachable.
+
+### Module scope
+
+```ts
+const registry = new Set<object>();
+```
+
+Module state often lives for the process or page lifetime.
+
+### Event listener scope
+
+```ts
+element.addEventListener("click", () => {
+  console.log(componentState);
+});
+```
+
+The listener retains `componentState` while the listener is registered and reachable.
+
+### Timer scope
+
+```ts
+const timeoutId = setTimeout(() => {
+  use(payload);
+}, 60_000);
+```
+
+The timer keeps the callback and captured payload alive until it fires or is cleared.
+
+### Weak references
+
+WeakMap and WeakRef allow references that do not force reachability.
+
+Use cases:
+
+- metadata associated with objects,
+- caches where values can be recreated,
+- framework/runtime internals.
+
+Avoid:
+
+- business-critical cleanup,
+- correctness logic dependent on collection timing.
+
+---
+
+## 8. Common Examples
+
+### Example 1: Short-lived allocation
+
+```ts
+function sum(values: number[]) {
+  return values.reduce((total, value) => total + value, 0);
+}
+```
+
+Local callback frames and temporary values are short-lived and usually cheap.
+
+### Example 2: Allocation-heavy pipeline
+
+```ts
+const activeNames = users
+  .map((user) => ({ ...user, label: user.name.toUpperCase() }))
+  .filter((user) => user.active)
+  .map((user) => user.label);
+```
+
+This creates intermediate arrays and objects. Fine for small data; expensive in hot paths.
+
+### Example 3: Reducing allocations in a hot path
+
+```ts
+const activeNames: string[] = [];
+
+for (const user of users) {
+  if (!user.active) continue;
+  activeNames.push(user.name.toUpperCase());
+}
+```
+
+This avoids some intermediate allocations. Use when profiling proves the path is hot.
+
+### Example 4: Cache leak
+
+```ts
+const cache = new Map<string, Payload>();
+
+function remember(id: string, payload: Payload) {
+  cache.set(id, payload);
+}
+```
+
+GC cannot collect payloads while the cache references them.
+
+### Example 5: WeakMap metadata
+
+```ts
+const metadata = new WeakMap<object, { createdAt: number }>();
+
+export function tag(target: object) {
+  metadata.set(target, { createdAt: Date.now() });
+}
+```
+
+When `target` becomes unreachable elsewhere, the metadata entry can be collected.
+
+### Example 6: Listener cleanup
+
+```ts
+function mount(element: HTMLElement, state: State) {
+  const handler = () => render(state);
+  element.addEventListener("click", handler);
+
+  return () => {
+    element.removeEventListener("click", handler);
+  };
+}
+```
+
+Cleanup makes the captured state collectable when no other references exist.
+
+---
 
 ## 9. Confusing / Tricky Examples
 
-### Confusion 1: The Name Sounds Simple
+### Trap 1: `delete` is not memory cleanup by itself
 
-Many developers can define Garbage Collection, but cannot trace its lifecycle or failure modes. Interviewers often move quickly from definition to edge cases.
+```ts
+delete obj.largeField;
+```
 
-### Confusion 2: Local Behavior Differs From Production
+This removes one property reference. Memory is collectable only if no other references to the value exist.
 
-Local environments rarely reproduce production traffic, data shape, dependency latency, permissions, deploy overlap, or noisy neighbors.
+### Trap 2: `null` does not force immediate GC
 
-### Confusion 3: The Happy Path Hides Ownership
+```ts
+value = null;
+```
 
-If no one owns the failure path, monitoring, documentation, migration plan, or rollback process, the design is incomplete.
+This can make an object unreachable, but collection happens when the engine decides.
 
-### Confusion 4: Optimization Before Measurement
+### Trap 3: Circular references are collectable
 
-Optimizing Garbage Collection without baseline data can make the system harder to debug while failing to improve the real bottleneck.
+```ts
+let a: any = {};
+let b: any = {};
+a.b = b;
+b.a = a;
+
+a = null;
+b = null;
+```
+
+The cycle can be collected if unreachable from roots.
+
+### Trap 4: FinalizationRegistry is not deterministic
+
+Finalizers are not reliable for closing files, committing data, releasing locks, or required cleanup.
+
+### Trap 5: WeakMap values are not weak
+
+If the key is reachable, the value remains reachable through the WeakMap.
+
+### Trap 6: Bigger heap can make pauses worse
+
+Increasing heap size may delay OOM, but it can also allow more live data and longer major GC work.
+
+---
 
 ## 10. Real Production Use Cases
 
-Garbage Collection appears in production anywhere JavaScript Internals needs predictable behavior across real users, real traffic, real failures, and real team boundaries.
+### Node p99 latency spike
 
-Used in:
+Symptoms:
 
-- frontend apps, Node.js services, SDKs, libraries, build pipelines, and shared platform packages,
-- payment and billing workflows,
-- authentication and authorization flows,
-- admin and internal platforms,
-- realtime or async processing,
-- reporting and analytics,
-- compliance and audit trails,
-- incident response and operational runbooks.
+- p50 latency normal,
+- p99 jumps,
+- CPU profile shows GC time.
 
-Production makes this harder because:
+Likely causes:
 
-- inputs are messy,
-- clients and services run different versions,
-- dependencies degrade before they fail,
-- retries multiply load,
-- dashboards show symptoms before root cause,
-- ownership is split across teams.
+- allocation burst,
+- old-space pressure,
+- large response serialization,
+- cache growth,
+- payload retained across awaits.
 
-## Architecture Decisions
+### Browser jank
 
-When designing around Garbage Collection, compare multiple approaches.
+Symptoms:
 
-| Approach | Use When | Trade-Off |
-|---|---|---|
-| Inline/local logic | Small scope, low risk, one owner | Fast to build, easier to duplicate |
-| Shared library | Same logic repeated across modules | Versioning and rollout become important |
-| Service/API boundary | Multiple consumers need stable behavior | Network, latency, and ownership overhead |
-| Platform capability | High scale, compliance, or reliability needs | Requires platform maturity and governance |
-| Managed service | Commodity capability with strong provider support | Less control, provider constraints |
+- scrolling or typing freezes.
 
-Decision questions:
+Likely causes:
 
-- What is the blast radius if this breaks?
-- Who owns the contract?
-- How often will it change?
-- What must be observable?
-- What happens during rollback?
-- What is the simplest design that satisfies current correctness and scale?
+- long task,
+- DOM allocation burst,
+- chart/list rendering,
+- GC pause after many short-lived objects.
+
+### Worker throughput decline
+
+Symptoms:
+
+- jobs/sec drops over hours.
+
+Likely causes:
+
+- old-space growth,
+- retries retaining payloads,
+- GC consumes CPU,
+- queue depth retains pending jobs.
+
+### Serverless cold/warm behavior
+
+Symptoms:
+
+- warm function becomes slower after many invocations.
+
+Likely causes:
+
+- module-level cache grows,
+- old generation accumulates,
+- GC pressure rises between invocations.
+
+### SPA memory leak
+
+Symptoms:
+
+- tab memory grows after route changes.
+
+Likely causes:
+
+- detached DOM nodes,
+- retained component closures,
+- observers/listeners not removed,
+- client cache not bounded.
+
+---
 
 ## 11. Interview Questions
 
-1. What is Garbage Collection, and why does it matter in JavaScript Internals?
-2. What problem does it solve inside 002.03 Memory Internals?
-3. How does it work internally?
-4. What are the most common edge cases?
-5. What failure modes appear only in production?
-6. How would you implement a minimal version?
-7. How would you test it?
-8. How would you debug a production issue related to it?
-9. What metrics or logs would you add?
-10. How does the design change at 10x traffic, data, or team size?
-11. What trade-offs exist between simple implementation and platform abstraction?
-12. What senior-level mistake do engineers make with this topic?
+### Basic
+
+1. What is garbage collection?
+2. What makes an object eligible for collection?
+3. What is a GC root?
+4. Can circular references be collected?
+5. Does setting a variable to `null` immediately free memory?
+
+### Intermediate
+
+1. What is mark-and-sweep?
+2. Why do generational collectors exist?
+3. What is the difference between minor and major GC?
+4. What causes promotion to old generation?
+5. How can a closure cause memory retention?
+
+### Advanced
+
+1. What are incremental and concurrent GC?
+2. What are write barriers and why are they needed?
+3. How would you debug high GC pause time in Node?
+4. Why can high allocation rate hurt latency without a leak?
+5. How do WeakMap, WeakRef, and FinalizationRegistry differ?
+
+### Tricky
+
+1. Is a memory leak impossible in a GC language?
+2. Can an object be useless but not collectable?
+3. Can increasing heap size make latency worse?
+4. Are FinalizationRegistry callbacks guaranteed to run?
+5. Is `global.gc()` a production memory management strategy?
+
+Strong answers should use reachability, roots, generations, allocation rate, pause time, and retained graph language.
+
+---
 
 ## 12. Senior-Level Pitfalls
 
-### Pitfall 1: Treating It As Isolated Trivia
+### Pitfall 1: Thinking GC prevents leaks
 
-Garbage Collection is connected to runtime behavior, architecture, operations, and team ownership. A narrow definition is not enough.
+GC collects unreachable objects. It does not collect reachable-but-useless objects.
 
-### Pitfall 2: Ignoring Failure Semantics
+Senior correction:
 
-A design that only explains success is not production-ready. Define timeout, retry, cancellation, idempotency, rollback, and cleanup behavior.
+- design ownership and cleanup,
+- bound caches,
+- remove listeners,
+- inspect retainer paths.
 
-### Pitfall 3: Missing Observability
+### Pitfall 2: Optimizing allocation without measurement
 
-If the system cannot prove what happened, debugging becomes guesswork. Add logs, metrics, traces, and structured identifiers at decision points.
+Readable allocation is often fine.
 
-### Pitfall 4: Hidden Shared State
+Senior correction:
 
-Shared state without clear ownership creates race conditions, stale reads, memory leaks, and cross-request contamination.
+- profile allocation rate and GC time first,
+- optimize hot paths only.
 
-### Pitfall 5: Premature Abstraction
+### Pitfall 3: Treating heap limit tuning as the fix
 
-Abstracting too early can freeze weak assumptions. Wait until the repeated shape is stable, then extract a clear interface.
+Increasing heap may hide a leak.
+
+Senior correction:
+
+- identify retained objects,
+- use heap limits as capacity configuration, not a substitute for cleanup.
+
+### Pitfall 4: Ignoring external memory
+
+GC behavior and JS heap metrics do not explain every RSS problem.
+
+Senior correction:
+
+- inspect `external`, `arrayBuffers`, native modules, and container memory.
+
+### Pitfall 5: Using FinalizationRegistry for required cleanup
+
+Finalization timing is nondeterministic.
+
+Senior correction:
+
+- use explicit cleanup APIs and lifecycle ownership.
+
+### Pitfall 6: Comparing heap snapshots without workload control
+
+Snapshots are noisy.
+
+Senior correction:
+
+- use repeatable workloads,
+- compare before/after snapshots,
+- inspect retained size and dominators.
+
+---
 
 ## 13. Best Practices
 
-- Start with a precise definition.
-- Identify the owner and boundary.
-- Make inputs, outputs, and invariants explicit.
-- Prefer simple local design until the pressure for abstraction is real.
-- Test normal, edge, and failure paths.
-- Add observability before relying on the behavior in production.
-- Keep resource usage bounded.
-- Document assumptions and trade-offs.
-- Design rollback and migration paths.
-- Revisit the decision when scale, team count, or correctness requirements change.
+### Allocation
+
+- Keep hot paths allocation-aware.
+- Avoid unnecessary intermediate arrays for large data.
+- Stream instead of buffering when possible.
+- Limit Promise concurrency.
+- Avoid retaining full payloads across awaits when only fields are needed.
+
+### Lifetime
+
+- Bound caches with TTL/max size.
+- Remove event listeners and observers.
+- Clear timers and intervals.
+- Cancel stale async work.
+- Avoid request-specific data in module/global state.
+
+### Weak references
+
+- Use WeakMap for object metadata.
+- Use WeakRef rarely.
+- Do not depend on finalizers for correctness.
+
+### Observability
+
+- Track heap used, heap total, RSS, external memory, GC duration, and event-loop delay.
+- Add cache size and queue depth metrics.
+- Segment memory by route, tenant, job type, or feature where possible.
+
+### Incident handling
+
+- Take heap snapshots carefully.
+- Protect heap dumps as sensitive data.
+- Compare snapshots under controlled workloads.
+- Roll back memory-heavy deploys when needed.
+
+---
 
 ## 14. Debugging Scenarios
 
-### Scenario 1: Works Locally, Fails In Production
+### Scenario 1: GC time spikes after release
 
-Likely causes:
+Symptoms:
 
-- different configuration,
-- different data shape,
-- missing permissions,
-- dependency latency,
-- concurrency,
-- version mismatch.
+- p99 latency increases,
+- CPU rises,
+- heap returns to baseline.
 
-Debugging steps:
-
-1. Compare environment configuration.
-2. Capture one failing input.
-3. Trace the request or workflow end to end.
-4. Check deploy, data, and dependency timelines.
-5. Reproduce with production-like constraints.
-
-### Scenario 2: Intermittent Failure
-
-Likely causes:
-
-- race condition,
-- retry interaction,
-- shared mutable state,
-- timeout boundary,
-- cache inconsistency,
-- queue ordering.
-
-Debugging steps:
-
-1. Group failures by tenant, version, region, and dependency.
-2. Inspect p95 and p99 instead of averages.
-3. Add correlation IDs.
-4. Check whether retries amplify the issue.
-5. Verify cleanup and idempotency.
-
-### Scenario 3: Performance Regression
-
-Likely causes:
-
-- unbounded work,
-- inefficient query or algorithm,
-- larger payload,
-- cache miss pattern,
-- excessive serialization,
-- synchronous work on a critical path.
-
-Debugging steps:
-
-1. Establish baseline.
-2. Profile the hot path.
-3. Compare before and after deploy.
-4. Measure resource saturation.
-5. Optimize the proven bottleneck only.
-
-### Scenario 4: Memory Or Resource Growth
-
-Likely causes:
-
-- retained references,
-- unbounded queue,
-- missing cleanup,
-- long-lived subscriptions,
-- growing cache,
-- connection leak.
-
-Debugging steps:
-
-1. Capture heap, CPU, or resource profile.
-2. Inspect retainers or open handles.
-3. Confirm lifecycle cleanup.
-4. Add bounds and eviction.
-5. Verify recovery after load drops.
-
-## Diagrams
-
-Dedicated diagrams are available in [diagrams.md](./diagrams.md).
-
-### Concept Flow
-
-```mermaid
-flowchart TD
-  A[Input or trigger] --> B[Validate assumptions]
-  B --> C[Enter 002.03 Memory Internals boundary]
-  C --> D[Apply Garbage Collection]
-  D --> E[Read or change state]
-  E --> F[Return result]
-  F --> G[Emit telemetry]
-```
-
-### Failure Flow
-
-```mermaid
-flowchart TD
-  A[Unexpected behavior] --> B{Input valid?}
-  B -->|No| C[Fix validation or caller contract]
-  B -->|Yes| D{State correct?}
-  D -->|No| E[Inspect ownership, mutation, cache, or ordering]
-  D -->|Yes| F{Dependency healthy?}
-  F -->|No| G[Check timeout, retry, fallback, and saturation]
-  F -->|Yes| H[Inspect implementation assumptions and edge cases]
-```
-
-### Production Readiness Loop
+Debugging flow:
 
 ```text
-Design
-  -> implement
-  -> test
-  -> instrument
-  -> deploy safely
-  -> observe
-  -> learn
-  -> refine
+Check deploy diff
+  -> capture CPU/allocation profile
+  -> identify hot allocation sites
+  -> reduce intermediate allocations
+  -> verify GC duration and p99
 ```
+
+Likely root cause:
+
+- allocation pressure, not leak.
+
+### Scenario 2: Old-space grows forever
+
+Symptoms:
+
+- heap staircase after each GC,
+- memory never returns to previous baseline.
+
+Debugging flow:
+
+```text
+Take baseline snapshot
+  -> run workload
+  -> take second snapshot
+  -> compare dominators
+  -> inspect retainer paths
+  -> fix owner/cleanup/bounds
+```
+
+Likely root cause:
+
+- retained graph through cache, listener, timer, queue, or module state.
+
+### Scenario 3: Node OOM despite calling `global.gc()`
+
+Symptoms:
+
+- manual GC does not lower memory.
+
+Debugging flow:
+
+```text
+Check reachability
+  -> inspect retained objects
+  -> check external memory
+  -> check cache and queues
+  -> remove references
+```
+
+Root cause:
+
+- reachable objects or external memory, not "GC failed."
+
+### Scenario 4: Browser detached DOM leak
+
+Symptoms:
+
+- route changes increase memory,
+- heap snapshot shows detached nodes.
+
+Debugging flow:
+
+```text
+Inspect retainers
+  -> find JS listener/closure/store reference
+  -> remove listener on unmount
+  -> clear store reference
+  -> verify after navigation cycle
+```
+
+### Scenario 5: Finalizer-based cleanup misses production case
+
+Symptoms:
+
+- external resource remains open.
+
+Debugging flow:
+
+```text
+Find FinalizationRegistry reliance
+  -> replace with explicit dispose/close
+  -> add try/finally lifecycle
+  -> keep finalizer only as diagnostic fallback
+```
+
+---
 
 ## 15. Exercises / Practice
 
-### Exercise 1
+### Exercise 1: Reachability
 
-Explain Garbage Collection in your own words using three levels:
+```ts
+let a: any = { name: "a" };
+let b: any = { name: "b" };
+a.next = b;
+b.next = a;
 
-- beginner explanation,
-- intermediate internal explanation,
-- senior production explanation.
-
-### Exercise 2
-
-Draw the lifecycle for Garbage Collection:
-
-```text
-input -> decision -> state change -> output -> telemetry
+a = null;
+b = null;
 ```
 
-Mark where validation, failure handling, and cleanup happen.
+Can the cycle be collected? Explain.
 
-### Exercise 3
+### Exercise 2: Reduce allocation pressure
 
-Write one example where Garbage Collection works correctly and one where it fails because of an edge case.
+Refactor only if profiling proves this path is hot:
 
-### Exercise 4
+```ts
+const result = items
+  .map(toDto)
+  .filter((item) => item.active)
+  .map((item) => item.label);
+```
 
-Create a debugging checklist for a production incident involving Garbage Collection. Include logs, metrics, traces, and rollback options.
+### Exercise 3: Find the retainer
 
-### Exercise 5
+```ts
+const jobs: Job[] = [];
 
-Compare two architecture choices for this topic and explain when each is better.
+export function enqueue(job: Job) {
+  jobs.push(job);
+}
+```
+
+What makes jobs reachable? What bounds are missing?
+
+### Exercise 4: WeakMap use case
+
+Design a WeakMap that stores metadata for DOM nodes without preventing node collection.
+
+### Exercise 5: Production diagnosis
+
+You see:
+
+```text
+heapUsed rising after each GC
+GC duration increasing
+cache size rising
+p99 latency rising
+```
+
+Write the likely root cause and first fix.
+
+---
 
 ## 16. Comparison
 
-Compare Garbage Collection with nearby or competing concepts.
+### Manual memory vs garbage collection
 
-Comparison prompts:
+| Model | Strength | Risk |
+| --- | --- | --- |
+| Manual free | precise resource control | use-after-free, double-free |
+| Garbage collection | memory safety and simpler code | pauses, leaks via reachability |
 
-- What problem does each option solve?
-- Which one is simpler?
-- Which one is safer?
-- Which one scales better?
-- Which one is easier to debug?
-- Which one has better ecosystem or platform support?
+### Minor vs major GC
 
-Decision table:
+| Collection | Area | Frequency | Cost |
+| --- | --- | --- | --- |
+| Minor GC | young generation | frequent | usually lower |
+| Major GC | old generation | less frequent | usually higher |
 
-| Option | Prefer When | Avoid When |
-|---|---|---|
-| Garbage Collection | It directly matches the invariant and ownership boundary | The abstraction hides important failure behavior |
-| Simpler local approach | Scope is small, low risk, and easy to test | Logic is duplicated across many teams |
-| Shared/platform approach | Correctness, scale, or governance matters | The contract is still changing rapidly |
+### Leak vs allocation pressure
+
+| Problem | Symptom | Fix Direction |
+| --- | --- | --- |
+| Leak | baseline grows after GC | remove retention / bound owner |
+| Allocation pressure | heap returns but GC frequent | reduce allocation / batch / stream |
+
+### WeakMap vs WeakRef vs FinalizationRegistry
+
+| API | Purpose | Caveat |
+| --- | --- | --- |
+| WeakMap | metadata keyed by object lifetime | keys must be objects |
+| WeakRef | weakly observe target | target may vanish anytime |
+| FinalizationRegistry | cleanup notification | nondeterministic |
+
+---
 
 ## 17. Related Concepts
 
-Garbage Collection connects to the rest of the knowledge tree.
+Garbage Collection connects to:
 
-Study links:
+- `002.03.01 Heap Layout`: GC operates over heap regions and object graphs.
+- `002.03.03 Leaks and Retainers`: leaks are reachable object graphs that should have been released.
+- `002.02.02 Lexical Environments`: closures retain lexical environments.
+- `001.04.02 Performance Profiling`: allocation and GC profiles reveal pressure.
+- Node.js Performance: event-loop delay, RSS, heap limits, Buffers.
+- Web Performance: long tasks, jank, detached DOM nodes.
+- Caching: memory retention and old-space growth.
+- Production Debugging: heap snapshots, GC logs, OOM analysis.
 
-- Parent category: JavaScript Internals
-- Parent topic: 002.03 Memory Internals
-- Internal flow and diagrams: [diagrams.md](./diagrams.md)
-- Practice files in this folder: debugging, questions, exercises, and review notes
+Knowledge graph:
 
-Related concept types:
+```mermaid
+flowchart LR
+  A["Allocation"] --> B["Reachability"]
+  B --> C["GC Roots"]
+  C --> D["Mark Live Graph"]
+  D --> E["Sweep Garbage"]
+  D --> F["Promote Survivors"]
+  F --> G["Old Space"]
+  G --> H["Major GC"]
+```
 
-- prerequisites that make this topic easier,
-- follow-up topics that build on it,
-- architecture concepts that use it,
-- production concerns that expose its limits,
-- interview patterns that test it indirectly.
+---
 
 ## Advanced Add-ons
 
 ### Performance Impact
 
-- Time complexity: identify whether work is constant, linear, logarithmic, fan-out, or unbounded.
-- Memory usage: identify retained data, copied data, cached data, and cleanup timing.
-- Hot path risk: determine whether this runs per request, per render, per event, per query, or per deployment.
-- Measurement: use baselines, profiling, p95/p99, and resource saturation before optimizing.
+GC affects:
+
+- p95/p99 latency,
+- browser responsiveness,
+- Node event-loop delay,
+- worker throughput,
+- CPU utilization,
+- battery on mobile,
+- container memory headroom.
+
+Optimization hierarchy:
+
+1. Remove unnecessary allocation.
+2. Reduce retained lifetime.
+3. Bound long-lived collections.
+4. Stream or chunk large data.
+5. Limit concurrency.
+6. Tune heap limits only after understanding workload.
 
 ### System Design Relevance
 
-Garbage Collection matters in system design when it affects boundaries, contracts, scaling behavior, correctness, or operational ownership.
+GC affects architecture decisions:
 
-Ask:
+- buffering vs streaming,
+- in-memory cache vs external cache,
+- single process vs worker isolation,
+- tenant memory isolation,
+- queue backpressure,
+- payload limits,
+- large report generation strategy.
 
-- Does it belong inside a module, service, shared library, platform layer, or managed service?
-- What is the blast radius if it fails?
-- What happens at 10x traffic, data, tenants, regions, or teams?
-- What reliability, observability, and rollback strategy is required?
+Decision framework:
+
+```mermaid
+flowchart TD
+  A["Memory / GC Issue"] --> B{"Baseline Growing?"}
+  B -->|Yes| C["Find Retainer / Leak"]
+  B -->|No| D{"GC Frequent?"}
+  D -->|Yes| E["Reduce Allocation Rate"]
+  D -->|No| F{"RSS High?"}
+  F -->|Yes| G["Inspect External / Native Memory"]
+  F -->|No| H["Measure More Precisely"]
+```
 
 ### Security Impact
 
-Security relevance depends on whether Garbage Collection touches input, identity, authorization, secrets, user data, logs, dependencies, or execution boundaries.
+Memory and GC can affect security:
 
-Check:
+- secrets retained longer than expected,
+- heap snapshots expose PII/tokens,
+- unbounded memory growth becomes DoS,
+- finalizers are unsafe for security-critical cleanup,
+- stale closures can retain old authorization context.
 
-- validation and sanitization,
-- least privilege,
-- sensitive data exposure,
-- injection or confused-deputy risks,
-- auditability and compliance requirements.
+Practices:
+
+- avoid retaining secrets in long-lived objects,
+- protect heap dumps,
+- bound payloads and caches,
+- explicitly close resources,
+- fail closed on cleanup failures.
 
 ### Browser vs Node Behavior
 
-If this topic appears in JavaScript runtimes, compare browser and Node.js behavior:
+Browser:
 
-- global object and module scope,
-- event loop and task queues,
-- API availability,
-- security sandbox,
-- file, network, and process access,
-- debugging and profiling tools.
+- GC competes with rendering and input responsiveness,
+- detached DOM nodes are common leak symptoms,
+- low-memory devices suffer earlier,
+- devtools memory panels help inspect heap and DOM retention.
 
-For non-runtime topics, compare local development, CI, staging, and production behavior instead.
+Node:
+
+- server processes are long-lived,
+- old-space growth matters for uptime,
+- RSS includes external/native memory,
+- Buffers and ArrayBuffers complicate analysis,
+- `--trace-gc` and heap snapshots are useful diagnostics.
+
+Shared:
+
+- reachability decides collection,
+- collection timing is nondeterministic,
+- high allocation rate creates GC work,
+- leaks are caused by unwanted reachability.
 
 ### Polyfill / Implementation
 
-Staff-level understanding includes knowing whether you can implement a simplified version yourself.
+You cannot implement real GC for JavaScript objects in JavaScript. You can model mark-and-sweep.
 
-Implementation prompts:
+```ts
+type ObjectId = string;
 
-- What is the smallest correct version?
-- Which edge cases are intentionally unsupported?
-- Which behavior must match platform semantics?
-- What tests prove compatibility?
-- When is using a proven library safer than custom implementation?
+type HeapObject = {
+  id: ObjectId;
+  refs: ObjectId[];
+};
+
+function mark(heap: Map<ObjectId, HeapObject>, roots: ObjectId[]) {
+  const marked = new Set<ObjectId>();
+  const stack = [...roots];
+
+  while (stack.length > 0) {
+    const id = stack.pop()!;
+    if (marked.has(id)) continue;
+
+    marked.add(id);
+
+    for (const ref of heap.get(id)?.refs ?? []) {
+      stack.push(ref);
+    }
+  }
+
+  return marked;
+}
+
+function sweep(heap: Map<ObjectId, HeapObject>, marked: Set<ObjectId>) {
+  for (const id of heap.keys()) {
+    if (!marked.has(id)) {
+      heap.delete(id);
+    }
+  }
+}
+```
+
+This captures the central idea: roots determine reachability; unreachable objects can be reclaimed.
+
+---
 
 ## 18. Summary
 
-Garbage Collection is a practical engineering topic, not just a vocabulary item. Mastery means you can define it, implement it, reason about internals, predict edge cases, debug failures, and explain trade-offs.
+Garbage collection is automatic memory reclamation based on reachability.
 
-Remember:
+Quick recall:
 
-- Start from first principles.
-- Identify boundaries and ownership.
-- Understand execution and resource behavior.
-- Design for failure, not only success.
-- Add observability.
-- Keep the simplest design that satisfies correctness and scale.
-- Revisit the design as production pressure changes.
+- GC starts from roots and traces reachable objects.
+- Unreachable objects can be reclaimed.
+- Reachable-but-useless objects are leaks.
+- Young generation handles short-lived objects.
+- Old generation holds survivors and leaks.
+- Minor GC is usually cheaper than major GC.
+- Allocation pressure can hurt latency without a leak.
+- Closures, caches, timers, listeners, queues, and DOM nodes commonly retain memory.
+- WeakMap keys are weak; values are not magically weak.
+- FinalizationRegistry is nondeterministic.
+- GC tuning is not a substitute for ownership and cleanup.
+
+Staff-level takeaway:
+
+- GC is a safety net, not an ownership model. Senior engineers design lifetimes, bounds, cleanup, observability, and data flow so the collector can actually reclaim memory before memory pressure becomes an incident.

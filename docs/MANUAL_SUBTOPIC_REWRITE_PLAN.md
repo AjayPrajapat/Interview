@@ -148,6 +148,14 @@ Legend:
 - [x] `002. JavaScript Internals/002.01 Engine Architecture/002.01.03 Inline Caches and Hidden Classes/README.md`
 - [x] `002. JavaScript Internals/002.02 Runtime Semantics/002.02.01 Execution Contexts/README.md`
 - [x] `002. JavaScript Internals/002.02 Runtime Semantics/002.02.02 Lexical Environments/README.md`
+- [x] `002. JavaScript Internals/002.02 Runtime Semantics/002.02.03 Microtasks and Macrotasks/README.md`
+- [x] `002. JavaScript Internals/002.03 Memory Internals/002.03.01 Heap Layout/README.md`
+- [x] `002. JavaScript Internals/002.03 Memory Internals/002.03.02 Garbage Collection/README.md`
+- [x] `002. JavaScript Internals/002.03 Memory Internals/002.03.03 Leaks and Retainers/README.md`
+- [x] `002. JavaScript Internals/002.04 Optimization Boundaries/002.04.01 Deoptimization/README.md`
+- [x] `002. JavaScript Internals/002.04 Optimization Boundaries/002.04.02 Shape Changes/README.md`
+- [x] `002. JavaScript Internals/002.04 Optimization Boundaries/002.04.03 Benchmarking Pitfalls/README.md`
+- [x] `003. TypeScript/003.01 Type System Foundations/003.01.01 Structural Typing/README.md`
 
 ## Strict Review Order
 
@@ -173,18 +181,18 @@ Legend:
 - [x] `002.01 Engine Architecture/002.01.03 Inline Caches and Hidden Classes/README.md`
 - [x] `002.02 Runtime Semantics/002.02.01 Execution Contexts/README.md`
 - [x] `002.02 Runtime Semantics/002.02.02 Lexical Environments/README.md`
-- [>] `002.02 Runtime Semantics/002.02.03 Microtasks and Macrotasks/README.md`
-- [ ] `002.03 Memory Internals/002.03.01 Heap Layout/README.md`
-- [ ] `002.03 Memory Internals/002.03.02 Garbage Collection/README.md`
-- [ ] `002.03 Memory Internals/002.03.03 Leaks and Retainers/README.md`
-- [ ] `002.04 Optimization Boundaries/002.04.01 Deoptimization/README.md`
-- [ ] `002.04 Optimization Boundaries/002.04.02 Shape Changes/README.md`
-- [ ] `002.04 Optimization Boundaries/002.04.03 Benchmarking Pitfalls/README.md`
+- [x] `002.02 Runtime Semantics/002.02.03 Microtasks and Macrotasks/README.md`
+- [x] `002.03 Memory Internals/002.03.01 Heap Layout/README.md`
+- [x] `002.03 Memory Internals/002.03.02 Garbage Collection/README.md`
+- [x] `002.03 Memory Internals/002.03.03 Leaks and Retainers/README.md`
+- [x] `002.04 Optimization Boundaries/002.04.01 Deoptimization/README.md`
+- [x] `002.04 Optimization Boundaries/002.04.02 Shape Changes/README.md`
+- [x] `002.04 Optimization Boundaries/002.04.03 Benchmarking Pitfalls/README.md`
 
 ### 003. TypeScript
 
-- [ ] `003.01 Type System Foundations/003.01.01 Structural Typing/README.md`
-- [ ] `003.01 Type System Foundations/003.01.02 Narrowing and Control Flow/README.md`
+- [x] `003.01 Type System Foundations/003.01.01 Structural Typing/README.md`
+- [>] `003.01 Type System Foundations/003.01.02 Narrowing and Control Flow/README.md`
 - [ ] `003.01 Type System Foundations/003.01.03 Generics and Constraints/README.md`
 - [ ] `003.02 Advanced Types/003.02.01 Conditional Types/README.md`
 - [ ] `003.02 Advanced Types/003.02.02 Mapped and Template Literal Types/README.md`
@@ -311,5 +319,5 @@ At the end of each batch:
 Continue with:
 
 ```txt
-002. JavaScript Internals/002.02 Runtime Semantics/002.02.03 Microtasks and Macrotasks/README.md
+003. TypeScript/003.01 Type System Foundations/003.01.02 Narrowing and Control Flow/README.md
 ```

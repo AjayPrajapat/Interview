@@ -1,630 +1,1098 @@
 # 002.04.03 Benchmarking Pitfalls
 
-Category: JavaScript Internals
-
+Category: JavaScript Internals<br>
 Topic: 002.04 Optimization Boundaries
+
+Benchmarking pitfalls are the ways performance measurements lie. JavaScript benchmarks are especially easy to misread because modern engines use warmup, bytecode, JIT tiers, inline caches, deoptimization, garbage collection, inlining, dead-code elimination, and host scheduling.
+
+The senior skill is not writing a loop with `console.time()`. The senior skill is designing a measurement that answers the right question without accidentally measuring the optimizer, the timer, the logger, the network, the GC, or a toy input that production never sees.
+
+---
 
 ## 1. Definition
 
-Benchmarking Pitfalls is a focused engineering concept inside 002.04 Optimization Boundaries. It describes a behavior, design choice, implementation technique, or operational concern that engineers must understand deeply to build reliable systems in JavaScript Internals.
+A benchmarking pitfall is a flaw in a performance experiment that produces misleading, non-reproducible, or irrelevant results.
 
-At a practical level, this topic answers:
+One-line definition:
 
-- what problem it solves,
-- what boundary it belongs to,
-- what assumptions it depends on,
-- how it behaves during normal execution,
-- how it fails under pressure,
-- and how to reason about it in production.
+- Benchmarking pitfalls are measurement mistakes that make code look faster or slower than it really is for the workload that matters.
 
-The goal is not only to recognize the term. The goal is to explain Benchmarking Pitfalls from first principles, apply it in code or architecture, debug it when it breaks, and defend trade-offs in an interview or design review.
+Expanded explanation:
+
+- A benchmark is only useful if it represents the question being asked.
+- Microbenchmarks measure isolated operations.
+- Profiling measures where real execution spends time.
+- Load tests measure system behavior under concurrency and saturation.
+- Real-user monitoring measures actual user experience.
+
+Bad benchmark:
+
+```ts
+console.time("test");
+for (let i = 0; i < 1_000_000; i += 1) {
+  doWork(sample);
+}
+console.timeEnd("test");
+```
+
+This may include warmup, optimization, deoptimization, dead-code elimination, unrealistic data, and timer noise.
+
+---
 
 ## 2. Why It Exists
 
-Benchmarking Pitfalls exists because real systems need explicit rules for correctness, ownership, execution, and change. Without this concept, teams usually rely on implicit assumptions, and implicit assumptions become bugs when systems grow.
+Benchmarking pitfalls exist because performance is contextual.
 
-This topic matters because it helps engineers:
+The same code can behave differently based on:
 
-- reduce ambiguity in 002.04 Optimization Boundaries,
-- make behavior easier to test and review,
-- prevent local decisions from creating system-level failures,
-- identify performance and reliability limits before production incidents,
-- communicate trade-offs clearly across frontend, backend, platform, security, and product teams.
+- engine version,
+- runtime flags,
+- cold vs warm execution,
+- input shape,
+- object layout,
+- data size,
+- concurrency,
+- garbage collection,
+- CPU throttling,
+- browser tab state,
+- production build vs dev build,
+- network and I/O,
+- downstream dependencies.
 
-You should understand this before moving deeper because later topics often depend on the same mental models: state ownership, lifecycle timing, API contracts, failure handling, scaling pressure, and observability.
+Why it matters:
+
+- false wins create unnecessary complexity,
+- false losses hide real bottlenecks,
+- micro-optimizations can damage maintainability,
+- local benchmark results may not improve p99 latency,
+- production performance can regress even when a benchmark passes.
+
+Senior-level framing:
+
+- A benchmark is an argument. If the setup is weak, the argument is weak.
+
+---
 
 ## 3. Syntax & Variants
 
-Not every engineering topic has programming syntax, but every topic has an interface shape. The interface shape is how the concept appears to the rest of the system.
+Benchmarking uses measurement APIs and tools, but each has limits.
 
-In JavaScript Internals, Benchmarking Pitfalls commonly appears as a function, type, object, runtime behavior, data structure, or algorithm.
-
-Typical shape:
+### `console.time`
 
 ```ts
-type BenchmarkingPitfallsInput = {
-  id: string;
-  payload: unknown;
-};
-
-type BenchmarkingPitfallsResult =
-  | { ok: true; value: unknown }
-  | { ok: false; error: string; retryable: boolean };
-
-export function handleBenchmarkingPitfalls(
-  input: BenchmarkingPitfallsInput,
-): BenchmarkingPitfallsResult {
-  if (!input.id) {
-    return { ok: false, error: "missing_id", retryable: false };
-  }
-
-  try {
-    const value = input.payload;
-    return { ok: true, value };
-  } catch {
-    return { ok: false, error: "unexpected_failure", retryable: true };
-  }
-}
+console.time("work");
+doWork();
+console.timeEnd("work");
 ```
 
-When reading or writing code for this topic, identify:
+Good for quick local exploration. Weak for rigorous benchmarking.
 
-- the input boundary,
-- the output contract,
-- the state being read or changed,
-- the owner of the behavior,
-- the failure path,
-- the observability signal.
+### `performance.now`
 
-Variants to identify:
+```ts
+const start = performance.now();
+doWork();
+const durationMs = performance.now() - start;
+```
 
-- direct language or framework syntax,
-- configuration shape,
-- API or interface shape,
-- runtime behavior shape,
-- rare edge syntax or unusual usage,
-- legacy forms that still appear in production.
+Useful for higher-resolution timing in browsers and modern Node.
+
+### Node `hrtime.bigint`
+
+```ts
+const start = process.hrtime.bigint();
+doWork();
+const durationMs = Number(process.hrtime.bigint() - start) / 1_000_000;
+```
+
+Useful for precise elapsed duration in Node.
+
+### Benchmark libraries
+
+```ts
+import { Bench } from "tinybench";
+
+const bench = new Bench();
+
+bench.add("for loop", () => {
+  forLoop(items);
+});
+
+bench.add("map", () => {
+  mapLoop(items);
+});
+
+await bench.run();
+console.table(bench.table());
+```
+
+Libraries help with repeated runs and statistics, but they cannot fix unrealistic workloads.
+
+### Profiling
+
+Use CPU profiles when asking:
+
+- where is time spent?
+- what is the real hot path?
+- is GC involved?
+- is this CPU or waiting?
+
+### Load testing
+
+Use load tests when asking:
+
+- what happens under concurrency?
+- where is saturation?
+- what is p95/p99?
+- how does memory grow over time?
+
+---
 
 ## 4. Internal Working
 
-The internal working of Benchmarking Pitfalls should be understood as a lifecycle, not as a definition.
+Benchmark results are shaped by the engine pipeline.
 
-```text
-Input / trigger
-  -> validate assumptions
-  -> enter 002.04 Optimization Boundaries boundary
-  -> apply Benchmarking Pitfalls rules
-  -> read or update state
-  -> handle success, failure, or partial success
-  -> emit observable signal
-  -> return result or continue workflow
+```mermaid
+flowchart TD
+  A["Benchmark Starts"] --> B["Cold Bytecode / Interpreter"]
+  B --> C["Runtime Feedback"]
+  C --> D["JIT Optimization"]
+  D --> E["Steady State Maybe"]
+  E --> F{"Input Changes?"}
+  F -->|Yes| G["Deopt / Generic Path"]
+  F -->|No| H["Optimized Path"]
+  G --> C
+  H --> I["Measured Result"]
 ```
 
-For this topic, inspect the real mechanism behind the abstraction:
+### Warmup
 
-- engine, compiler, type system, memory model, call stack, event loop, and module boundary,
-- ordering and timing,
-- ownership of mutable state,
-- limits and resource usage,
-- retry, cancellation, cleanup, and rollback behavior,
-- how the behavior changes between local development, CI, staging, and production.
+The first iterations may be slower because:
 
-Senior engineers do not stop at "it works." They ask what the runtime must do, what it keeps in memory, what it sends over the network, what can be retried, what can be duplicated, and what must be protected by invariants.
+- code is interpreted,
+- inline caches are empty,
+- functions are not optimized yet,
+- modules and data are still loading,
+- CPU caches are cold.
 
-## 5. Memory Behavior
+### JIT tiering
 
-Every topic consumes or protects memory, state, or another resource. For Benchmarking Pitfalls, reason about memory and resource behavior explicitly.
-
-Common resources:
-
-- memory and retained references,
-- CPU and event-loop time,
-- network calls and connection pools,
-- database locks, indexes, and storage,
-- queue depth and worker capacity,
-- browser main-thread budget,
-- cloud cost and operational attention.
-
-Resource model:
+Engines may move code through:
 
 ```text
-Work enters system
-  -> resource is allocated
-  -> work is processed
-  -> resource is released, retained, cached, or leaked
+interpreter
+  -> baseline compiler
+  -> optimizing compiler
+  -> deopt fallback
 ```
 
-Production questions:
+If your benchmark is too short, you measure startup. If too artificial, you measure an unrealistic optimized state.
 
-- What grows with traffic?
-- What grows with data size?
-- What grows with number of tenants, teams, or services?
-- What is bounded?
-- What can leak?
-- What needs cleanup?
-- What metric proves the resource behavior is healthy?
+### Dead-code elimination
 
-For JavaScript Internals, watch runtime errors, latency, memory growth, bundle size, CPU time, test failures, and defect rate.
+If results are unused, the engine may remove or simplify work.
 
-## 6. Execution Behavior
-
-Execution behavior describes what actually happens when the system runs.
-
-Trace Benchmarking Pitfalls through:
-
-- the happy path,
-- invalid input,
-- missing dependency,
-- slow dependency,
-- concurrent execution,
-- retry after timeout,
-- duplicate request or event,
-- deploy with old and new versions running together,
-- cleanup after failure.
-
-Execution timeline:
-
-```text
-Before
-  -> required state and configuration exist
-During
-  -> core behavior runs and may touch dependencies
-After
-  -> result, side effects, and telemetry are visible
-Failure
-  -> caller receives error, retry, fallback, or compensation path
-```
-
-The most important question is: what invariant must remain true even if the execution path is interrupted?
-
-## 7. Scope & Context Interaction
-
-Benchmarking Pitfalls should be understood in its surrounding scope and execution context, not as an isolated detail.
-
-Scope questions:
-
-- Where is this behavior visible?
-- Who can call or mutate it?
-- What module, component, service, tenant, request, thread, worker, or transaction owns it?
-- Does it cross frontend, backend, database, queue, cache, or platform boundaries?
-- Does it behave differently inside closures, async callbacks, dependency injection scopes, request scopes, or deployment environments?
-
-Context model:
-
-```text
-Local context
-  -> module or component context
-  -> service or runtime context
-  -> system or organization context
-```
-
-For JavaScript and TypeScript topics, also check lexical scope, closure retention, module scope, global scope, and `this` behavior where applicable.
-
-## 8. Common Examples
-
-### Example 1: Local Implementation
-
-Use a local implementation when the behavior is simple, low-risk, and owned by one module or team.
+Bad:
 
 ```ts
-type BenchmarkingPitfallsInput = {
-  id: string;
-  payload: unknown;
-};
-
-type BenchmarkingPitfallsResult =
-  | { ok: true; value: unknown }
-  | { ok: false; error: string; retryable: boolean };
-
-export function handleBenchmarkingPitfalls(
-  input: BenchmarkingPitfallsInput,
-): BenchmarkingPitfallsResult {
-  if (!input.id) {
-    return { ok: false, error: "missing_id", retryable: false };
-  }
-
-  try {
-    const value = input.payload;
-    return { ok: true, value };
-  } catch {
-    return { ok: false, error: "unexpected_failure", retryable: true };
-  }
+for (let i = 0; i < 1_000_000; i += 1) {
+  pureCompute(i);
 }
 ```
 
-### Example 2: Shared Abstraction
+Better:
 
-Move the behavior behind a shared abstraction when multiple teams repeat the same logic and the contract is stable.
+```ts
+let sink = 0;
 
-```text
-Consumer
-  -> stable interface
-  -> shared implementation
-  -> logs, metrics, tests, and ownership
+for (let i = 0; i < 1_000_000; i += 1) {
+  sink += pureCompute(i);
+}
+
+console.log(sink);
 ```
 
-### Example 3: Platform or Managed Capability
+Even this can be optimized in some cases. Benchmark design matters.
 
-Use a platform capability when correctness, scale, compliance, or operational cost is too important for every team to solve independently.
+### GC interference
+
+Allocation-heavy code can trigger GC during one benchmark but not another.
+
+Measure:
+
+- allocation rate,
+- GC duration,
+- heap growth,
+- RSS/external memory where relevant.
+
+### Async measurement
+
+Bad:
+
+```ts
+console.time("fetch");
+fetch("/api/data");
+console.timeEnd("fetch");
+```
+
+This measures scheduling, not the fetch.
+
+Better:
+
+```ts
+console.time("fetch");
+await fetch("/api/data");
+console.timeEnd("fetch");
+```
+
+---
+
+## 5. Memory Behavior
+
+Benchmarks often accidentally measure memory pressure.
+
+### Allocation-sensitive benchmark
+
+```ts
+function withMap(items: Item[]) {
+  return items.map((item) => ({
+    id: item.id,
+    label: item.name.toUpperCase(),
+  }));
+}
+```
+
+This measures:
+
+- callback overhead,
+- object allocation,
+- result array allocation,
+- string allocation,
+- GC pressure.
+
+### Reusing data incorrectly
+
+```ts
+const input = makeInput();
+
+bench("sort", () => {
+  input.sort(compare);
+});
+```
+
+The first run sorts the input. Later runs sort already-sorted data.
+
+Better:
+
+```ts
+bench("sort", () => {
+  const copy = [...input];
+  copy.sort(compare);
+});
+```
+
+But now the benchmark includes copy allocation. Decide what you actually want to measure.
+
+### Memory leak in benchmark harness
+
+```ts
+const results = [];
+
+bench("work", () => {
+  results.push(doWork());
+});
+```
+
+The harness may retain results and distort memory/GC behavior.
+
+### Production memory mismatch
+
+A microbenchmark that runs for 5 seconds may not reveal:
+
+- old-space growth,
+- cache leaks,
+- queue buildup,
+- external memory,
+- fragmentation,
+- long-session browser memory.
+
+---
+
+## 6. Execution Behavior
+
+### Cold vs warm
+
+Cold benchmark:
+
+- startup,
+- parsing,
+- compilation,
+- first execution,
+- cache misses.
+
+Warm benchmark:
+
+- repeated execution after feedback and optimization.
+
+Both can matter.
+
+Example:
+
+- serverless handler: cold path matters.
+- long-running worker: steady state matters.
+- browser route: first interaction and steady interaction both matter.
+
+### Sync vs async
+
+```ts
+async function measure() {
+  const start = performance.now();
+  const result = await work();
+  return performance.now() - start;
+}
+```
+
+For async work, decide whether you measure:
+
+- scheduling,
+- queue wait,
+- network time,
+- CPU callback time,
+- full end-to-end latency.
+
+### Single-user vs concurrent
+
+Microbenchmark:
 
 ```text
-Product team
-  -> platform API
-  -> centrally owned reliability, security, and observability
+one operation at a time
 ```
+
+Production:
+
+```text
+many operations, queues, CPU contention, GC, I/O, rate limits
+```
+
+### Browser execution
+
+Browser benchmarks can be distorted by:
+
+- devtools open,
+- background tabs,
+- power saving,
+- rendering,
+- layout,
+- third-party scripts,
+- device speed,
+- throttling.
+
+### Node execution
+
+Node benchmarks can be distorted by:
+
+- event-loop delay,
+- libuv threadpool saturation,
+- container CPU limits,
+- logging,
+- GC,
+- JIT warmup,
+- OS scheduling.
+
+---
+
+## 7. Scope & Context Interaction
+
+Benchmark scope must match the decision scope.
+
+### Function benchmark
+
+Use for:
+
+- comparing algorithms,
+- checking allocation rate,
+- validating hot helper changes.
+
+Risk:
+
+- misses system effects.
+
+### Component benchmark
+
+Use for:
+
+- React/Angular render cost,
+- chart/table behavior,
+- hydration or route transitions.
+
+Risk:
+
+- dev build results may be irrelevant.
+
+### Service benchmark
+
+Use for:
+
+- API throughput,
+- p95/p99 latency,
+- worker jobs/sec,
+- queue behavior.
+
+Risk:
+
+- synthetic data hides real payload variation.
+
+### System benchmark
+
+Use for:
+
+- end-to-end behavior,
+- scaling limits,
+- dependency bottlenecks,
+- failure under load.
+
+Risk:
+
+- harder to isolate root cause.
+
+### Context question
+
+Before benchmarking, ask:
+
+- What decision will this measurement support?
+- Which user/system metric should improve?
+- Is this cold, warm, isolated, or end-to-end?
+- What realistic inputs are required?
+- What noise must be controlled?
+
+---
+
+## 8. Common Examples
+
+### Example 1: Bad async timing
+
+```ts
+console.time("work");
+doAsyncWork();
+console.timeEnd("work");
+```
+
+This measures call/scheduling time.
+
+Correct:
+
+```ts
+console.time("work");
+await doAsyncWork();
+console.timeEnd("work");
+```
+
+### Example 2: Mutating input
+
+```ts
+bench("dedupe", () => {
+  items.sort();
+  dedupeSorted(items);
+});
+```
+
+Later iterations use already sorted input.
+
+### Example 3: Unrealistic stable shapes
+
+```ts
+const row = { id: "1", total: 100 };
+
+bench("read", () => {
+  return row.total;
+});
+```
+
+Production may pass thousands of row shapes.
+
+### Example 4: Measuring logging
+
+```ts
+bench("process", () => {
+  console.log(processItem(item));
+});
+```
+
+This mostly measures logging.
+
+### Example 5: Avoiding unused result
+
+```ts
+let sink = 0;
+
+bench("compute", () => {
+  sink ^= compute(input);
+});
+```
+
+Use a sink so work cannot be trivially ignored.
+
+---
 
 ## 9. Confusing / Tricky Examples
 
-### Confusion 1: The Name Sounds Simple
+### Trap 1: Faster operation, same user latency
 
-Many developers can define Benchmarking Pitfalls, but cannot trace its lifecycle or failure modes. Interviewers often move quickly from definition to edge cases.
+Optimizing a helper from 2 ms to 1 ms does not matter if the request waits 800 ms on a database.
 
-### Confusion 2: Local Behavior Differs From Production
+### Trap 2: Average hides tail
 
-Local environments rarely reproduce production traffic, data shape, dependency latency, permissions, deploy overlap, or noisy neighbors.
+```text
+avg: 50 ms
+p99: 2000 ms
+```
 
-### Confusion 3: The Happy Path Hides Ownership
+Production users feel the tail.
 
-If no one owns the failure path, monitoring, documentation, migration plan, or rollback process, the design is incomplete.
+### Trap 3: Benchmark runs optimized path only
 
-### Confusion 4: Optimization Before Measurement
+Production includes cold starts, invalid input, missing fields, polymorphism, and deopt.
 
-Optimizing Benchmarking Pitfalls without baseline data can make the system harder to debug while failing to improve the real bottleneck.
+### Trap 4: Development build lies
+
+Frontend dev builds include extra checks and different compilation behavior.
+
+### Trap 5: Tiny data lies
+
+An algorithm that is fine for 100 items may collapse at 1,000,000.
+
+### Trap 6: Benchmarking on a busy machine
+
+OS scheduling, thermal throttling, background tasks, and container limits add noise.
+
+---
 
 ## 10. Real Production Use Cases
 
-Benchmarking Pitfalls appears in production anywhere JavaScript Internals needs predictable behavior across real users, real traffic, real failures, and real team boundaries.
+### API optimization
 
-Used in:
+Question:
 
-- frontend apps, Node.js services, SDKs, libraries, build pipelines, and shared platform packages,
-- payment and billing workflows,
-- authentication and authorization flows,
-- admin and internal platforms,
-- realtime or async processing,
-- reporting and analytics,
-- compliance and audit trails,
-- incident response and operational runbooks.
+- Will this serializer change improve p99 latency?
 
-Production makes this harder because:
+Needed:
 
-- inputs are messy,
-- clients and services run different versions,
-- dependencies degrade before they fail,
-- retries multiply load,
-- dashboards show symptoms before root cause,
-- ownership is split across teams.
+- production-like payloads,
+- CPU profile,
+- before/after p95/p99,
+- GC/allocation metrics,
+- route-level measurement.
 
-## Architecture Decisions
+### Frontend table rendering
 
-When designing around Benchmarking Pitfalls, compare multiple approaches.
+Question:
 
-| Approach | Use When | Trade-Off |
-|---|---|---|
-| Inline/local logic | Small scope, low risk, one owner | Fast to build, easier to duplicate |
-| Shared library | Same logic repeated across modules | Versioning and rollout become important |
-| Service/API boundary | Multiple consumers need stable behavior | Network, latency, and ownership overhead |
-| Platform capability | High scale, compliance, or reliability needs | Requires platform maturity and governance |
-| Managed service | Commodity capability with strong provider support | Less control, provider constraints |
+- Should we virtualize, memoize, or change data shape?
 
-Decision questions:
+Needed:
 
-- What is the blast radius if this breaks?
-- Who owns the contract?
-- How often will it change?
-- What must be observable?
-- What happens during rollback?
-- What is the simplest design that satisfies current correctness and scale?
+- production build,
+- realistic row count,
+- low-end device test,
+- render profiling,
+- interaction metric.
+
+### Worker throughput
+
+Question:
+
+- Does a batching change improve jobs/sec?
+
+Needed:
+
+- sustained run,
+- queue depth,
+- memory growth,
+- GC time,
+- error/retry behavior.
+
+### Serverless cold start
+
+Question:
+
+- Does lazy importing reduce cold latency?
+
+Needed:
+
+- cold measurements,
+- warm measurements,
+- bundle/import graph,
+- p95 across many starts.
+
+### Cache optimization
+
+Question:
+
+- Is this cache worth its memory?
+
+Needed:
+
+- hit rate,
+- memory footprint,
+- eviction behavior,
+- latency improvement,
+- stale data risk.
+
+---
 
 ## 11. Interview Questions
 
-1. What is Benchmarking Pitfalls, and why does it matter in JavaScript Internals?
-2. What problem does it solve inside 002.04 Optimization Boundaries?
-3. How does it work internally?
-4. What are the most common edge cases?
-5. What failure modes appear only in production?
-6. How would you implement a minimal version?
-7. How would you test it?
-8. How would you debug a production issue related to it?
-9. What metrics or logs would you add?
-10. How does the design change at 10x traffic, data, or team size?
-11. What trade-offs exist between simple implementation and platform abstraction?
-12. What senior-level mistake do engineers make with this topic?
+### Basic
+
+1. What makes a benchmark unreliable?
+2. Why is warmup important in JavaScript?
+3. What is dead-code elimination?
+4. Why is `console.time` often insufficient?
+5. What is the difference between microbenchmarking and profiling?
+
+### Intermediate
+
+1. How can GC distort benchmark results?
+2. Why should benchmark inputs be realistic?
+3. How do you measure async work correctly?
+4. Why can average latency be misleading?
+5. What is the difference between cold and warm performance?
+
+### Advanced
+
+1. How do JIT tiers affect benchmarks?
+2. How can deoptimization change benchmark results?
+3. How would you design a benchmark for a Node serializer?
+4. How would you benchmark frontend interaction responsiveness?
+5. How do you prove an optimization is worth keeping?
+
+### Tricky
+
+1. Can a benchmark get faster because the engine removed the work?
+2. Can a local benchmark be correct but irrelevant?
+3. Can reducing CPU time increase memory pressure?
+4. Can a cache improve average latency but hurt p99?
+5. Should you optimize code that wins a microbenchmark but reduces clarity?
+
+Strong answers should connect measurement to decision quality.
+
+---
 
 ## 12. Senior-Level Pitfalls
 
-### Pitfall 1: Treating It As Isolated Trivia
+### Pitfall 1: Benchmarking without a decision
 
-Benchmarking Pitfalls is connected to runtime behavior, architecture, operations, and team ownership. A narrow definition is not enough.
+Senior correction:
 
-### Pitfall 2: Ignoring Failure Semantics
+- define the decision and success metric first.
 
-A design that only explains success is not production-ready. Define timeout, retry, cancellation, idempotency, rollback, and cleanup behavior.
+### Pitfall 2: Measuring a toy workload
 
-### Pitfall 3: Missing Observability
+Senior correction:
 
-If the system cannot prove what happened, debugging becomes guesswork. Add logs, metrics, traces, and structured identifiers at decision points.
+- use production-like shapes, sizes, outliers, nulls, and concurrency.
 
-### Pitfall 4: Hidden Shared State
+### Pitfall 3: Ignoring variance
 
-Shared state without clear ownership creates race conditions, stale reads, memory leaks, and cross-request contamination.
+Senior correction:
 
-### Pitfall 5: Premature Abstraction
+- run multiple samples and report spread, not one number.
 
-Abstracting too early can freeze weak assumptions. Wait until the repeated shape is stable, then extract a clear interface.
+### Pitfall 4: Optimizing average only
+
+Senior correction:
+
+- report p50, p95, p99, max, and error rate where relevant.
+
+### Pitfall 5: Mixing changes
+
+Senior correction:
+
+- isolate one meaningful variable when possible.
+
+### Pitfall 6: Keeping complex code after tiny wins
+
+Senior correction:
+
+- weigh performance against maintainability.
+
+---
 
 ## 13. Best Practices
 
-- Start with a precise definition.
-- Identify the owner and boundary.
-- Make inputs, outputs, and invariants explicit.
-- Prefer simple local design until the pressure for abstraction is real.
-- Test normal, edge, and failure paths.
-- Add observability before relying on the behavior in production.
-- Keep resource usage bounded.
-- Document assumptions and trade-offs.
-- Design rollback and migration paths.
-- Revisit the decision when scale, team count, or correctness requirements change.
+### Benchmark design
+
+- State the hypothesis.
+- Define success metric.
+- Use production-like data.
+- Separate cold and warm runs.
+- Avoid mutating shared input unless intended.
+- Consume results so work is not optimized away.
+- Run enough iterations.
+- Report variance.
+- Measure memory and GC when allocations differ.
+
+### Tool choice
+
+- Use microbenchmarks for isolated algorithm questions.
+- Use CPU profiles for real hot paths.
+- Use load tests for service capacity.
+- Use RUM for actual user experience.
+- Use synthetic browser tests for repeatable frontend lab signals.
+
+### Interpretation
+
+- Prefer meaningful user/system metrics.
+- Treat tiny differences skeptically.
+- Re-run after runtime upgrades.
+- Keep benchmark code reviewed.
+- Document environment and input data.
+
+### Engineering discipline
+
+- Revert optimizations that do not improve target metrics.
+- Keep optimized code isolated and tested.
+- Add regression benchmarks only for critical paths.
+
+---
 
 ## 14. Debugging Scenarios
 
-### Scenario 1: Works Locally, Fails In Production
+### Scenario 1: Benchmark says faster, production unchanged
 
-Likely causes:
-
-- different configuration,
-- different data shape,
-- missing permissions,
-- dependency latency,
-- concurrency,
-- version mismatch.
-
-Debugging steps:
-
-1. Compare environment configuration.
-2. Capture one failing input.
-3. Trace the request or workflow end to end.
-4. Check deploy, data, and dependency timelines.
-5. Reproduce with production-like constraints.
-
-### Scenario 2: Intermittent Failure
-
-Likely causes:
-
-- race condition,
-- retry interaction,
-- shared mutable state,
-- timeout boundary,
-- cache inconsistency,
-- queue ordering.
-
-Debugging steps:
-
-1. Group failures by tenant, version, region, and dependency.
-2. Inspect p95 and p99 instead of averages.
-3. Add correlation IDs.
-4. Check whether retries amplify the issue.
-5. Verify cleanup and idempotency.
-
-### Scenario 3: Performance Regression
-
-Likely causes:
-
-- unbounded work,
-- inefficient query or algorithm,
-- larger payload,
-- cache miss pattern,
-- excessive serialization,
-- synchronous work on a critical path.
-
-Debugging steps:
-
-1. Establish baseline.
-2. Profile the hot path.
-3. Compare before and after deploy.
-4. Measure resource saturation.
-5. Optimize the proven bottleneck only.
-
-### Scenario 4: Memory Or Resource Growth
-
-Likely causes:
-
-- retained references,
-- unbounded queue,
-- missing cleanup,
-- long-lived subscriptions,
-- growing cache,
-- connection leak.
-
-Debugging steps:
-
-1. Capture heap, CPU, or resource profile.
-2. Inspect retainers or open handles.
-3. Confirm lifecycle cleanup.
-4. Add bounds and eviction.
-5. Verify recovery after load drops.
-
-## Diagrams
-
-Dedicated diagrams are available in [diagrams.md](./diagrams.md).
-
-### Concept Flow
-
-```mermaid
-flowchart TD
-  A[Input or trigger] --> B[Validate assumptions]
-  B --> C[Enter 002.04 Optimization Boundaries boundary]
-  C --> D[Apply Benchmarking Pitfalls]
-  D --> E[Read or change state]
-  E --> F[Return result]
-  F --> G[Emit telemetry]
-```
-
-### Failure Flow
-
-```mermaid
-flowchart TD
-  A[Unexpected behavior] --> B{Input valid?}
-  B -->|No| C[Fix validation or caller contract]
-  B -->|Yes| D{State correct?}
-  D -->|No| E[Inspect ownership, mutation, cache, or ordering]
-  D -->|Yes| F{Dependency healthy?}
-  F -->|No| G[Check timeout, retry, fallback, and saturation]
-  F -->|Yes| H[Inspect implementation assumptions and edge cases]
-```
-
-### Production Readiness Loop
+Debugging flow:
 
 ```text
-Design
-  -> implement
-  -> test
-  -> instrument
-  -> deploy safely
-  -> observe
-  -> learn
-  -> refine
+Check target metric
+  -> inspect production profile
+  -> verify bottleneck contribution
+  -> identify bigger waits
 ```
+
+Root cause:
+
+- optimized code was not on the critical path.
+
+### Scenario 2: Benchmark flips between runs
+
+Debugging flow:
+
+```text
+Check warmup
+  -> check input mutation
+  -> check GC
+  -> check machine load
+  -> increase sample count
+```
+
+Root cause:
+
+- noise or flawed harness.
+
+### Scenario 3: Async benchmark too fast
+
+Debugging flow:
+
+```text
+Inspect await/return
+  -> confirm operation completes
+  -> include error path
+  -> measure end-to-end duration
+```
+
+Root cause:
+
+- measured scheduling instead of completion.
+
+### Scenario 4: New implementation faster but memory worse
+
+Debugging flow:
+
+```text
+Compare allocation profiles
+  -> inspect GC duration
+  -> measure RSS/heap
+  -> check p99 under load
+```
+
+Root cause:
+
+- CPU improvement traded for allocation/GC pressure.
+
+### Scenario 5: Frontend benchmark lies
+
+Debugging flow:
+
+```text
+Use production build
+  -> test low-end device
+  -> record performance trace
+  -> measure interaction metric
+```
+
+Root cause:
+
+- dev build or desktop-only benchmark did not represent users.
+
+---
 
 ## 15. Exercises / Practice
 
-### Exercise 1
+### Exercise 1: Fix async timing
 
-Explain Benchmarking Pitfalls in your own words using three levels:
-
-- beginner explanation,
-- intermediate internal explanation,
-- senior production explanation.
-
-### Exercise 2
-
-Draw the lifecycle for Benchmarking Pitfalls:
-
-```text
-input -> decision -> state change -> output -> telemetry
+```ts
+console.time("save");
+saveUser(user);
+console.timeEnd("save");
 ```
 
-Mark where validation, failure handling, and cleanup happen.
+Rewrite correctly.
 
-### Exercise 3
+### Exercise 2: Avoid input mutation
 
-Write one example where Benchmarking Pitfalls works correctly and one where it fails because of an edge case.
+```ts
+bench("sort", () => {
+  items.sort(compare);
+});
+```
 
-### Exercise 4
+Design a fair benchmark and explain what it measures.
 
-Create a debugging checklist for a production incident involving Benchmarking Pitfalls. Include logs, metrics, traces, and rollback options.
+### Exercise 3: Add realistic data
 
-### Exercise 5
+For a function that reads `order.total`, create benchmark inputs with:
 
-Compare two architecture choices for this topic and explain when each is better.
+- stable shape,
+- missing field,
+- string total,
+- different property order,
+- large batch.
+
+### Exercise 4: Interpret result
+
+```text
+Implementation A: avg 10 ms, p99 120 ms, heap +300 MB
+Implementation B: avg 14 ms, p99 30 ms, heap +20 MB
+```
+
+Which would you choose for an API and why?
+
+### Exercise 5: Prove value
+
+Write a plan to prove a serializer optimization improved production p99, not just local throughput.
+
+---
 
 ## 16. Comparison
 
-Compare Benchmarking Pitfalls with nearby or competing concepts.
+### Microbenchmark vs profile vs load test
 
-Comparison prompts:
+| Method | Answers | Risk |
+| --- | --- | --- |
+| Microbenchmark | Which isolated operation is faster? | can be irrelevant |
+| CPU profile | Where is real CPU time spent? | needs representative workload |
+| Load test | What happens under concurrency? | harder to isolate |
+| RUM | What users experience | noisy, needs segmentation |
 
-- What problem does each option solve?
-- Which one is simpler?
-- Which one is safer?
-- Which one scales better?
-- Which one is easier to debug?
-- Which one has better ecosystem or platform support?
+### Cold vs warm benchmark
 
-Decision table:
+| Mode | Measures | Useful For |
+| --- | --- | --- |
+| Cold | startup and first execution | serverless, page load, CLI |
+| Warm | optimized steady state | long-running services/workers |
 
-| Option | Prefer When | Avoid When |
-|---|---|---|
-| Benchmarking Pitfalls | It directly matches the invariant and ownership boundary | The abstraction hides important failure behavior |
-| Simpler local approach | Scope is small, low risk, and easy to test | Logic is duplicated across many teams |
-| Shared/platform approach | Correctness, scale, or governance matters | The contract is still changing rapidly |
+### Average vs percentile
+
+| Metric | Meaning |
+| --- | --- |
+| Average | central tendency, hides tail |
+| p50 | median user/request |
+| p95 | slow but common tail |
+| p99 | severe tail behavior |
+| max | worst observed, often noisy |
+
+### Faster vs better
+
+| Faster Code | Better System |
+| --- | --- |
+| wins local loop | improves target metric |
+| may allocate more | balances CPU/memory |
+| may be obscure | maintainable and tested |
+| may ignore tail | improves p95/p99 |
+
+---
 
 ## 17. Related Concepts
 
-Benchmarking Pitfalls connects to the rest of the knowledge tree.
+Benchmarking Pitfalls connect to:
 
-Study links:
+- `002.01.02 Bytecode and JIT`: warmup and tiering affect results.
+- `002.04.01 Deoptimization`: production inputs can break benchmark assumptions.
+- `002.04.02 Shape Changes`: stable benchmark shapes may hide shape churn.
+- `002.03.02 Garbage Collection`: allocation and GC distort timings.
+- `001.04.02 Performance Profiling`: profiling finds real bottlenecks.
+- Load Testing: validates concurrency and saturation.
+- Observability: metrics prove production impact.
+- Web Performance: lab vs field performance.
 
-- Parent category: JavaScript Internals
-- Parent topic: 002.04 Optimization Boundaries
-- Internal flow and diagrams: [diagrams.md](./diagrams.md)
-- Practice files in this folder: debugging, questions, exercises, and review notes
+Knowledge graph:
 
-Related concept types:
+```mermaid
+flowchart LR
+  A["Hypothesis"] --> B["Benchmark"]
+  B --> C["Profile"]
+  C --> D["Optimization"]
+  D --> E["Re-measure"]
+  E --> F{"Target Metric Improved?"}
+  F -->|Yes| G["Keep"]
+  F -->|No| H["Revert / Rethink"]
+```
 
-- prerequisites that make this topic easier,
-- follow-up topics that build on it,
-- architecture concepts that use it,
-- production concerns that expose its limits,
-- interview patterns that test it indirectly.
+---
 
 ## Advanced Add-ons
 
 ### Performance Impact
 
-- Time complexity: identify whether work is constant, linear, logarithmic, fan-out, or unbounded.
-- Memory usage: identify retained data, copied data, cached data, and cleanup timing.
-- Hot path risk: determine whether this runs per request, per render, per event, per query, or per deployment.
-- Measurement: use baselines, profiling, p95/p99, and resource saturation before optimizing.
+Bad benchmarks create performance debt:
+
+- misleading optimizations,
+- unreadable code,
+- missed bottlenecks,
+- worse p99,
+- higher memory,
+- false confidence.
+
+Good benchmarks improve:
+
+- decision quality,
+- regression detection,
+- runtime understanding,
+- production performance.
 
 ### System Design Relevance
 
-Benchmarking Pitfalls matters in system design when it affects boundaries, contracts, scaling behavior, correctness, or operational ownership.
+Benchmarking supports architecture decisions:
 
-Ask:
+- in-process vs worker,
+- sync vs async,
+- cache vs recompute,
+- stream vs buffer,
+- client vs server compute,
+- scale up vs optimize code.
 
-- Does it belong inside a module, service, shared library, platform layer, or managed service?
-- What is the blast radius if it fails?
-- What happens at 10x traffic, data, tenants, regions, or teams?
-- What reliability, observability, and rollback strategy is required?
+Decision framework:
+
+```mermaid
+flowchart TD
+  A["Performance Question"] --> B{"Local Code Path?"}
+  B -->|Yes| C["Microbenchmark + Profile"]
+  B -->|No| D{"Service Capacity?"}
+  D -->|Yes| E["Load Test"]
+  D -->|No| F{"User Experience?"}
+  F -->|Yes| G["RUM + Browser Trace"]
+  F -->|No| H["Clarify Metric"]
+```
 
 ### Security Impact
 
-Security relevance depends on whether Benchmarking Pitfalls touches input, identity, authorization, secrets, user data, logs, dependencies, or execution boundaries.
+Benchmarking can affect security indirectly:
 
-Check:
+- disabling validation for speed,
+- removing checks based on toy benchmarks,
+- logging sensitive benchmark data,
+- exposing production payloads in test fixtures,
+- optimizing away safety boundaries.
 
-- validation and sanitization,
-- least privilege,
-- sensitive data exposure,
-- injection or confused-deputy risks,
-- auditability and compliance requirements.
+Practices:
+
+- never remove security checks for benchmark wins without architecture review,
+- sanitize production-derived benchmark data,
+- include security-relevant paths in performance tests.
 
 ### Browser vs Node Behavior
 
-If this topic appears in JavaScript runtimes, compare browser and Node.js behavior:
+Browser:
 
-- global object and module scope,
-- event loop and task queues,
-- API availability,
-- security sandbox,
-- file, network, and process access,
-- debugging and profiling tools.
+- rendering, layout, paint, throttling, and device class matter,
+- production build is essential,
+- devtools can affect timing,
+- low-end devices reveal real pain.
 
-For non-runtime topics, compare local development, CI, staging, and production behavior instead.
+Node:
+
+- event-loop delay, GC, libuv threadpool, container limits, and I/O matter,
+- `process.hrtime.bigint()` is useful for timing,
+- CPU profiles and load tests often beat microbenchmarks.
+
+Shared:
+
+- warmup matters,
+- JIT/deopt matters,
+- realistic inputs matter,
+- target metrics matter most.
 
 ### Polyfill / Implementation
 
-Staff-level understanding includes knowing whether you can implement a simplified version yourself.
+A minimal benchmark harness can teach discipline, but real tooling should handle statistics better.
 
-Implementation prompts:
+```ts
+type Case = {
+  name: string;
+  run: () => unknown;
+};
 
-- What is the smallest correct version?
-- Which edge cases are intentionally unsupported?
-- Which behavior must match platform semantics?
-- What tests prove compatibility?
-- When is using a proven library safer than custom implementation?
+async function bench(cases: Case[], iterations: number) {
+  for (const testCase of cases) {
+    let sink: unknown;
+    const start = performance.now();
+
+    for (let i = 0; i < iterations; i += 1) {
+      sink = testCase.run();
+    }
+
+    const durationMs = performance.now() - start;
+
+    console.log({
+      name: testCase.name,
+      durationMs,
+      opsPerSecond: iterations / (durationMs / 1000),
+      sink,
+    });
+  }
+}
+```
+
+Limitations:
+
+- no warmup,
+- no variance,
+- no GC tracking,
+- no outlier handling,
+- no async support,
+- no isolation.
+
+Use it only as a teaching sketch.
+
+---
 
 ## 18. Summary
 
-Benchmarking Pitfalls is a practical engineering topic, not just a vocabulary item. Mastery means you can define it, implement it, reason about internals, predict edge cases, debug failures, and explain trade-offs.
+Benchmarking pitfalls are measurement traps that make performance work unreliable.
 
-Remember:
+Quick recall:
 
-- Start from first principles.
-- Identify boundaries and ownership.
-- Understand execution and resource behavior.
-- Design for failure, not only success.
-- Add observability.
-- Keep the simplest design that satisfies correctness and scale.
-- Revisit the design as production pressure changes.
+- Define the decision before benchmarking.
+- Use realistic inputs.
+- Separate cold and warm performance.
+- Account for JIT warmup and deoptimization.
+- Consume results to avoid eliminated work.
+- Do not mutate shared benchmark input accidentally.
+- Measure async completion, not scheduling.
+- Track memory and GC when allocations differ.
+- Prefer p95/p99 for production-facing systems.
+- Keep optimizations only when target metrics improve.
+
+Staff-level takeaway:
+
+- A benchmark is not a scoreboard. It is evidence for an engineering decision. Good evidence changes what you ship; bad evidence creates complex code with imaginary wins.
