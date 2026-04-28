@@ -140,6 +140,11 @@ Legend:
 - [x] `001. JavaScript Core/001.03 Advanced Runtime Behavior/001.03.01 Equality and Coercion/README.md`
 - [x] `001. JavaScript Core/001.03 Advanced Runtime Behavior/001.03.02 Memory and Garbage Collection/README.md`
 - [x] `001. JavaScript Core/001.03 Advanced Runtime Behavior/001.03.03 Modules and Bundling Boundaries/README.md`
+- [x] `001. JavaScript Core/001.04 Production JavaScript/001.04.01 Error Handling/README.md`
+- [x] `001. JavaScript Core/001.04 Production JavaScript/001.04.02 Performance Profiling/README.md`
+- [x] `001. JavaScript Core/001.04 Production JavaScript/001.04.03 Maintainability at Scale/README.md`
+- [x] `002. JavaScript Internals/002.01 Engine Architecture/002.01.01 Parsing and AST/README.md`
+- [x] `002. JavaScript Internals/002.01 Engine Architecture/002.01.02 Bytecode and JIT/README.md`
 
 ## Strict Review Order
 
@@ -154,15 +159,15 @@ Legend:
 - [x] `001.03 Advanced Runtime Behavior/001.03.01 Equality and Coercion/README.md`
 - [x] `001.03 Advanced Runtime Behavior/001.03.02 Memory and Garbage Collection/README.md`
 - [x] `001.03 Advanced Runtime Behavior/001.03.03 Modules and Bundling Boundaries/README.md`
-- [>] `001.04 Production JavaScript/001.04.01 Error Handling/README.md`
-- [ ] `001.04 Production JavaScript/001.04.02 Performance Profiling/README.md`
-- [ ] `001.04 Production JavaScript/001.04.03 Maintainability at Scale/README.md`
+- [x] `001.04 Production JavaScript/001.04.01 Error Handling/README.md`
+- [x] `001.04 Production JavaScript/001.04.02 Performance Profiling/README.md`
+- [x] `001.04 Production JavaScript/001.04.03 Maintainability at Scale/README.md`
 
 ### 002. JavaScript Internals
 
-- [ ] `002.01 Engine Architecture/002.01.01 Parsing and AST/README.md`
-- [ ] `002.01 Engine Architecture/002.01.02 Bytecode and JIT/README.md`
-- [ ] `002.01 Engine Architecture/002.01.03 Inline Caches and Hidden Classes/README.md`
+- [x] `002.01 Engine Architecture/002.01.01 Parsing and AST/README.md`
+- [x] `002.01 Engine Architecture/002.01.02 Bytecode and JIT/README.md`
+- [>] `002.01 Engine Architecture/002.01.03 Inline Caches and Hidden Classes/README.md`
 - [ ] `002.02 Runtime Semantics/002.02.01 Execution Contexts/README.md`
 - [ ] `002.02 Runtime Semantics/002.02.02 Lexical Environments/README.md`
 - [ ] `002.02 Runtime Semantics/002.02.03 Microtasks and Macrotasks/README.md`
@@ -303,5 +308,5 @@ At the end of each batch:
 Continue with:
 
 ```txt
-001. JavaScript Core/001.04 Production JavaScript/001.04.01 Error Handling/README.md
+002. JavaScript Internals/002.01 Engine Architecture/002.01.03 Inline Caches and Hidden Classes/README.md
 ```

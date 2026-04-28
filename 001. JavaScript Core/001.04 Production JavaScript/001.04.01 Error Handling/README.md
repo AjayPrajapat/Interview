@@ -6,625 +6,944 @@ Topic: 001.04 Production JavaScript
 
 ## 1. Definition
 
-Error Handling is a focused engineering concept inside 001.04 Production JavaScript. It describes a behavior, design choice, implementation technique, or operational concern that engineers must understand deeply to build reliable systems in JavaScript Core.
+Error handling is the way JavaScript programs detect, represent, propagate, recover from, log, and communicate failures.
 
-At a practical level, this topic answers:
+One-line version:
 
-- what problem it solves,
-- what boundary it belongs to,
-- what assumptions it depends on,
-- how it behaves during normal execution,
-- how it fails under pressure,
-- and how to reason about it in production.
+```txt
+Error handling turns unexpected or invalid execution paths into controlled, observable, recoverable behavior.
+```
 
-The goal is not only to recognize the term. The goal is to explain Error Handling from first principles, apply it in code or architecture, debug it when it breaks, and defend trade-offs in an interview or design review.
+Expanded explanation:
+
+- Synchronous errors are usually represented by thrown exceptions.
+- Asynchronous errors are often represented by rejected promises.
+- Operational errors are expected production failures such as timeouts, validation failures, unavailable dependencies, or rate limits.
+- Programmer errors are bugs such as undefined variables, type mistakes, broken invariants, or impossible states.
+- Production error handling must decide whether to retry, fallback, fail closed, fail open, alert, or crash.
+
+Good error handling is not hiding errors. It is preserving context and choosing the correct recovery path.
 
 ## 2. Why It Exists
 
-Error Handling exists because real systems need explicit rules for correctness, ownership, execution, and change. Without this concept, teams usually rely on implicit assumptions, and implicit assumptions become bugs when systems grow.
+Real systems fail constantly:
 
-This topic matters because it helps engineers:
+- users send invalid input,
+- network calls time out,
+- APIs return 500,
+- JSON parsing fails,
+- permissions are missing,
+- deployments introduce regressions,
+- browser extensions interfere,
+- storage quotas are exceeded,
+- services return partial data.
 
-- reduce ambiguity in 001.04 Production JavaScript,
-- make behavior easier to test and review,
-- prevent local decisions from creating system-level failures,
-- identify performance and reliability limits before production incidents,
-- communicate trade-offs clearly across frontend, backend, platform, security, and product teams.
+Error handling exists so these failures do not become silent data corruption, security holes, poor user experiences, or untraceable incidents.
 
-You should understand this before moving deeper because later topics often depend on the same mental models: state ownership, lifecycle timing, API contracts, failure handling, scaling pressure, and observability.
+Senior-level reason:
+
+In production, the important question is not "can I catch this error?" It is "what is the correct failure semantics for this boundary, and how will operators know what happened?"
 
 ## 3. Syntax & Variants
 
-Not every engineering topic has programming syntax, but every topic has an interface shape. The interface shape is how the concept appears to the rest of the system.
+### Throwing
 
-In JavaScript Core, Error Handling commonly appears as a function, type, object, runtime behavior, data structure, or algorithm.
+```js
+throw new Error("Invalid user id");
+```
 
-Typical shape:
+Throw actual `Error` objects when possible so stack traces and metadata are preserved.
 
-```ts
-type ErrorHandlingInput = {
-  id: string;
-  payload: unknown;
-};
+### Try/Catch
 
-type ErrorHandlingResult =
-  | { ok: true; value: unknown }
-  | { ok: false; error: string; retryable: boolean };
+```js
+try {
+  riskyOperation();
+} catch (error) {
+  handle(error);
+}
+```
 
-export function handleErrorHandling(
-  input: ErrorHandlingInput,
-): ErrorHandlingResult {
-  if (!input.id) {
-    return { ok: false, error: "missing_id", retryable: false };
-  }
+`catch` handles synchronous throws inside the `try` block.
 
-  try {
-    const value = input.payload;
-    return { ok: true, value };
-  } catch {
-    return { ok: false, error: "unexpected_failure", retryable: true };
+### Finally
+
+```js
+let lockAcquired = false;
+
+try {
+  acquireLock();
+  lockAcquired = true;
+  performWork();
+} finally {
+  if (lockAcquired) releaseLock();
+}
+```
+
+`finally` is for cleanup that must run on success or failure.
+
+### Async/Await Error Handling
+
+```js
+try {
+  const user = await fetchUser(id);
+  return user;
+} catch (error) {
+  throw new Error("Failed to fetch user", { cause: error });
+}
+```
+
+`try/catch` catches awaited promise rejections.
+
+### Promise Catch
+
+```js
+fetchUser(id).catch((error) => {
+  report(error);
+});
+```
+
+Use when working directly with promises.
+
+### Custom Error
+
+```js
+class ValidationError extends Error {
+  constructor(message, details) {
+    super(message);
+    this.name = "ValidationError";
+    this.details = details;
   }
 }
 ```
 
-When reading or writing code for this topic, identify:
+Custom errors encode domain meaning.
 
-- the input boundary,
-- the output contract,
-- the state being read or changed,
-- the owner of the behavior,
-- the failure path,
-- the observability signal.
+### Error Cause
 
-Variants to identify:
+```js
+throw new Error("Checkout failed", { cause: originalError });
+```
 
-- direct language or framework syntax,
-- configuration shape,
-- API or interface shape,
-- runtime behavior shape,
-- rare edge syntax or unusual usage,
-- legacy forms that still appear in production.
+Use `cause` to preserve the lower-level failure.
+
+### Result Object
+
+```js
+return { ok: false, error: "invalid_email" };
+```
+
+Useful for expected validation or business-rule failures where exceptions would be too heavy or unclear.
 
 ## 4. Internal Working
 
-The internal working of Error Handling should be understood as a lifecycle, not as a definition.
+### Synchronous Throw
 
-```text
-Input / trigger
-  -> validate assumptions
-  -> enter 001.04 Production JavaScript boundary
-  -> apply Error Handling rules
-  -> read or update state
-  -> handle success, failure, or partial success
-  -> emit observable signal
-  -> return result or continue workflow
+```js
+function a() {
+  b();
+}
+
+function b() {
+  throw new Error("boom");
+}
+
+a();
 ```
 
-For this topic, inspect the real mechanism behind the abstraction:
+Internal flow:
 
-- engine, compiler, type system, memory model, call stack, event loop, and module boundary,
-- ordering and timing,
-- ownership of mutable state,
-- limits and resource usage,
-- retry, cancellation, cleanup, and rollback behavior,
-- how the behavior changes between local development, CI, staging, and production.
+```txt
+b throws
+  -> engine looks for nearest catch
+  -> if none in b, unwind b frame
+  -> if none in a, unwind a frame
+  -> if none globally, unhandled error
+```
 
-Senior engineers do not stop at "it works." They ask what the runtime must do, what it keeps in memory, what it sends over the network, what can be retried, what can be duplicated, and what must be protected by invariants.
+### Stack Trace
+
+An `Error` captures where it was created/thrown.
+
+```js
+const error = new Error("failed");
+console.log(error.stack);
+```
+
+Stack traces help identify the synchronous call path.
+
+### Promise Rejection
+
+```js
+async function run() {
+  throw new Error("failed");
+}
+
+run();
+```
+
+Throwing inside an async function rejects the returned promise.
+
+If nobody handles it, the runtime may report an unhandled rejection.
+
+### Await And Catch
+
+```js
+try {
+  await run();
+} catch (error) {
+  console.log("caught");
+}
+```
+
+The rejection is converted back into a throw at the `await` point.
+
+### Error Classification
+
+Production systems usually separate:
+
+```txt
+validation error -> return 400 / show user feedback
+authentication error -> return 401
+authorization error -> return 403
+not found -> return 404
+dependency timeout -> retry/fallback/503
+programmer bug -> log, alert, fail fast or isolate
+```
 
 ## 5. Memory Behavior
 
-Every topic consumes or protects memory, state, or another resource. For Error Handling, reason about memory and resource behavior explicitly.
+Errors can retain memory through stack traces, causes, metadata, and closures.
 
-Common resources:
+Example:
 
-- memory and retained references,
-- CPU and event-loop time,
-- network calls and connection pools,
-- database locks, indexes, and storage,
-- queue depth and worker capacity,
-- browser main-thread budget,
-- cloud cost and operational attention.
-
-Resource model:
-
-```text
-Work enters system
-  -> resource is allocated
-  -> work is processed
-  -> resource is released, retained, cached, or leaked
+```js
+try {
+  processLargePayload(payload);
+} catch (error) {
+  errors.push({ error, payload });
+}
 ```
 
-Production questions:
+This retains the entire payload.
 
-- What grows with traffic?
-- What grows with data size?
-- What grows with number of tenants, teams, or services?
-- What is bounded?
-- What can leak?
-- What needs cleanup?
-- What metric proves the resource behavior is healthy?
+Better:
 
-For JavaScript Core, watch runtime errors, latency, memory growth, bundle size, CPU time, test failures, and defect rate.
+```js
+logger.error({
+  error,
+  payloadId: payload.id,
+  size: payload.length,
+}, "payload processing failed");
+```
+
+Memory considerations:
+
+- stack traces are strings/metadata,
+- `cause` chains retain nested errors,
+- error objects stored in arrays can accumulate,
+- logs should not retain large objects unnecessarily,
+- monitoring SDK breadcrumbs may store context,
+- long-lived rejected promises can retain closures.
+
+Do not attach huge objects or secrets directly to errors.
 
 ## 6. Execution Behavior
 
-Execution behavior describes what actually happens when the system runs.
+### Synchronous Catch
 
-Trace Error Handling through:
-
-- the happy path,
-- invalid input,
-- missing dependency,
-- slow dependency,
-- concurrent execution,
-- retry after timeout,
-- duplicate request or event,
-- deploy with old and new versions running together,
-- cleanup after failure.
-
-Execution timeline:
-
-```text
-Before
-  -> required state and configuration exist
-During
-  -> core behavior runs and may touch dependencies
-After
-  -> result, side effects, and telemetry are visible
-Failure
-  -> caller receives error, retry, fallback, or compensation path
+```js
+try {
+  JSON.parse("{bad json");
+} catch (error) {
+  console.log("invalid JSON");
+}
 ```
 
-The most important question is: what invariant must remain true even if the execution path is interrupted?
+Works because the error is thrown synchronously.
 
-## 7. Scope & Context Interaction
+### Async Boundary
 
-Error Handling should be understood in its surrounding scope and execution context, not as an isolated detail.
-
-Scope questions:
-
-- Where is this behavior visible?
-- Who can call or mutate it?
-- What module, component, service, tenant, request, thread, worker, or transaction owns it?
-- Does it cross frontend, backend, database, queue, cache, or platform boundaries?
-- Does it behave differently inside closures, async callbacks, dependency injection scopes, request scopes, or deployment environments?
-
-Context model:
-
-```text
-Local context
-  -> module or component context
-  -> service or runtime context
-  -> system or organization context
+```js
+try {
+  setTimeout(() => {
+    throw new Error("later");
+  }, 0);
+} catch {
+  console.log("not caught");
+}
 ```
 
-For JavaScript and TypeScript topics, also check lexical scope, closure retention, module scope, global scope, and `this` behavior where applicable.
+The catch does not run because the callback executes in a later task.
 
-## 8. Common Examples
+### Awaited Rejection
 
-### Example 1: Local Implementation
+```js
+try {
+  await Promise.reject(new Error("failed"));
+} catch (error) {
+  console.log("caught");
+}
+```
 
-Use a local implementation when the behavior is simple, low-risk, and owned by one module or team.
+Works because the rejection is awaited.
 
-```ts
-type ErrorHandlingInput = {
-  id: string;
-  payload: unknown;
-};
+### Unawaited Rejection
 
-type ErrorHandlingResult =
-  | { ok: true; value: unknown }
-  | { ok: false; error: string; retryable: boolean };
+```js
+try {
+  Promise.reject(new Error("failed"));
+} catch {
+  console.log("not caught");
+}
+```
 
-export function handleErrorHandling(
-  input: ErrorHandlingInput,
-): ErrorHandlingResult {
-  if (!input.id) {
-    return { ok: false, error: "missing_id", retryable: false };
-  }
+The promise rejects asynchronously; the synchronous catch does not catch it.
 
+### Finally Return Trap
+
+```js
+function run() {
   try {
-    const value = input.payload;
-    return { ok: true, value };
-  } catch {
-    return { ok: false, error: "unexpected_failure", retryable: true };
+    throw new Error("failed");
+  } finally {
+    return "hidden";
   }
 }
 ```
 
-### Example 2: Shared Abstraction
+Returning from `finally` suppresses the thrown error. Avoid this.
 
-Move the behavior behind a shared abstraction when multiple teams repeat the same logic and the contract is stable.
+## 7. Scope & Context Interaction
 
-```text
-Consumer
-  -> stable interface
-  -> shared implementation
-  -> logs, metrics, tests, and ownership
+Errors need context, but context must be controlled.
+
+Useful context:
+
+- request ID,
+- user ID or tenant ID when safe,
+- route or operation name,
+- dependency name,
+- retry attempt,
+- timeout duration,
+- feature flag state,
+- deploy version.
+
+Dangerous context:
+
+- passwords,
+- tokens,
+- full request bodies,
+- credit card data,
+- sensitive headers,
+- large payloads,
+- raw PII.
+
+### Error Wrapping
+
+```js
+try {
+  await paymentProvider.charge(input);
+} catch (error) {
+  throw new Error("Payment provider charge failed", {
+    cause: error,
+  });
+}
 ```
 
-### Example 3: Platform or Managed Capability
+Wrapping adds business context while preserving root cause.
 
-Use a platform capability when correctness, scale, compliance, or operational cost is too important for every team to solve independently.
+### Async Context
 
-```text
-Product team
-  -> platform API
-  -> centrally owned reliability, security, and observability
+Errors crossing async boundaries need correlation IDs.
+
+```js
+logger.error({ requestId, error }, "request failed");
 ```
+
+Without correlation, stack traces alone may not reconstruct distributed workflows.
+
+## 8. Common Examples
+
+### Validation Error
+
+```js
+class ValidationError extends Error {
+  constructor(message, field) {
+    super(message);
+    this.name = "ValidationError";
+    this.field = field;
+  }
+}
+```
+
+### HTTP Handler
+
+```js
+async function handler(req, res) {
+  try {
+    const user = await createUser(req.body);
+    res.statusCode = 201;
+    res.end(JSON.stringify(user));
+  } catch (error) {
+    if (error instanceof ValidationError) {
+      res.statusCode = 400;
+      res.end(JSON.stringify({ error: error.message }));
+      return;
+    }
+
+    logger.error({ error }, "create user failed");
+    res.statusCode = 500;
+    res.end(JSON.stringify({ error: "internal_error" }));
+  }
+}
+```
+
+### Retry With Backoff
+
+```js
+async function retry(operation, attempts = 3) {
+  let lastError;
+
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    try {
+      return await operation();
+    } catch (error) {
+      lastError = error;
+      await delay(attempt * 100);
+    }
+  }
+
+  throw new Error("Operation failed after retries", { cause: lastError });
+}
+```
+
+Retry only safe, idempotent operations.
+
+### Fallback
+
+```js
+async function loadRecommendations(userId) {
+  try {
+    return await recommendationService.load(userId);
+  } catch (error) {
+    logger.warn({ error, userId }, "recommendations unavailable");
+    return [];
+  }
+}
+```
+
+Fallback is appropriate when degraded behavior is acceptable.
+
+### Fail Closed
+
+```js
+async function canAccess(user, resource) {
+  try {
+    return await policy.check(user, resource);
+  } catch (error) {
+    logger.error({ error }, "policy check failed");
+    return false;
+  }
+}
+```
+
+Security checks should usually fail closed.
 
 ## 9. Confusing / Tricky Examples
 
-### Confusion 1: The Name Sounds Simple
+### Throwing Strings
 
-Many developers can define Error Handling, but cannot trace its lifecycle or failure modes. Interviewers often move quickly from definition to edge cases.
+```js
+throw "failed";
+```
 
-### Confusion 2: Local Behavior Differs From Production
+Avoid this. Strings do not provide normal stack/error metadata.
 
-Local environments rarely reproduce production traffic, data shape, dependency latency, permissions, deploy overlap, or noisy neighbors.
+### Catching Too Broadly
 
-### Confusion 3: The Happy Path Hides Ownership
+```js
+try {
+  return parse(input);
+} catch {
+  return {};
+}
+```
 
-If no one owns the failure path, monitoring, documentation, migration plan, or rollback process, the design is incomplete.
+This hides bugs and corrupts data.
 
-### Confusion 4: Optimization Before Measurement
+### Swallowing Promise Rejection
 
-Optimizing Error Handling without baseline data can make the system harder to debug while failing to improve the real bottleneck.
+```js
+doWork().catch(() => {});
+```
+
+If intentional, document why and emit observability.
+
+### `finally` Suppression
+
+```js
+try {
+  throw new Error("original");
+} finally {
+  throw new Error("cleanup failed");
+}
+```
+
+The cleanup error can mask the original error.
+
+### Async Timer Error
+
+```js
+try {
+  setTimeout(() => {
+    throw new Error("boom");
+  }, 0);
+} catch {
+  // not caught
+}
+```
+
+Handle inside the callback or use promise-based wrappers.
+
+### `fetch` And HTTP Errors
+
+```js
+const response = await fetch("/missing");
+```
+
+`fetch` does not reject for HTTP 404/500. Check `response.ok`.
 
 ## 10. Real Production Use Cases
 
-Error Handling appears in production anywhere JavaScript Core needs predictable behavior across real users, real traffic, real failures, and real team boundaries.
+### API Error Mapping
 
-Used in:
+Map internal errors to safe external responses:
 
-- frontend apps, Node.js services, SDKs, libraries, build pipelines, and shared platform packages,
-- payment and billing workflows,
-- authentication and authorization flows,
-- admin and internal platforms,
-- realtime or async processing,
-- reporting and analytics,
-- compliance and audit trails,
-- incident response and operational runbooks.
+```txt
+ValidationError -> 400
+AuthError -> 401
+ForbiddenError -> 403
+NotFoundError -> 404
+DependencyTimeout -> 503
+UnknownError -> 500
+```
 
-Production makes this harder because:
+Do not expose internal stack traces to users.
 
-- inputs are messy,
-- clients and services run different versions,
-- dependencies degrade before they fail,
-- retries multiply load,
-- dashboards show symptoms before root cause,
-- ownership is split across teams.
+### Frontend Error Boundaries
 
-## Architecture Decisions
+React error boundaries catch render errors, not async event-handler errors.
 
-When designing around Error Handling, compare multiple approaches.
+Use both UI boundaries and async error reporting.
 
-| Approach | Use When | Trade-Off |
-|---|---|---|
-| Inline/local logic | Small scope, low risk, one owner | Fast to build, easier to duplicate |
-| Shared library | Same logic repeated across modules | Versioning and rollout become important |
-| Service/API boundary | Multiple consumers need stable behavior | Network, latency, and ownership overhead |
-| Platform capability | High scale, compliance, or reliability needs | Requires platform maturity and governance |
-| Managed service | Commodity capability with strong provider support | Less control, provider constraints |
+### Background Jobs
 
-Decision questions:
+Job errors need retry policy:
 
-- What is the blast radius if this breaks?
-- Who owns the contract?
-- How often will it change?
-- What must be observable?
-- What happens during rollback?
-- What is the simplest design that satisfies current correctness and scale?
+- retryable vs non-retryable,
+- max attempts,
+- dead-letter queue,
+- idempotency,
+- alerting after repeated failure.
+
+### Payments
+
+Payment errors require careful classification:
+
+- card declined,
+- provider timeout,
+- duplicate request,
+- unknown result,
+- fraud hold,
+- reconciliation required.
+
+### Observability
+
+Production errors need:
+
+- structured logs,
+- metrics,
+- traces,
+- error grouping,
+- release version,
+- customer impact,
+- alert routing.
 
 ## 11. Interview Questions
 
-1. What is Error Handling, and why does it matter in JavaScript Core?
-2. What problem does it solve inside 001.04 Production JavaScript?
-3. How does it work internally?
-4. What are the most common edge cases?
-5. What failure modes appear only in production?
-6. How would you implement a minimal version?
-7. How would you test it?
-8. How would you debug a production issue related to it?
-9. What metrics or logs would you add?
-10. How does the design change at 10x traffic, data, or team size?
-11. What trade-offs exist between simple implementation and platform abstraction?
-12. What senior-level mistake do engineers make with this topic?
+1. What is the difference between throw and return-error patterns?
+2. How does `try/catch` work with async/await?
+3. Why does `try/catch` not catch a timer callback throw?
+4. What is an unhandled promise rejection?
+5. How do you design custom error classes?
+6. What is `Error.cause` useful for?
+7. What is the difference between operational and programmer errors?
+8. When should you retry?
+9. When should you not retry?
+10. What does fail closed mean?
+11. How should API errors be mapped to HTTP status codes?
+12. How do you avoid leaking secrets in errors?
+13. How do you preserve stack traces?
+14. How do frontend error boundaries work?
+15. How would you debug a production spike in errors?
 
 ## 12. Senior-Level Pitfalls
 
-### Pitfall 1: Treating It As Isolated Trivia
+### Pitfall 1: Swallowing Errors
 
-Error Handling is connected to runtime behavior, architecture, operations, and team ownership. A narrow definition is not enough.
+```js
+catch (error) {
+  return null;
+}
+```
 
-### Pitfall 2: Ignoring Failure Semantics
+This converts unknown failure into ambiguous data.
 
-A design that only explains success is not production-ready. Define timeout, retry, cancellation, idempotency, rollback, and cleanup behavior.
+### Pitfall 2: Retrying Non-Idempotent Operations
 
-### Pitfall 3: Missing Observability
+Retrying payment capture or order creation without idempotency can duplicate side effects.
 
-If the system cannot prove what happened, debugging becomes guesswork. Add logs, metrics, traces, and structured identifiers at decision points.
+### Pitfall 3: Logging Sensitive Data
 
-### Pitfall 4: Hidden Shared State
+```js
+logger.error({ body: req.body }, "request failed");
+```
 
-Shared state without clear ownership creates race conditions, stale reads, memory leaks, and cross-request contamination.
+This can leak PII or secrets.
 
-### Pitfall 5: Premature Abstraction
+### Pitfall 4: One Generic Error Type
 
-Abstracting too early can freeze weak assumptions. Wait until the repeated shape is stable, then extract a clear interface.
+If every failure becomes `Error("failed")`, callers cannot choose correct recovery.
+
+### Pitfall 5: Alerting On User Mistakes
+
+Validation errors should not page the on-call team.
+
+### Pitfall 6: Hiding Root Cause
+
+Wrapping without `cause` loses the original stack and message.
 
 ## 13. Best Practices
 
-- Start with a precise definition.
-- Identify the owner and boundary.
-- Make inputs, outputs, and invariants explicit.
-- Prefer simple local design until the pressure for abstraction is real.
-- Test normal, edge, and failure paths.
-- Add observability before relying on the behavior in production.
-- Keep resource usage bounded.
-- Document assumptions and trade-offs.
-- Design rollback and migration paths.
-- Revisit the decision when scale, team count, or correctness requirements change.
+- Throw `Error` objects, not strings.
+- Use custom errors for meaningful domain categories.
+- Preserve root cause with `cause`.
+- Catch errors at boundaries where you can add context or recover.
+- Do not catch just to hide errors.
+- Validate inputs before business logic.
+- Separate user-safe messages from internal logs.
+- Retry only safe operations.
+- Add timeouts to dependency calls.
+- Fail closed for security and authorization.
+- Add structured logs with correlation IDs.
+- Avoid logging secrets or large payloads.
+- Test failure paths, not only happy paths.
 
 ## 14. Debugging Scenarios
 
-### Scenario 1: Works Locally, Fails In Production
+### Scenario 1: API Returns 500 For Bad Input
 
-Likely causes:
+Cause: validation error is not classified.
 
-- different configuration,
-- different data shape,
-- missing permissions,
-- dependency latency,
-- concurrency,
-- version mismatch.
+Fix:
 
-Debugging steps:
-
-1. Compare environment configuration.
-2. Capture one failing input.
-3. Trace the request or workflow end to end.
-4. Check deploy, data, and dependency timelines.
-5. Reproduce with production-like constraints.
-
-### Scenario 2: Intermittent Failure
-
-Likely causes:
-
-- race condition,
-- retry interaction,
-- shared mutable state,
-- timeout boundary,
-- cache inconsistency,
-- queue ordering.
-
-Debugging steps:
-
-1. Group failures by tenant, version, region, and dependency.
-2. Inspect p95 and p99 instead of averages.
-3. Add correlation IDs.
-4. Check whether retries amplify the issue.
-5. Verify cleanup and idempotency.
-
-### Scenario 3: Performance Regression
-
-Likely causes:
-
-- unbounded work,
-- inefficient query or algorithm,
-- larger payload,
-- cache miss pattern,
-- excessive serialization,
-- synchronous work on a critical path.
-
-Debugging steps:
-
-1. Establish baseline.
-2. Profile the hot path.
-3. Compare before and after deploy.
-4. Measure resource saturation.
-5. Optimize the proven bottleneck only.
-
-### Scenario 4: Memory Or Resource Growth
-
-Likely causes:
-
-- retained references,
-- unbounded queue,
-- missing cleanup,
-- long-lived subscriptions,
-- growing cache,
-- connection leak.
-
-Debugging steps:
-
-1. Capture heap, CPU, or resource profile.
-2. Inspect retainers or open handles.
-3. Confirm lifecycle cleanup.
-4. Add bounds and eviction.
-5. Verify recovery after load drops.
-
-## Diagrams
-
-Dedicated diagrams are available in [diagrams.md](./diagrams.md).
-
-### Concept Flow
-
-```mermaid
-flowchart TD
-  A[Input or trigger] --> B[Validate assumptions]
-  B --> C[Enter 001.04 Production JavaScript boundary]
-  C --> D[Apply Error Handling]
-  D --> E[Read or change state]
-  E --> F[Return result]
-  F --> G[Emit telemetry]
+```js
+if (error instanceof ValidationError) {
+  return send(400, { error: error.message });
+}
 ```
 
-### Failure Flow
+### Scenario 2: Unhandled Promise Rejection
 
-```mermaid
-flowchart TD
-  A[Unexpected behavior] --> B{Input valid?}
-  B -->|No| C[Fix validation or caller contract]
-  B -->|Yes| D{State correct?}
-  D -->|No| E[Inspect ownership, mutation, cache, or ordering]
-  D -->|Yes| F{Dependency healthy?}
-  F -->|No| G[Check timeout, retry, fallback, and saturation]
-  F -->|Yes| H[Inspect implementation assumptions and edge cases]
+```js
+async function run() {
+  throw new Error("failed");
+}
+
+run();
 ```
 
-### Production Readiness Loop
+Fix:
 
-```text
-Design
-  -> implement
-  -> test
-  -> instrument
-  -> deploy safely
-  -> observe
-  -> learn
-  -> refine
+```js
+run().catch((error) => logger.error({ error }, "run failed"));
 ```
+
+Or `await run()` inside an async boundary.
+
+### Scenario 3: Unknown Payment Result
+
+If a payment provider times out after receiving the request, retrying blindly may double-charge.
+
+Fix:
+
+- use idempotency key,
+- query provider state,
+- reconcile before retry,
+- record durable attempt state.
+
+### Scenario 4: Error Spike After Deploy
+
+Debugging steps:
+
+1. Group errors by release version.
+2. Check top stack frames.
+3. Compare affected routes/tenants.
+4. Inspect recent config changes.
+5. Roll back or disable feature flag.
+6. Add regression test for the failure.
+
+### Scenario 5: Frontend Blank Screen
+
+Likely causes:
+
+- render error without boundary,
+- chunk loading failure,
+- unhandled async error,
+- incompatible API response.
+
+Fix:
+
+- add error boundary,
+- report errors,
+- show fallback UI,
+- validate API response shape.
+
+### Scenario 6: Cleanup Masks Original Error
+
+```js
+try {
+  await writeData();
+} finally {
+  await cleanup(); // throws and hides writeData error
+}
+```
+
+Fix: catch cleanup errors separately and preserve both contexts.
 
 ## 15. Exercises / Practice
 
 ### Exercise 1
 
-Explain Error Handling in your own words using three levels:
+Explain why this does not catch:
 
-- beginner explanation,
-- intermediate internal explanation,
-- senior production explanation.
+```js
+try {
+  setTimeout(() => {
+    throw new Error("boom");
+  }, 0);
+} catch {}
+```
 
 ### Exercise 2
 
-Draw the lifecycle for Error Handling:
-
-```text
-input -> decision -> state change -> output -> telemetry
-```
-
-Mark where validation, failure handling, and cleanup happen.
+Write a `ValidationError` and map it to HTTP 400.
 
 ### Exercise 3
 
-Write one example where Error Handling works correctly and one where it fails because of an edge case.
+Fix this swallowed error:
+
+```js
+try {
+  await save();
+} catch {
+  return null;
+}
+```
 
 ### Exercise 4
 
-Create a debugging checklist for a production incident involving Error Handling. Include logs, metrics, traces, and rollback options.
+Design retry rules for:
+
+- GET profile,
+- POST payment charge,
+- sending analytics,
+- updating password.
 
 ### Exercise 5
 
-Compare two architecture choices for this topic and explain when each is better.
+Wrap a dependency error with `cause` and safe context.
+
+### Exercise 6
+
+Create a logging payload that includes request ID and operation name but excludes secrets.
 
 ## 16. Comparison
 
-Compare Error Handling with nearby or competing concepts.
+### Throw vs Result Object
 
-Comparison prompts:
-
-- What problem does each option solve?
-- Which one is simpler?
-- Which one is safer?
-- Which one scales better?
-- Which one is easier to debug?
-- Which one has better ecosystem or platform support?
-
-Decision table:
-
-| Option | Prefer When | Avoid When |
+| Approach | Use When | Risk |
 |---|---|---|
-| Error Handling | It directly matches the invariant and ownership boundary | The abstraction hides important failure behavior |
-| Simpler local approach | Scope is small, low risk, and easy to test | Logic is duplicated across many teams |
-| Shared/platform approach | Correctness, scale, or governance matters | The contract is still changing rapidly |
+| Throw exception | unexpected failure or boundary abort | overused for normal validation |
+| Result object | expected business outcome | caller may ignore error branch |
+
+### Operational vs Programmer Error
+
+| Type | Example | Handling |
+|---|---|---|
+| Operational | timeout, invalid input, rate limit | recover, retry, fallback, return safe response |
+| Programmer | undefined variable, invariant broken | log, alert, fix bug, maybe fail fast |
+
+### Retry vs Fallback vs Fail
+
+| Strategy | Use When |
+|---|---|
+| Retry | transient, idempotent, bounded |
+| Fallback | degraded result is acceptable |
+| Fail closed | security/correctness risk |
+| Fail open | availability matters more and risk is acceptable |
 
 ## 17. Related Concepts
 
-Error Handling connects to the rest of the knowledge tree.
+Prerequisites:
 
-Study links:
+- Call Stack
+- Event Loop and Tasks
+- Promises and Async/Await
+- Scope and Closures
 
-- Parent category: JavaScript Core
-- Parent topic: 001.04 Production JavaScript
-- Internal flow and diagrams: [diagrams.md](./diagrams.md)
-- Practice files in this folder: debugging, questions, exercises, and review notes
+Direct follow-ups:
 
-Related concept types:
+- Production Debugging
+- Incident Management
+- Observability
+- Logging
+- Monitoring
+- API Design
+- Reliability Engineering
 
-- prerequisites that make this topic easier,
-- follow-up topics that build on it,
-- architecture concepts that use it,
-- production concerns that expose its limits,
-- interview patterns that test it indirectly.
+Production connections:
+
+- HTTP status mapping,
+- retries and backoff,
+- idempotency,
+- circuit breakers,
+- dead-letter queues,
+- frontend error boundaries,
+- distributed tracing,
+- alert design.
+
+Knowledge graph:
+
+```txt
+Failure
+  -> classify
+    -> recover / retry / fallback / fail
+      -> log and trace
+        -> alert if actionable
+          -> fix or mitigate
+```
 
 ## Advanced Add-ons
 
 ### Performance Impact
 
-- Time complexity: identify whether work is constant, linear, logarithmic, fan-out, or unbounded.
-- Memory usage: identify retained data, copied data, cached data, and cleanup timing.
-- Hot path risk: determine whether this runs per request, per render, per event, per query, or per deployment.
-- Measurement: use baselines, profiling, p95/p99, and resource saturation before optimizing.
+Creating and throwing errors has cost, especially stack capture.
+
+Guidelines:
+
+- do not use exceptions for tight-loop control flow,
+- avoid huge error metadata,
+- sample noisy expected errors,
+- preserve enough context for debugging,
+- watch error storms after dependency failures.
 
 ### System Design Relevance
 
-Error Handling matters in system design when it affects boundaries, contracts, scaling behavior, correctness, or operational ownership.
+Error handling defines system reliability behavior.
 
-Ask:
+Design questions:
 
-- Does it belong inside a module, service, shared library, platform layer, or managed service?
-- What is the blast radius if it fails?
-- What happens at 10x traffic, data, tenants, regions, or teams?
-- What reliability, observability, and rollback strategy is required?
+- Who owns this failure?
+- Is it retryable?
+- Is it idempotent?
+- Is fallback safe?
+- Should users see this?
+- Should on-call be alerted?
+- What is the blast radius?
 
 ### Security Impact
 
-Security relevance depends on whether Error Handling touches input, identity, authorization, secrets, user data, logs, dependencies, or execution boundaries.
+Error handling can leak information or fail insecurely.
 
-Check:
+Risks:
 
-- validation and sanitization,
-- least privilege,
-- sensitive data exposure,
-- injection or confused-deputy risks,
-- auditability and compliance requirements.
+- stack traces exposed to users,
+- tokens logged,
+- authorization failures treated as success,
+- fail-open behavior on policy errors,
+- detailed auth messages enabling enumeration.
+
+Defenses:
+
+- safe external messages,
+- structured internal logs,
+- secret redaction,
+- fail closed for security checks,
+- consistent auth error responses.
 
 ### Browser vs Node Behavior
 
-If this topic appears in JavaScript runtimes, compare browser and Node.js behavior:
+Browser:
 
-- global object and module scope,
-- event loop and task queues,
-- API availability,
-- security sandbox,
-- file, network, and process access,
-- debugging and profiling tools.
+- global `window.onerror`,
+- `unhandledrejection` event,
+- framework error boundaries,
+- chunk loading errors,
+- user-facing fallback UI.
 
-For non-runtime topics, compare local development, CI, staging, and production behavior instead.
+Node.js:
+
+- unhandled promise rejection handling depends on runtime/config,
+- uncaught exceptions may require process restart,
+- server frameworks provide error middleware/filters,
+- background jobs need retry/dead-letter behavior.
 
 ### Polyfill / Implementation
 
-Staff-level understanding includes knowing whether you can implement a simplified version yourself.
+Implement safe wrappers and domain errors.
 
-Implementation prompts:
+```js
+class AppError extends Error {
+  constructor(message, { code, status, cause } = {}) {
+    super(message, { cause });
+    this.name = "AppError";
+    this.code = code;
+    this.status = status;
+  }
+}
+```
 
-- What is the smallest correct version?
-- Which edge cases are intentionally unsupported?
-- Which behavior must match platform semantics?
-- What tests prove compatibility?
-- When is using a proven library safer than custom implementation?
+Boundary wrapper:
+
+```js
+async function withErrorLogging(operation, context) {
+  try {
+    return await operation();
+  } catch (error) {
+    logger.error({ error, ...context }, "operation failed");
+    throw error;
+  }
+}
+```
+
+Staff-level takeaway: production error handling is a contract between code, users, operators, and business risk.
 
 ## 18. Summary
 
-Error Handling is a practical engineering topic, not just a vocabulary item. Mastery means you can define it, implement it, reason about internals, predict edge cases, debug failures, and explain trade-offs.
+Error handling is production control flow for failure.
 
 Remember:
 
-- Start from first principles.
-- Identify boundaries and ownership.
-- Understand execution and resource behavior.
-- Design for failure, not only success.
-- Add observability.
-- Keep the simplest design that satisfies correctness and scale.
-- Revisit the design as production pressure changes.
+- throw `Error` objects,
+- classify errors by meaning,
+- catch at boundaries where you can recover or add context,
+- do not swallow unknown failures,
+- `try/catch` catches awaited rejections, not un-awaited async work,
+- preserve causes,
+- retry only safe idempotent operations,
+- fail closed for security,
+- avoid leaking sensitive data,
+- make errors observable with logs, metrics, traces, and correlation IDs,
+- test failure paths as seriously as happy paths.

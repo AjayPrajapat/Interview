@@ -1,630 +1,1538 @@
 # 001.04.02 Performance Profiling
 
-Category: JavaScript Core
-
+Category: JavaScript Core<br>
 Topic: 001.04 Production JavaScript
+
+Performance profiling is the disciplined process of measuring where JavaScript code spends time, allocates memory, blocks the event loop, delays rendering, waits on I/O, or burns infrastructure cost. It turns "the app feels slow" into evidence: traces, profiles, heap snapshots, timings, counters, and reproducible bottlenecks.
+
+The senior skill is not knowing one profiler button. The senior skill is knowing which question you are asking, collecting the right signal with acceptable overhead, separating symptoms from causes, and proving that the fix improved the real user or system outcome.
+
+---
 
 ## 1. Definition
 
-Performance Profiling is a focused engineering concept inside 001.04 Production JavaScript. It describes a behavior, design choice, implementation technique, or operational concern that engineers must understand deeply to build reliable systems in JavaScript Core.
+Performance profiling is runtime measurement that identifies bottlenecks in execution time, memory allocation, event-loop responsiveness, rendering, network waiting, I/O, and resource contention.
 
-At a practical level, this topic answers:
+One-line definition:
 
-- what problem it solves,
-- what boundary it belongs to,
-- what assumptions it depends on,
-- how it behaves during normal execution,
-- how it fails under pressure,
-- and how to reason about it in production.
+- Performance profiling is evidence-driven diagnosis of where a JavaScript system consumes time and resources.
 
-The goal is not only to recognize the term. The goal is to explain Performance Profiling from first principles, apply it in code or architecture, debug it when it breaks, and defend trade-offs in an interview or design review.
+Expanded definition:
+
+- In the browser, profiling often focuses on main-thread work, rendering, layout, paint, JavaScript execution, network waterfalls, Web Vitals, memory leaks, hydration cost, and interaction latency.
+- In Node.js, profiling often focuses on CPU hot paths, event-loop delay, garbage collection, async resource lifetime, memory growth, promise churn, I/O latency, worker saturation, and dependency overhead.
+- In production systems, profiling connects low-level runtime data to business and reliability outcomes: checkout latency, chat message delay, API p99, page interaction responsiveness, worker throughput, cloud cost, and incident recovery.
+
+Profiling is different from casual timing. A `console.time()` can be useful, but performance profiling usually requires repeatability, representative data, controlled experiments, and a clear hypothesis.
+
+---
 
 ## 2. Why It Exists
 
-Performance Profiling exists because real systems need explicit rules for correctness, ownership, execution, and change. Without this concept, teams usually rely on implicit assumptions, and implicit assumptions become bugs when systems grow.
+Performance profiling exists because intuition is unreliable in complex JavaScript systems.
 
-This topic matters because it helps engineers:
+Common false assumptions:
 
-- reduce ambiguity in 001.04 Production JavaScript,
-- make behavior easier to test and review,
-- prevent local decisions from creating system-level failures,
-- identify performance and reliability limits before production incidents,
-- communicate trade-offs clearly across frontend, backend, platform, security, and product teams.
+- "This loop must be slow" when the real bottleneck is JSON serialization.
+- "The API is slow" when the browser main thread is blocked during hydration.
+- "The database is slow" when the Node process is CPU-bound parsing payloads.
+- "React is slow" when the app recreates unstable props and invalidates memoization.
+- "Memory is fine" when retained closures keep old request data alive.
 
-You should understand this before moving deeper because later topics often depend on the same mental models: state ownership, lifecycle timing, API contracts, failure handling, scaling pressure, and observability.
+Profiling solves these problems:
+
+- It identifies the real constraint before optimization work starts.
+- It shows whether the bottleneck is CPU, memory, network, I/O, rendering, locking, queueing, or runtime overhead.
+- It provides before-and-after evidence.
+- It prevents micro-optimizations that make code harder to maintain but do not improve user experience.
+- It gives production teams a shared language for latency, throughput, saturation, and cost.
+
+Why it matters before deeper production topics:
+
+- You cannot set capacity plans without understanding resource use.
+- You cannot improve reliability if CPU or memory pressure is invisible.
+- You cannot debug production incidents if profiles, metrics, and traces are missing.
+- You cannot make Staff-level architecture decisions if performance trade-offs are guessed instead of measured.
+
+---
 
 ## 3. Syntax & Variants
 
-Not every engineering topic has programming syntax, but every topic has an interface shape. The interface shape is how the concept appears to the rest of the system.
+JavaScript has several profiling surfaces. They are not equivalent; each answers a different question.
 
-In JavaScript Core, Performance Profiling commonly appears as a function, type, object, runtime behavior, data structure, or algorithm.
-
-Typical shape:
+### Browser timing APIs
 
 ```ts
-type PerformanceProfilingInput = {
+performance.mark("checkout:start");
+
+await submitCheckout(order);
+
+performance.mark("checkout:end");
+performance.measure("checkout", "checkout:start", "checkout:end");
+
+const [measure] = performance.getEntriesByName("checkout");
+console.log(measure.duration);
+```
+
+Use for custom client-side milestones.
+
+### Browser PerformanceObserver
+
+```ts
+const observer = new PerformanceObserver((list) => {
+  for (const entry of list.getEntries()) {
+    console.log(entry.entryType, entry.name, entry.duration);
+  }
+});
+
+observer.observe({
+  type: "longtask",
+  buffered: true,
+});
+```
+
+Use for observing browser performance entries such as long tasks, resource timings, navigation timings, layout shifts, and measures.
+
+### Web Vitals style signal collection
+
+```ts
+type VitalMetric = {
+  name: "LCP" | "CLS" | "INP" | "TTFB";
+  value: number;
   id: string;
-  payload: unknown;
 };
 
-type PerformanceProfilingResult =
-  | { ok: true; value: unknown }
-  | { ok: false; error: string; retryable: boolean };
-
-export function handlePerformanceProfiling(
-  input: PerformanceProfilingInput,
-): PerformanceProfilingResult {
-  if (!input.id) {
-    return { ok: false, error: "missing_id", retryable: false };
-  }
-
-  try {
-    const value = input.payload;
-    return { ok: true, value };
-  } catch {
-    return { ok: false, error: "unexpected_failure", retryable: true };
-  }
+function sendVital(metric: VitalMetric) {
+  navigator.sendBeacon(
+    "/rum",
+    JSON.stringify({
+      name: metric.name,
+      value: metric.value,
+      id: metric.id,
+      url: location.pathname,
+    }),
+  );
 }
 ```
 
-When reading or writing code for this topic, identify:
+Use for real-user monitoring rather than local lab-only profiling.
 
-- the input boundary,
-- the output contract,
-- the state being read or changed,
-- the owner of the behavior,
-- the failure path,
-- the observability signal.
+### Node.js high-resolution timing
 
-Variants to identify:
+```ts
+const start = process.hrtime.bigint();
 
-- direct language or framework syntax,
-- configuration shape,
-- API or interface shape,
-- runtime behavior shape,
-- rare edge syntax or unusual usage,
-- legacy forms that still appear in production.
+await handler(request);
+
+const durationMs = Number(process.hrtime.bigint() - start) / 1_000_000;
+console.log({ durationMs });
+```
+
+Use when wall-clock duration matters in backend execution paths.
+
+### Node.js performance API
+
+```ts
+import { performance, PerformanceObserver } from "node:perf_hooks";
+
+const obs = new PerformanceObserver((items) => {
+  for (const entry of items.getEntries()) {
+    console.log(entry.name, entry.duration);
+  }
+});
+
+obs.observe({ entryTypes: ["measure"] });
+
+performance.mark("handler:start");
+await handleRequest();
+performance.mark("handler:end");
+performance.measure("handler", "handler:start", "handler:end");
+```
+
+Use when you want browser-like marks and measures inside Node.
+
+### Event-loop delay monitoring
+
+```ts
+import { monitorEventLoopDelay } from "node:perf_hooks";
+
+const histogram = monitorEventLoopDelay({ resolution: 20 });
+histogram.enable();
+
+setInterval(() => {
+  console.log({
+    p99Ms: histogram.percentile(99) / 1_000_000,
+    meanMs: histogram.mean / 1_000_000,
+  });
+  histogram.reset();
+}, 10_000);
+```
+
+Use to detect CPU blocking, synchronous work, GC pressure, and process saturation.
+
+### CPU profiling
+
+Common options:
+
+- Chrome DevTools Performance panel for browser CPU and rendering.
+- Chrome DevTools connected to Node with `node --inspect`.
+- Node CPU profiles with the inspector protocol.
+- Linux `perf`, eBPF tooling, or cloud profiler in production-like environments.
+- Framework profilers such as React DevTools Profiler or Angular DevTools.
+
+### Heap profiling
+
+Common options:
+
+- Browser Memory panel heap snapshots.
+- Node heap snapshots through inspector.
+- Allocation timelines.
+- Retainer path inspection.
+- Production heap dumps with strict access control.
+
+### Flame chart reading vocabulary
+
+```text
+Wide frame     -> function consumed significant time.
+Tall stack     -> deep call chain, not necessarily expensive.
+Self time      -> time spent inside that function only.
+Total time     -> time spent inside function plus children.
+Idle gap       -> waiting, scheduling, network, I/O, or browser idle.
+Long task      -> browser main-thread task over 50 ms.
+GC block       -> runtime garbage collection pause or pressure.
+```
+
+---
 
 ## 4. Internal Working
 
-The internal working of Performance Profiling should be understood as a lifecycle, not as a definition.
+Profiling works by sampling, instrumentation, tracing, or snapshotting.
 
-```text
-Input / trigger
-  -> validate assumptions
-  -> enter 001.04 Production JavaScript boundary
-  -> apply Performance Profiling rules
-  -> read or update state
-  -> handle success, failure, or partial success
-  -> emit observable signal
-  -> return result or continue workflow
+### High-level profiling flow
+
+```mermaid
+flowchart TD
+  A["Performance Symptom"] --> B["Define Hypothesis"]
+  B --> C["Choose Signal"]
+  C --> D["Capture Profile"]
+  D --> E["Analyze Hot Path"]
+  E --> F["Change One Thing"]
+  F --> G["Re-measure"]
+  G --> H{"Improved Real Metric?"}
+  H -->|Yes| I["Keep and Document"]
+  H -->|No| J["Revert or Try Next Hypothesis"]
+  J --> B
 ```
 
-For this topic, inspect the real mechanism behind the abstraction:
+### Sampling profilers
 
-- engine, compiler, type system, memory model, call stack, event loop, and module boundary,
-- ordering and timing,
-- ownership of mutable state,
-- limits and resource usage,
-- retry, cancellation, cleanup, and rollback behavior,
-- how the behavior changes between local development, CI, staging, and production.
+Sampling profilers interrupt the runtime periodically and record the current call stack.
 
-Senior engineers do not stop at "it works." They ask what the runtime must do, what it keeps in memory, what it sends over the network, what can be retried, what can be duplicated, and what must be protected by invariants.
+```text
+Time passes
+  -> profiler samples stack every N interval
+  -> stacks are aggregated
+  -> frequently observed frames become hot paths
+  -> output becomes flame chart / call tree / bottom-up view
+```
+
+Sampling has low overhead compared with tracing every function call, but it can miss very short-lived work and distort tiny benchmarks.
+
+### Instrumentation profilers
+
+Instrumentation records explicit boundaries.
+
+```ts
+performance.mark("parse:start");
+const parsed = JSON.parse(payload);
+performance.mark("parse:end");
+performance.measure("parse", "parse:start", "parse:end");
+```
+
+Instrumentation is useful when you already know the business or architectural boundary you care about: route load, checkout submit, API handler, queue job, hydration, search indexing, cache lookup.
+
+### Tracing
+
+Tracing connects spans across services or async boundaries.
+
+```text
+Browser click
+  -> frontend span
+  -> BFF span
+  -> payment service span
+  -> database span
+  -> provider call span
+```
+
+Tracing answers: where did this request wait?
+
+### Heap snapshots
+
+Heap snapshots capture objects currently reachable from GC roots.
+
+```text
+GC roots
+  -> module variables
+  -> closures
+  -> timers
+  -> DOM nodes
+  -> caches
+  -> request objects
+  -> retained heap
+```
+
+Heap snapshots answer: why is this memory still alive?
+
+### Engine-level view
+
+In V8-based runtimes, profiling can expose:
+
+- optimized and deoptimized functions,
+- hidden class instability,
+- inline cache behavior,
+- garbage collection pressure,
+- promise and async hook overhead,
+- C++ runtime frames around JavaScript frames,
+- serialization and parsing cost.
+
+You do not need to memorize every V8 internal to profile well, but you must know that code shape affects optimization, allocation, and GC behavior.
+
+---
 
 ## 5. Memory Behavior
 
-Every topic consumes or protects memory, state, or another resource. For Performance Profiling, reason about memory and resource behavior explicitly.
+Performance problems are often memory problems wearing a latency mask.
 
-Common resources:
+### Memory costs during profiling
 
-- memory and retained references,
-- CPU and event-loop time,
-- network calls and connection pools,
-- database locks, indexes, and storage,
-- queue depth and worker capacity,
-- browser main-thread budget,
-- cloud cost and operational attention.
+Profiling can allocate memory itself:
 
-Resource model:
+- Performance entries stay in buffers until cleared or collected.
+- Traces and profiles can become large.
+- Heap snapshots can pause the process and require significant memory.
+- High-cardinality labels can overload telemetry systems.
+- Debug logging can allocate strings and increase I/O pressure.
+
+### JavaScript memory pressure sources
 
 ```text
-Work enters system
-  -> resource is allocated
-  -> work is processed
-  -> resource is released, retained, cached, or leaked
+Incoming work
+  -> objects allocated
+  -> closures capture state
+  -> arrays/maps/caches retain references
+  -> GC runs more often
+  -> CPU time shifts from useful work to collection
+  -> latency rises
 ```
 
-Production questions:
+Common allocations that profiling reveals:
 
-- What grows with traffic?
-- What grows with data size?
-- What grows with number of tenants, teams, or services?
-- What is bounded?
-- What can leak?
-- What needs cleanup?
-- What metric proves the resource behavior is healthy?
+- repeated JSON parse/stringify,
+- per-request object cloning,
+- large array transformations,
+- `map().filter().reduce()` chains on big collections,
+- unstable React render props,
+- unbounded caches,
+- retained DOM nodes,
+- closures holding request/session data,
+- metrics labels with unbounded user IDs,
+- async callbacks retaining large payloads.
 
-For JavaScript Core, watch runtime errors, latency, memory growth, bundle size, CPU time, test failures, and defect rate.
+### Heap profiling mental model
+
+```mermaid
+flowchart TD
+  A["Object Allocated"] --> B{"Still Reachable?"}
+  B -->|No| C["Collectable by GC"]
+  B -->|Yes| D["Retained"]
+  D --> E{"Expected Owner?"}
+  E -->|Yes| F["Cache / State / Pool"]
+  E -->|No| G["Leak Candidate"]
+  G --> H["Inspect Retainer Path"]
+```
+
+Key terms:
+
+- Shallow size: memory used by the object itself.
+- Retained size: memory freed if that object became unreachable.
+- Retainer path: chain of references keeping an object alive.
+- Allocation rate: how quickly new objects are created.
+- Promotion: objects surviving young-generation GC and moving to older memory areas.
+
+### Production memory warning signs
+
+- RSS grows even when traffic returns to normal.
+- Heap used grows in a staircase pattern after GC.
+- p99 latency spikes during GC.
+- Container restarts with out-of-memory events.
+- Browser tab becomes slow after long sessions.
+- Workers process fewer jobs over time.
+
+---
 
 ## 6. Execution Behavior
 
-Execution behavior describes what actually happens when the system runs.
+Performance profiling must respect execution order.
 
-Trace Performance Profiling through:
+### Browser execution path
 
-- the happy path,
-- invalid input,
-- missing dependency,
-- slow dependency,
-- concurrent execution,
-- retry after timeout,
-- duplicate request or event,
-- deploy with old and new versions running together,
-- cleanup after failure.
+```mermaid
+sequenceDiagram
+  participant User
+  participant Browser
+  participant JS as JavaScript
+  participant Render as Render Pipeline
+  participant Network
 
-Execution timeline:
-
-```text
-Before
-  -> required state and configuration exist
-During
-  -> core behavior runs and may touch dependencies
-After
-  -> result, side effects, and telemetry are visible
-Failure
-  -> caller receives error, retry, fallback, or compensation path
+  User->>Browser: click / input / navigation
+  Browser->>JS: run event handler
+  JS->>Network: fetch data
+  JS->>JS: compute / update state
+  JS->>Render: style / layout / paint
+  Render-->>User: visual response
 ```
 
-The most important question is: what invariant must remain true even if the execution path is interrupted?
+Browser performance problems commonly happen when JavaScript monopolizes the main thread before the browser can handle input or paint.
+
+### Node execution path
+
+```mermaid
+sequenceDiagram
+  participant Client
+  participant Node as Node Event Loop
+  participant Handler
+  participant DB
+  participant CPU as CPU Work
+
+  Client->>Node: request
+  Node->>Handler: invoke route
+  Handler->>DB: async query
+  DB-->>Handler: result
+  Handler->>CPU: parse / validate / serialize
+  CPU-->>Handler: response body
+  Handler-->>Client: response
+```
+
+Node performance problems commonly happen when synchronous CPU work blocks other requests from making progress.
+
+### Wall time vs CPU time
+
+```text
+Wall time = real elapsed time.
+CPU time  = time actually spent executing on CPU.
+Wait time = wall time not spent executing: network, I/O, locks, queueing, timers.
+```
+
+If an API takes 2 seconds but CPU profile shows little JavaScript work, the process may be waiting on I/O, a downstream service, a database lock, or queue saturation.
+
+### Sync vs async profiling trap
+
+```ts
+console.time("work");
+setTimeout(() => {
+  expensiveWork();
+}, 100);
+console.timeEnd("work"); // Not measuring expensiveWork.
+```
+
+The timer measures scheduling, not the delayed callback. Async boundaries must be instrumented at the actual work boundary.
+
+---
 
 ## 7. Scope & Context Interaction
 
-Performance Profiling should be understood in its surrounding scope and execution context, not as an isolated detail.
+Profiling boundaries must match ownership boundaries.
 
-Scope questions:
+### Local function scope
 
-- Where is this behavior visible?
-- Who can call or mutate it?
-- What module, component, service, tenant, request, thread, worker, or transaction owns it?
-- Does it cross frontend, backend, database, queue, cache, or platform boundaries?
-- Does it behave differently inside closures, async callbacks, dependency injection scopes, request scopes, or deployment environments?
-
-Context model:
-
-```text
-Local context
-  -> module or component context
-  -> service or runtime context
-  -> system or organization context
-```
-
-For JavaScript and TypeScript topics, also check lexical scope, closure retention, module scope, global scope, and `this` behavior where applicable.
-
-## 8. Common Examples
-
-### Example 1: Local Implementation
-
-Use a local implementation when the behavior is simple, low-risk, and owned by one module or team.
+Use when you are isolating an algorithm or hot function.
 
 ```ts
-type PerformanceProfilingInput = {
-  id: string;
-  payload: unknown;
-};
+function normalizeUsers(users: User[]) {
+  performance.mark("normalize:start");
 
-type PerformanceProfilingResult =
-  | { ok: true; value: unknown }
-  | { ok: false; error: string; retryable: boolean };
+  const result = users.map(normalizeUser);
 
-export function handlePerformanceProfiling(
-  input: PerformanceProfilingInput,
-): PerformanceProfilingResult {
-  if (!input.id) {
-    return { ok: false, error: "missing_id", retryable: false };
-  }
+  performance.mark("normalize:end");
+  performance.measure("normalize", "normalize:start", "normalize:end");
 
+  return result;
+}
+```
+
+### Request scope
+
+Use for backend handlers and API routes.
+
+```ts
+async function withRequestTiming<T>(
+  route: string,
+  work: () => Promise<T>,
+): Promise<T> {
+  const start = process.hrtime.bigint();
   try {
-    const value = input.payload;
-    return { ok: true, value };
-  } catch {
-    return { ok: false, error: "unexpected_failure", retryable: true };
+    return await work();
+  } finally {
+    const durationMs = Number(process.hrtime.bigint() - start) / 1_000_000;
+    metrics.histogram("http.route.duration", durationMs, { route });
   }
 }
 ```
 
-### Example 2: Shared Abstraction
+Avoid tagging by raw URL with user IDs or order IDs. That creates high-cardinality metrics and can overload monitoring systems.
 
-Move the behavior behind a shared abstraction when multiple teams repeat the same logic and the contract is stable.
+### Component scope
 
-```text
-Consumer
-  -> stable interface
-  -> shared implementation
-  -> logs, metrics, tests, and ownership
+Use for React/Angular render and change detection questions.
+
+```tsx
+import { Profiler } from "react";
+
+function onRender(
+  id: string,
+  phase: "mount" | "update",
+  actualDuration: number,
+) {
+  console.log({ id, phase, actualDuration });
+}
+
+export function App() {
+  return (
+    <Profiler id="CheckoutSummary" onRender={onRender}>
+      <CheckoutSummary />
+    </Profiler>
+  );
+}
 ```
 
-### Example 3: Platform or Managed Capability
+### Process scope
 
-Use a platform capability when correctness, scale, compliance, or operational cost is too important for every team to solve independently.
+Use for event-loop delay, heap growth, CPU saturation, and worker health.
+
+```ts
+setInterval(() => {
+  metrics.gauge("process.heap.used.mb", process.memoryUsage().heapUsed / 1024 / 1024);
+  metrics.gauge("process.rss.mb", process.memoryUsage().rss / 1024 / 1024);
+}, 15_000);
+```
+
+### Context propagation risk
+
+Profiling async systems requires correlation.
 
 ```text
-Product team
-  -> platform API
-  -> centrally owned reliability, security, and observability
+Request ID
+  -> logs
+  -> metrics labels with bounded values
+  -> distributed trace spans
+  -> profile capture window
 ```
+
+Without correlation, teams see "CPU high" and "checkout slow" as separate facts instead of one incident.
+
+---
+
+## 8. Common Examples
+
+### Example 1: Measuring JSON parse cost in Node
+
+```ts
+import { performance } from "node:perf_hooks";
+
+export function parsePayload(payload: string) {
+  const start = performance.now();
+  const parsed = JSON.parse(payload);
+  const durationMs = performance.now() - start;
+
+  if (durationMs > 25) {
+    logger.warn({ durationMs, bytes: payload.length }, "slow_json_parse");
+  }
+
+  return parsed;
+}
+```
+
+Why it matters:
+
+- Large JSON parsing is synchronous.
+- It can block the Node event loop.
+- It can hurt unrelated requests sharing the same process.
+
+### Example 2: Finding a slow array pipeline
+
+```ts
+const activePremiumUsers = users
+  .map(enrichUser)
+  .filter((user) => user.active)
+  .filter((user) => user.plan === "premium")
+  .sort((a, b) => b.lastSeenAt - a.lastSeenAt);
+```
+
+Possible issue:
+
+- Multiple passes allocate intermediate arrays.
+- Sorting is `O(n log n)`.
+- Enrichment may do expensive work before filtering removes most users.
+
+Better shape when profiling proves this is hot:
+
+```ts
+const activePremiumUsers: EnrichedUser[] = [];
+
+for (const user of users) {
+  if (!user.active || user.plan !== "premium") continue;
+  activePremiumUsers.push(enrichUser(user));
+}
+
+activePremiumUsers.sort((a, b) => b.lastSeenAt - a.lastSeenAt);
+```
+
+Do not rewrite every pipeline like this by default. Use this style when measurement proves the path is hot enough.
+
+### Example 3: Browser long task detection
+
+```ts
+const observer = new PerformanceObserver((list) => {
+  for (const entry of list.getEntries()) {
+    analytics.track("long_task", {
+      duration: entry.duration,
+      path: location.pathname,
+    });
+  }
+});
+
+observer.observe({ type: "longtask", buffered: true });
+```
+
+Long tasks are a strong clue that interaction latency may suffer.
+
+### Example 4: Measuring event-loop delay
+
+```ts
+import { monitorEventLoopDelay } from "node:perf_hooks";
+
+const delay = monitorEventLoopDelay({ resolution: 10 });
+delay.enable();
+
+setInterval(() => {
+  const p95 = delay.percentile(95) / 1_000_000;
+  const p99 = delay.percentile(99) / 1_000_000;
+
+  metrics.gauge("node.event_loop_delay.p95_ms", p95);
+  metrics.gauge("node.event_loop_delay.p99_ms", p99);
+
+  delay.reset();
+}, 30_000);
+```
+
+Use this in production to catch blocking work that request timers alone may hide.
+
+### Example 5: Profiling a React render
+
+```tsx
+function ProductList({ products }: { products: Product[] }) {
+  const visibleProducts = products.filter((product) => product.inStock);
+
+  return visibleProducts.map((product) => (
+    <ProductRow key={product.id} product={product} />
+  ));
+}
+```
+
+Potential issue:
+
+- Filtering runs on every render.
+- Child rows may re-render if props are unstable.
+- The problem may be tiny with 20 products and severe with 10,000.
+
+Profile before deciding whether to memoize, virtualize, paginate, or move filtering to the server.
+
+---
 
 ## 9. Confusing / Tricky Examples
 
-### Confusion 1: The Name Sounds Simple
+### Trap 1: Timing async scheduling instead of async work
 
-Many developers can define Performance Profiling, but cannot trace its lifecycle or failure modes. Interviewers often move quickly from definition to edge cases.
+```ts
+console.time("timer");
 
-### Confusion 2: Local Behavior Differs From Production
+setTimeout(() => {
+  heavyWork();
+}, 0);
 
-Local environments rarely reproduce production traffic, data shape, dependency latency, permissions, deploy overlap, or noisy neighbors.
+console.timeEnd("timer");
+```
 
-### Confusion 3: The Happy Path Hides Ownership
+This does not measure `heavyWork`. It measures how long it took to schedule a timer.
 
-If no one owns the failure path, monitoring, documentation, migration plan, or rollback process, the design is incomplete.
+Correct direction:
 
-### Confusion 4: Optimization Before Measurement
+```ts
+setTimeout(() => {
+  console.time("heavyWork");
+  heavyWork();
+  console.timeEnd("heavyWork");
+}, 0);
+```
 
-Optimizing Performance Profiling without baseline data can make the system harder to debug while failing to improve the real bottleneck.
+### Trap 2: Optimizing average latency while p99 burns
+
+```text
+Average latency: 80 ms
+p95 latency:     240 ms
+p99 latency:     2500 ms
+```
+
+The average looks acceptable, but real users or callers are experiencing severe tail latency.
+
+Staff-level interpretation:
+
+- Check GC pauses.
+- Check queueing.
+- Check downstream timeouts.
+- Check cold starts.
+- Check lock contention.
+- Check large payload outliers.
+
+### Trap 3: Local benchmark lies because of JIT warmup
+
+```ts
+console.time("run");
+for (let i = 0; i < 1_000; i += 1) {
+  doWork(sample);
+}
+console.timeEnd("run");
+```
+
+This can mix cold execution, optimized execution, deoptimized execution, and unrealistic inputs.
+
+Better benchmark practice:
+
+- Warm up before measuring.
+- Use realistic data shape.
+- Run enough iterations.
+- Avoid dead-code elimination.
+- Compare against production profiles.
+
+### Trap 4: `console.log` changes the profile
+
+```ts
+for (const item of items) {
+  console.log(item);
+  process(item);
+}
+```
+
+Logging is I/O and string formatting. It can dominate the profile and hide the original bottleneck.
+
+### Trap 5: Memoization increases memory and hurts performance
+
+```ts
+const cache = new Map<string, Result>();
+
+export function compute(input: Input) {
+  const key = JSON.stringify(input);
+  if (!cache.has(key)) {
+    cache.set(key, expensiveCompute(input));
+  }
+  return cache.get(key);
+}
+```
+
+Possible failures:
+
+- `JSON.stringify` is itself expensive.
+- The cache is unbounded.
+- Keys may include user-specific data.
+- Memory grows until OOM.
+- Hit rate may be too low to justify the cache.
+
+### Trap 6: CPU profile shows "anonymous" or bundled names
+
+Minified bundles and anonymous functions can make profiles hard to read.
+
+Production-quality profiling often requires:
+
+- source maps with secure access,
+- named functions for important paths,
+- route/component labels,
+- release version tagging,
+- build artifact traceability.
+
+---
 
 ## 10. Real Production Use Cases
 
-Performance Profiling appears in production anywhere JavaScript Core needs predictable behavior across real users, real traffic, real failures, and real team boundaries.
+### Checkout latency
 
-Used in:
+Problem:
 
-- frontend apps, Node.js services, SDKs, libraries, build pipelines, and shared platform packages,
-- payment and billing workflows,
-- authentication and authorization flows,
-- admin and internal platforms,
-- realtime or async processing,
-- reporting and analytics,
-- compliance and audit trails,
-- incident response and operational runbooks.
+- Users click Pay and wait 4 seconds.
 
-Production makes this harder because:
+Profiling questions:
 
-- inputs are messy,
-- clients and services run different versions,
-- dependencies degrade before they fail,
-- retries multiply load,
-- dashboards show symptoms before root cause,
-- ownership is split across teams.
+- Is the browser blocked by validation or hydration?
+- Is the BFF waiting on payment provider I/O?
+- Is JSON serialization dominating response time?
+- Is p99 caused by retries or provider tail latency?
 
-## Architecture Decisions
+Useful signals:
 
-When designing around Performance Profiling, compare multiple approaches.
+- Web Vitals and interaction timing.
+- Route-level backend histogram.
+- Distributed trace from button click to payment provider.
+- CPU profile during load test.
 
-| Approach | Use When | Trade-Off |
-|---|---|---|
-| Inline/local logic | Small scope, low risk, one owner | Fast to build, easier to duplicate |
-| Shared library | Same logic repeated across modules | Versioning and rollout become important |
-| Service/API boundary | Multiple consumers need stable behavior | Network, latency, and ownership overhead |
-| Platform capability | High scale, compliance, or reliability needs | Requires platform maturity and governance |
-| Managed service | Commodity capability with strong provider support | Less control, provider constraints |
+### Chat or realtime systems
 
-Decision questions:
+Problem:
 
-- What is the blast radius if this breaks?
-- Who owns the contract?
-- How often will it change?
-- What must be observable?
-- What happens during rollback?
-- What is the simplest design that satisfies current correctness and scale?
+- Messages arrive late under load.
+
+Profiling questions:
+
+- Is the event loop blocked by message fanout?
+- Are WebSocket writes backpressured?
+- Is serialization duplicated per subscriber?
+- Are presence updates causing too many broadcasts?
+
+Useful signals:
+
+- Event-loop delay.
+- Queue depth.
+- Per-room fanout duration.
+- CPU profile during burst traffic.
+
+### SaaS dashboard
+
+Problem:
+
+- Dashboard freezes when a customer has many records.
+
+Profiling questions:
+
+- Is rendering too many DOM nodes?
+- Is client-side grouping too expensive?
+- Is a selector recalculating every render?
+- Is a chart library doing layout-heavy work?
+
+Useful signals:
+
+- Browser Performance trace.
+- React/Angular profiler.
+- Long task observer.
+- Memory allocation timeline.
+
+### Background job processor
+
+Problem:
+
+- Worker throughput drops after running for hours.
+
+Profiling questions:
+
+- Is heap growing?
+- Are job payloads retained after completion?
+- Are retries creating duplicate timers?
+- Is CPU shifting into garbage collection?
+
+Useful signals:
+
+- Heap snapshots over time.
+- Event-loop delay.
+- Jobs/sec.
+- GC duration and frequency.
+
+### API gateway or BFF
+
+Problem:
+
+- CPU cost is high even though downstream services are fast.
+
+Profiling questions:
+
+- Are request/response bodies repeatedly cloned?
+- Is schema validation too expensive for large payloads?
+- Is compression running on the event loop?
+- Is logging serializing huge objects?
+
+Useful signals:
+
+- CPU profiles.
+- Payload-size histograms.
+- Per-middleware timing.
+- Event-loop delay.
+
+---
 
 ## 11. Interview Questions
 
-1. What is Performance Profiling, and why does it matter in JavaScript Core?
-2. What problem does it solve inside 001.04 Production JavaScript?
-3. How does it work internally?
-4. What are the most common edge cases?
-5. What failure modes appear only in production?
-6. How would you implement a minimal version?
-7. How would you test it?
-8. How would you debug a production issue related to it?
-9. What metrics or logs would you add?
-10. How does the design change at 10x traffic, data, or team size?
-11. What trade-offs exist between simple implementation and platform abstraction?
-12. What senior-level mistake do engineers make with this topic?
+### Basic
+
+1. What is performance profiling?
+2. How is profiling different from logging?
+3. What is the difference between wall time and CPU time?
+4. What does a flame chart show?
+5. What is a browser long task?
+
+### Intermediate
+
+1. How would you debug a Node API whose p99 latency suddenly increased?
+2. How would you detect whether a React screen is slow because of rendering or network?
+3. Why can `console.time()` give misleading results for async code?
+4. What metrics would you collect for a background worker?
+5. How do heap snapshots help find memory leaks?
+
+### Advanced
+
+1. Your Node service has low CPU average but high event-loop delay. What could explain this?
+2. A CPU profile shows heavy garbage collection. What code patterns would you inspect?
+3. A frontend interaction has poor INP but the API is fast. What would you profile?
+4. How do you profile safely in production?
+5. How would you prove a performance optimization is worth keeping?
+
+### Tricky
+
+1. Why can memoization make performance worse?
+2. Why can a faster algorithm make the user experience unchanged?
+3. Why can average latency hide a serious production issue?
+4. Why can a microbenchmark disagree with a production profile?
+5. Why can source maps matter for performance debugging?
+
+Good answers should connect:
+
+- measurement method,
+- bottleneck type,
+- code/runtime mechanism,
+- production impact,
+- trade-off of the proposed fix.
+
+---
 
 ## 12. Senior-Level Pitfalls
 
-### Pitfall 1: Treating It As Isolated Trivia
+### Pitfall 1: Optimizing without a bottleneck
 
-Performance Profiling is connected to runtime behavior, architecture, operations, and team ownership. A narrow definition is not enough.
+Changing code because it "looks slow" often creates complexity without outcome improvement.
 
-### Pitfall 2: Ignoring Failure Semantics
+Senior correction:
 
-A design that only explains success is not production-ready. Define timeout, retry, cancellation, idempotency, rollback, and cleanup behavior.
+- Define the target metric first.
+- Capture a baseline.
+- Change one meaningful thing.
+- Re-measure.
 
-### Pitfall 3: Missing Observability
+### Pitfall 2: Measuring the wrong environment
 
-If the system cannot prove what happened, debugging becomes guesswork. Add logs, metrics, traces, and structured identifiers at decision points.
+Local profiles may not represent production because of:
 
-### Pitfall 4: Hidden Shared State
+- smaller data,
+- different CPU,
+- disabled compression,
+- no TLS,
+- dev builds,
+- missing CDN behavior,
+- artificial network conditions,
+- no concurrency.
 
-Shared state without clear ownership creates race conditions, stale reads, memory leaks, and cross-request contamination.
+Senior correction:
 
-### Pitfall 5: Premature Abstraction
+- Reproduce with production-like data and build settings.
+- Compare local, staging, load test, and production signals.
 
-Abstracting too early can freeze weak assumptions. Wait until the repeated shape is stable, then extract a clear interface.
+### Pitfall 3: Ignoring tail latency
+
+Average performance is rarely enough for production systems.
+
+Senior correction:
+
+- Track p50, p95, p99, max, and saturation.
+- Segment by route, tenant tier, payload size, region, and release.
+- Avoid unbounded labels.
+
+### Pitfall 4: Adding high-overhead observability
+
+Too much profiling can become the bottleneck.
+
+Senior correction:
+
+- Sample profiles.
+- Bound trace volume.
+- Avoid raw payload logging.
+- Use controlled profiling windows.
+- Turn on expensive instrumentation only during incidents or experiments.
+
+### Pitfall 5: Treating frontend and backend performance separately
+
+Real user latency often crosses both.
+
+Senior correction:
+
+- Correlate browser timings, backend traces, network timings, and release versions.
+- Follow user journeys, not only service dashboards.
+
+### Pitfall 6: Fixing symptoms instead of ownership
+
+Example:
+
+- Add caching to hide slow computation.
+- Cache grows unbounded.
+- Memory pressure creates new latency incidents.
+
+Senior correction:
+
+- Fix algorithm/data ownership when possible.
+- Cache only with size limits, TTL, hit-rate measurement, and invalidation rules.
+
+---
 
 ## 13. Best Practices
 
-- Start with a precise definition.
-- Identify the owner and boundary.
-- Make inputs, outputs, and invariants explicit.
-- Prefer simple local design until the pressure for abstraction is real.
-- Test normal, edge, and failure paths.
-- Add observability before relying on the behavior in production.
-- Keep resource usage bounded.
-- Document assumptions and trade-offs.
-- Design rollback and migration paths.
-- Revisit the decision when scale, team count, or correctness requirements change.
+### Measurement discipline
+
+- Start with a user or system symptom.
+- Choose the smallest useful metric.
+- Capture a baseline.
+- Use representative data.
+- Profile production builds, not only development builds.
+- Prefer p95/p99 for user-facing and service-facing latency.
+- Keep one change per experiment when possible.
+- Record the result and decision.
+
+### Browser profiling
+
+- Use Chrome DevTools Performance panel for main-thread, rendering, layout, paint, and long tasks.
+- Use Network panel for waterfalls and resource timing.
+- Use Lighthouse or lab tools carefully; they are not replacements for real-user monitoring.
+- Measure Web Vitals in production.
+- Watch hydration and route transition cost in modern frontend apps.
+- Use virtualization or pagination for large lists.
+- Avoid layout thrashing caused by repeated read/write DOM cycles.
+
+### Node profiling
+
+- Track event-loop delay.
+- Track heap used, RSS, and GC behavior.
+- Use CPU profiles for suspected synchronous bottlenecks.
+- Use traces for I/O wait and downstream latency.
+- Avoid synchronous crypto, compression, filesystem, and heavy parsing on hot request paths.
+- Move CPU-heavy work to worker threads, separate services, queues, or precomputation when appropriate.
+
+### Code-level best practices
+
+- Prefer clear code until profiling proves the path is hot.
+- Avoid unbounded caches.
+- Avoid high-cardinality metrics.
+- Avoid logging huge objects in hot paths.
+- Name important functions for readable profiles.
+- Keep profiling helpers centralized so measurement is consistent.
+- Remove or sample noisy debug instrumentation after diagnosis.
+
+### Architecture best practices
+
+- Define performance budgets.
+- Attach SLOs to critical user journeys.
+- Keep load tests close to real traffic shape.
+- Use canaries to catch performance regressions.
+- Store profiles/traces by release version.
+- Treat cost as a performance dimension.
+
+---
 
 ## 14. Debugging Scenarios
 
-### Scenario 1: Works Locally, Fails In Production
+### Scenario 1: Node API p99 latency spike
 
-Likely causes:
+Symptoms:
 
-- different configuration,
-- different data shape,
-- missing permissions,
-- dependency latency,
-- concurrency,
-- version mismatch.
+- p50 is normal.
+- p99 jumps from 300 ms to 4 seconds.
+- CPU average is moderate.
 
-Debugging steps:
-
-1. Compare environment configuration.
-2. Capture one failing input.
-3. Trace the request or workflow end to end.
-4. Check deploy, data, and dependency timelines.
-5. Reproduce with production-like constraints.
-
-### Scenario 2: Intermittent Failure
-
-Likely causes:
-
-- race condition,
-- retry interaction,
-- shared mutable state,
-- timeout boundary,
-- cache inconsistency,
-- queue ordering.
-
-Debugging steps:
-
-1. Group failures by tenant, version, region, and dependency.
-2. Inspect p95 and p99 instead of averages.
-3. Add correlation IDs.
-4. Check whether retries amplify the issue.
-5. Verify cleanup and idempotency.
-
-### Scenario 3: Performance Regression
-
-Likely causes:
-
-- unbounded work,
-- inefficient query or algorithm,
-- larger payload,
-- cache miss pattern,
-- excessive serialization,
-- synchronous work on a critical path.
-
-Debugging steps:
-
-1. Establish baseline.
-2. Profile the hot path.
-3. Compare before and after deploy.
-4. Measure resource saturation.
-5. Optimize the proven bottleneck only.
-
-### Scenario 4: Memory Or Resource Growth
-
-Likely causes:
-
-- retained references,
-- unbounded queue,
-- missing cleanup,
-- long-lived subscriptions,
-- growing cache,
-- connection leak.
-
-Debugging steps:
-
-1. Capture heap, CPU, or resource profile.
-2. Inspect retainers or open handles.
-3. Confirm lifecycle cleanup.
-4. Add bounds and eviction.
-5. Verify recovery after load drops.
-
-## Diagrams
-
-Dedicated diagrams are available in [diagrams.md](./diagrams.md).
-
-### Concept Flow
-
-```mermaid
-flowchart TD
-  A[Input or trigger] --> B[Validate assumptions]
-  B --> C[Enter 001.04 Production JavaScript boundary]
-  C --> D[Apply Performance Profiling]
-  D --> E[Read or change state]
-  E --> F[Return result]
-  F --> G[Emit telemetry]
-```
-
-### Failure Flow
-
-```mermaid
-flowchart TD
-  A[Unexpected behavior] --> B{Input valid?}
-  B -->|No| C[Fix validation or caller contract]
-  B -->|Yes| D{State correct?}
-  D -->|No| E[Inspect ownership, mutation, cache, or ordering]
-  D -->|Yes| F{Dependency healthy?}
-  F -->|No| G[Check timeout, retry, fallback, and saturation]
-  F -->|Yes| H[Inspect implementation assumptions and edge cases]
-```
-
-### Production Readiness Loop
+Debugging flow:
 
 ```text
-Design
-  -> implement
-  -> test
-  -> instrument
-  -> deploy safely
-  -> observe
-  -> learn
-  -> refine
+Check deploy timeline
+  -> compare route histograms
+  -> inspect event-loop delay
+  -> inspect traces for downstream wait
+  -> capture CPU profile during spike
+  -> segment by payload size and tenant
 ```
+
+Likely causes:
+
+- large payload outliers,
+- synchronous validation,
+- GC pauses,
+- downstream timeout retries,
+- compression or serialization on the event loop,
+- noisy tenant behavior.
+
+Fix direction:
+
+- bound payload size,
+- move expensive work off hot path,
+- optimize serialization,
+- add route-specific timeout budgets,
+- isolate heavy tenants or workloads.
+
+### Scenario 2: React checkout page input lag
+
+Symptoms:
+
+- Typing into coupon field feels delayed.
+- API calls are fast.
+- CPU rises during typing.
+
+Debugging flow:
+
+```text
+Record browser Performance trace
+  -> inspect long tasks
+  -> use React Profiler
+  -> identify components re-rendering per keystroke
+  -> check unstable props/selectors
+  -> validate fix with interaction metric
+```
+
+Likely causes:
+
+- entire checkout tree re-renders on each keypress,
+- expensive derived totals recomputed per render,
+- validation runs synchronously on every input,
+- large list diffing happens during input.
+
+Fix direction:
+
+- isolate input state,
+- memoize proven expensive derived data,
+- debounce non-critical validation,
+- virtualize large lists,
+- split urgent vs non-urgent updates where framework supports it.
+
+### Scenario 3: Worker memory grows until restart
+
+Symptoms:
+
+- Worker starts at 300 MB RSS.
+- After 8 hours, RSS reaches 1.8 GB.
+- Throughput drops before OOM restart.
+
+Debugging flow:
+
+```text
+Capture heap snapshot at start
+  -> capture heap snapshot after growth
+  -> compare retained objects
+  -> inspect retainer paths
+  -> correlate with job types
+  -> run focused load replay
+```
+
+Likely causes:
+
+- job payloads stored in module-level arrays,
+- failed jobs retained in retry state forever,
+- listeners/timers not removed,
+- cache without TTL or max size,
+- closure captures large intermediate data.
+
+Fix direction:
+
+- clear references after job completion,
+- bound cache size,
+- remove listeners,
+- stream large payloads,
+- add leak regression test where possible.
+
+### Scenario 4: Browser route transition slow only for enterprise tenants
+
+Symptoms:
+
+- Small tenants are fine.
+- Enterprise tenants see 6-second dashboard load.
+
+Debugging flow:
+
+```text
+Segment RUM by tenant size
+  -> inspect network payload size
+  -> profile route transition
+  -> check client-side transforms and chart rendering
+  -> compare DOM node count
+```
+
+Likely causes:
+
+- too much data sent to client,
+- client-side aggregation at large scale,
+- chart library layout cost,
+- table renders thousands of rows,
+- local storage or IndexedDB work blocks startup.
+
+Fix direction:
+
+- server-side aggregation,
+- pagination,
+- virtualization,
+- lazy chart rendering,
+- progressive loading.
+
+---
 
 ## 15. Exercises / Practice
 
-### Exercise 1
+### Exercise 1: Predict what is measured
 
-Explain Performance Profiling in your own words using three levels:
+```ts
+console.time("request");
 
-- beginner explanation,
-- intermediate internal explanation,
-- senior production explanation.
+fetch("/api/items").then(async (response) => {
+  const data = await response.json();
+  render(data);
+});
 
-### Exercise 2
-
-Draw the lifecycle for Performance Profiling:
-
-```text
-input -> decision -> state change -> output -> telemetry
+console.timeEnd("request");
 ```
 
-Mark where validation, failure handling, and cleanup happen.
+Questions:
 
-### Exercise 3
+- Does this measure network duration?
+- Does this measure JSON parsing?
+- Where should the timer be placed to measure the full async flow?
 
-Write one example where Performance Profiling works correctly and one where it fails because of an edge case.
+### Exercise 2: Find the hot allocation
 
-### Exercise 4
+```ts
+export function groupOrders(orders: Order[]) {
+  return orders.reduce<Record<string, Order[]>>((groups, order) => {
+    const key = `${order.customerId}:${order.region}:${order.status}`;
+    return {
+      ...groups,
+      [key]: [...(groups[key] ?? []), order],
+    };
+  }, {});
+}
+```
 
-Create a debugging checklist for a production incident involving Performance Profiling. Include logs, metrics, traces, and rollback options.
+Tasks:
 
-### Exercise 5
+- Identify avoidable allocations.
+- Rewrite using mutation inside a local accumulator.
+- Explain why local mutation is acceptable here.
 
-Compare two architecture choices for this topic and explain when each is better.
+### Exercise 3: Choose the right profiler
+
+For each symptom, choose the best first signal:
+
+```text
+1. Browser freezes during typing.
+2. Node API p99 spikes during large imports.
+3. Worker RSS grows over six hours.
+4. Checkout request waits on payment provider.
+5. Dashboard route loads slowly only after release.
+```
+
+Expected direction:
+
+- browser Performance trace / framework profiler,
+- event-loop delay and CPU profile,
+- heap snapshots,
+- distributed trace,
+- release-segmented RUM and route profiling.
+
+### Exercise 4: Debug the cache
+
+```ts
+const results = new Map<string, SearchResult[]>();
+
+export async function search(query: string) {
+  if (!results.has(query)) {
+    results.set(query, await searchProvider(query));
+  }
+  return results.get(query)!;
+}
+```
+
+Tasks:
+
+- Explain the performance goal.
+- Identify memory and privacy risks.
+- Add TTL and max-size policy.
+- Define metrics to prove cache value.
+
+### Exercise 5: Explain a flame chart
+
+Given this simplified profile:
+
+```text
+handleRequest        total 180 ms, self 3 ms
+  validatePayload    total 90 ms, self 88 ms
+  fetchAccount       total 40 ms, self 2 ms
+  JSON.stringify     total 45 ms, self 45 ms
+```
+
+Questions:
+
+- Which functions are CPU-heavy?
+- Which function may be waiting on I/O?
+- What would you investigate first?
+- What fix might be dangerous without more context?
+
+---
 
 ## 16. Comparison
 
-Compare Performance Profiling with nearby or competing concepts.
+### Profiling methods
 
-Comparison prompts:
+| Method | Best For | Strength | Risk |
+| --- | --- | --- | --- |
+| `console.time()` | Quick local timing | Simple and fast | Easy to misuse with async code |
+| Performance marks | Known boundaries | Low friction, structured | Needs manual placement |
+| CPU profile | Hot JavaScript execution | Finds real CPU consumers | Sampling can miss tiny work |
+| Heap snapshot | Memory leaks and retainers | Shows why objects survive | Can pause app and expose sensitive data |
+| Distributed tracing | Cross-service latency | Finds wait across systems | Needs propagation and sampling |
+| RUM | Real user experience | Production reality | Noisy without segmentation |
+| Synthetic benchmark | Algorithm comparison | Repeatable in isolation | Can disagree with production |
+| Load test | Capacity behavior | Shows saturation | Expensive to make realistic |
 
-- What problem does each option solve?
-- Which one is simpler?
-- Which one is safer?
-- Which one scales better?
-- Which one is easier to debug?
-- Which one has better ecosystem or platform support?
+### Browser vs Node profiling
 
-Decision table:
+| Dimension | Browser | Node.js |
+| --- | --- | --- |
+| Main concern | User experience and rendering | Throughput, latency, event loop, memory |
+| Primary thread risk | Main thread blocks input/paint | Event loop blocks all requests in process |
+| Common tools | DevTools Performance, Memory, Lighthouse, RUM | Inspector, perf_hooks, heap snapshots, tracing, APM |
+| Key metrics | LCP, INP, CLS, TTFB, long tasks | p95/p99 latency, event-loop delay, heap/RSS, jobs/sec |
+| Common bottleneck | hydration, layout, large renders | JSON, validation, sync CPU, GC, downstream wait |
 
-| Option | Prefer When | Avoid When |
-|---|---|---|
-| Performance Profiling | It directly matches the invariant and ownership boundary | The abstraction hides important failure behavior |
-| Simpler local approach | Scope is small, low risk, and easy to test | Logic is duplicated across many teams |
-| Shared/platform approach | Correctness, scale, or governance matters | The contract is still changing rapidly |
+### Metrics vs profiles vs traces
+
+| Signal | Answers | Example |
+| --- | --- | --- |
+| Metrics | Is something wrong, and how often? | p99 latency increased |
+| Profiles | Where is CPU or memory going? | `JSON.stringify` dominates CPU |
+| Traces | Where did one request spend time? | payment provider span took 2 seconds |
+| Logs | What happened at a discrete event? | retry started for provider timeout |
+
+Staff-level debugging usually combines all four.
+
+---
 
 ## 17. Related Concepts
 
-Performance Profiling connects to the rest of the knowledge tree.
+Performance profiling connects directly to:
 
-Study links:
+- `001.02.01 Call Stack`: CPU profiles are stack samples over time.
+- `001.02.02 Event Loop and Tasks`: long tasks and event-loop delay explain responsiveness.
+- `001.02.03 Promises and Async-Await`: async boundaries affect timing and trace correlation.
+- `001.03.02 Memory and Garbage Collection`: allocation pressure and leaks change latency.
+- `002.01.02 Bytecode and JIT`: engine optimization can explain profile changes.
+- `002.04.03 Benchmarking Pitfalls`: microbenchmarks need careful interpretation.
+- Web Performance: browser metrics, rendering, hydration, and resource loading.
+- Observability: metrics, logs, traces, profiles, and alerts.
+- Load Testing: proves capacity and saturation behavior.
+- Production Debugging: turns profiling evidence into incident action.
 
-- Parent category: JavaScript Core
-- Parent topic: 001.04 Production JavaScript
-- Internal flow and diagrams: [diagrams.md](./diagrams.md)
-- Practice files in this folder: debugging, questions, exercises, and review notes
+Knowledge graph:
 
-Related concept types:
+```mermaid
+flowchart LR
+  A["Performance Profiling"] --> B["CPU Profiles"]
+  A --> C["Heap Snapshots"]
+  A --> D["Event Loop Delay"]
+  A --> E["Browser Long Tasks"]
+  A --> F["Distributed Tracing"]
+  B --> G["Hot Functions"]
+  C --> H["Retainer Paths"]
+  D --> I["Blocking Work"]
+  E --> J["Interaction Latency"]
+  F --> K["Cross-Service Wait"]
+```
 
-- prerequisites that make this topic easier,
-- follow-up topics that build on it,
-- architecture concepts that use it,
-- production concerns that expose its limits,
-- interview patterns that test it indirectly.
+---
 
 ## Advanced Add-ons
 
 ### Performance Impact
 
-- Time complexity: identify whether work is constant, linear, logarithmic, fan-out, or unbounded.
-- Memory usage: identify retained data, copied data, cached data, and cleanup timing.
-- Hot path risk: determine whether this runs per request, per render, per event, per query, or per deployment.
-- Measurement: use baselines, profiling, p95/p99, and resource saturation before optimizing.
+Profiling should improve performance, but profiling itself has cost.
+
+Costs to control:
+
+- CPU overhead from instrumentation.
+- Memory overhead from retained entries and snapshots.
+- Network overhead from telemetry export.
+- Storage cost from traces and profile artifacts.
+- Developer cost from noisy, unactionable data.
+
+Performance dimensions:
+
+```text
+Latency    -> how long a unit of work takes.
+Throughput -> how many units complete per time window.
+Saturation -> how close a resource is to its limit.
+Efficiency -> useful work per CPU, memory, dollar, or watt.
+Tail risk  -> rare but severe latency or memory behavior.
+```
+
+Optimization hierarchy:
+
+1. Remove unnecessary work.
+2. Reduce work per unit.
+3. Defer non-critical work.
+4. Batch work.
+5. Cache with bounds.
+6. Parallelize only when safe.
+7. Scale infrastructure after code and architecture constraints are understood.
 
 ### System Design Relevance
 
-Performance Profiling matters in system design when it affects boundaries, contracts, scaling behavior, correctness, or operational ownership.
+Performance profiling informs architecture decisions:
 
-Ask:
+- Should computation happen on client, BFF, backend service, worker, or database?
+- Should a flow be synchronous, asynchronous, streamed, or precomputed?
+- Should a service scale horizontally or split CPU-heavy work into workers?
+- Should a cache be added, and what invalidation model is acceptable?
+- Should large tenant workloads be isolated?
+- Should read models, indexes, or materialized views replace repeated runtime aggregation?
 
-- Does it belong inside a module, service, shared library, platform layer, or managed service?
-- What is the blast radius if it fails?
-- What happens at 10x traffic, data, tenants, regions, or teams?
-- What reliability, observability, and rollback strategy is required?
+Architecture decision loop:
+
+```mermaid
+flowchart TD
+  A["Profile Shows Bottleneck"] --> B{"Bottleneck Type"}
+  B -->|CPU| C["Optimize Algorithm / Move to Worker / Scale CPU"]
+  B -->|Memory| D["Reduce Retention / Bound Cache / Stream"]
+  B -->|I/O Wait| E["Trace Dependency / Batch / Timeout / Cache"]
+  B -->|Rendering| F["Virtualize / Split Work / Reduce Layout"]
+  B -->|Queueing| G["Increase Consumers / Backpressure / Partition"]
+  C --> H["Re-measure"]
+  D --> H
+  E --> H
+  F --> H
+  G --> H
+```
 
 ### Security Impact
 
-Security relevance depends on whether Performance Profiling touches input, identity, authorization, secrets, user data, logs, dependencies, or execution boundaries.
+Profiling data can contain sensitive information.
 
-Check:
+Risks:
 
-- validation and sanitization,
-- least privilege,
-- sensitive data exposure,
-- injection or confused-deputy risks,
-- auditability and compliance requirements.
+- heap snapshots may include tokens, PII, request bodies, cookies, and secrets,
+- traces may include URLs with user identifiers,
+- metric labels may leak tenant names or emails,
+- logs added during profiling may print raw payloads,
+- production inspector endpoints can expose process internals,
+- source maps can reveal proprietary code if published carelessly.
+
+Security practices:
+
+- scrub or avoid sensitive fields,
+- restrict profile artifact access,
+- avoid raw payload logging,
+- use bounded labels,
+- disable public inspector access,
+- define retention policies,
+- handle heap dumps like sensitive production data.
 
 ### Browser vs Node Behavior
 
-If this topic appears in JavaScript runtimes, compare browser and Node.js behavior:
+Browser:
 
-- global object and module scope,
-- event loop and task queues,
-- API availability,
-- security sandbox,
-- file, network, and process access,
-- debugging and profiling tools.
+- A single long JavaScript task can delay input, animation, and painting.
+- Layout and paint can dominate even when JavaScript execution is moderate.
+- Third-party scripts can distort performance.
+- Device class matters; a fast developer laptop hides mobile pain.
+- Real-user monitoring catches network and hardware diversity.
 
-For non-runtime topics, compare local development, CI, staging, and production behavior instead.
+Node:
+
+- Synchronous CPU work blocks the event loop.
+- GC pauses affect all requests in the process.
+- Worker threads help CPU isolation but add serialization and coordination costs.
+- Native addons and C++ frames may appear in profiles.
+- Container CPU limits can cause throttling that looks like application slowness.
+
+Shared:
+
+- both rely on V8 in many environments,
+- both suffer from excessive allocation,
+- both need production-build profiling,
+- both require source maps or symbolization for readable traces.
 
 ### Polyfill / Implementation
 
-Staff-level understanding includes knowing whether you can implement a simplified version yourself.
+You cannot implement a true runtime CPU profiler in userland JavaScript because stack sampling, heap graph inspection, and engine optimization data require runtime or platform support.
 
-Implementation prompts:
+You can implement lightweight instrumentation.
 
-- What is the smallest correct version?
-- Which edge cases are intentionally unsupported?
-- Which behavior must match platform semantics?
-- What tests prove compatibility?
-- When is using a proven library safer than custom implementation?
+```ts
+type TimerSink = (name: string, durationMs: number, tags?: Record<string, string>) => void;
+
+export async function timed<T>(
+  name: string,
+  work: () => Promise<T>,
+  sink: TimerSink,
+  tags?: Record<string, string>,
+): Promise<T> {
+  const start = typeof performance !== "undefined"
+    ? performance.now()
+    : Number(process.hrtime.bigint()) / 1_000_000;
+
+  try {
+    return await work();
+  } finally {
+    const end = typeof performance !== "undefined"
+      ? performance.now()
+      : Number(process.hrtime.bigint()) / 1_000_000;
+
+    sink(name, end - start, tags);
+  }
+}
+```
+
+Usage:
+
+```ts
+await timed(
+  "checkout.submit",
+  () => submitCheckout(order),
+  (name, durationMs, tags) => {
+    metrics.histogram(name, durationMs, tags);
+  },
+  { route: "/checkout" },
+);
+```
+
+Limitations:
+
+- It measures wall time, not CPU time.
+- It does not show nested hot functions unless you instrument them.
+- It can hide async wait vs execution unless spans are carefully placed.
+- It needs bounded tag values.
+
+---
 
 ## 18. Summary
 
-Performance Profiling is a practical engineering topic, not just a vocabulary item. Mastery means you can define it, implement it, reason about internals, predict edge cases, debug failures, and explain trade-offs.
+Performance profiling is how production JavaScript teams replace guesses with evidence.
 
-Remember:
+Quick recall:
 
-- Start from first principles.
-- Identify boundaries and ownership.
-- Understand execution and resource behavior.
-- Design for failure, not only success.
-- Add observability.
-- Keep the simplest design that satisfies correctness and scale.
-- Revisit the design as production pressure changes.
+- Use metrics to detect a problem.
+- Use profiles to find CPU and memory hot spots.
+- Use traces to find cross-service wait.
+- Use logs to explain discrete events.
+- In browsers, watch main-thread work, rendering, Web Vitals, and long tasks.
+- In Node, watch event-loop delay, CPU profiles, heap growth, GC, and I/O wait.
+- Measure real production-like builds and data.
+- Avoid high-cardinality labels and sensitive profiling artifacts.
+- Optimize only after proving the bottleneck.
+- Re-measure after every meaningful change.
+
+Staff-level takeaway:
+
+- A performance fix is not "the code looks faster." A performance fix is a measured improvement to a meaningful user, system, reliability, or cost metric without creating a worse trade-off elsewhere.
