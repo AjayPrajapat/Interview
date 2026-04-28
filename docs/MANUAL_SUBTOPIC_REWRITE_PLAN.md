@@ -145,6 +145,9 @@ Legend:
 - [x] `001. JavaScript Core/001.04 Production JavaScript/001.04.03 Maintainability at Scale/README.md`
 - [x] `002. JavaScript Internals/002.01 Engine Architecture/002.01.01 Parsing and AST/README.md`
 - [x] `002. JavaScript Internals/002.01 Engine Architecture/002.01.02 Bytecode and JIT/README.md`
+- [x] `002. JavaScript Internals/002.01 Engine Architecture/002.01.03 Inline Caches and Hidden Classes/README.md`
+- [x] `002. JavaScript Internals/002.02 Runtime Semantics/002.02.01 Execution Contexts/README.md`
+- [x] `002. JavaScript Internals/002.02 Runtime Semantics/002.02.02 Lexical Environments/README.md`
 
 ## Strict Review Order
 
@@ -167,10 +170,10 @@ Legend:
 
 - [x] `002.01 Engine Architecture/002.01.01 Parsing and AST/README.md`
 - [x] `002.01 Engine Architecture/002.01.02 Bytecode and JIT/README.md`
-- [>] `002.01 Engine Architecture/002.01.03 Inline Caches and Hidden Classes/README.md`
-- [ ] `002.02 Runtime Semantics/002.02.01 Execution Contexts/README.md`
-- [ ] `002.02 Runtime Semantics/002.02.02 Lexical Environments/README.md`
-- [ ] `002.02 Runtime Semantics/002.02.03 Microtasks and Macrotasks/README.md`
+- [x] `002.01 Engine Architecture/002.01.03 Inline Caches and Hidden Classes/README.md`
+- [x] `002.02 Runtime Semantics/002.02.01 Execution Contexts/README.md`
+- [x] `002.02 Runtime Semantics/002.02.02 Lexical Environments/README.md`
+- [>] `002.02 Runtime Semantics/002.02.03 Microtasks and Macrotasks/README.md`
 - [ ] `002.03 Memory Internals/002.03.01 Heap Layout/README.md`
 - [ ] `002.03 Memory Internals/002.03.02 Garbage Collection/README.md`
 - [ ] `002.03 Memory Internals/002.03.03 Leaks and Retainers/README.md`
@@ -308,5 +311,5 @@ At the end of each batch:
 Continue with:
 
 ```txt
-002. JavaScript Internals/002.01 Engine Architecture/002.01.03 Inline Caches and Hidden Classes/README.md
+002. JavaScript Internals/002.02 Runtime Semantics/002.02.03 Microtasks and Macrotasks/README.md
 ```

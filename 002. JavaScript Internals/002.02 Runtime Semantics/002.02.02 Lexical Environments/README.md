@@ -1,630 +1,1296 @@
 # 002.02.02 Lexical Environments
 
-Category: JavaScript Internals
-
+Category: JavaScript Internals<br>
 Topic: 002.02 Runtime Semantics
+
+Lexical environments are the internal structures JavaScript uses to resolve identifiers. They explain why a variable is visible in one place but not another, why closures work after an outer function returns, why `let` and `const` have a temporal dead zone, and why module imports are live bindings.
+
+If execution contexts answer "what code is running?", lexical environments answer "where does this name come from?"
+
+---
 
 ## 1. Definition
 
-Lexical Environments is a focused engineering concept inside 002.02 Runtime Semantics. It describes a behavior, design choice, implementation technique, or operational concern that engineers must understand deeply to build reliable systems in JavaScript Internals.
+A lexical environment is a specification-level structure that maps identifier names to bindings and points to an outer lexical environment.
 
-At a practical level, this topic answers:
+One-line definition:
 
-- what problem it solves,
-- what boundary it belongs to,
-- what assumptions it depends on,
-- how it behaves during normal execution,
-- how it fails under pressure,
-- and how to reason about it in production.
+- A lexical environment is a binding table plus an outer link used for lexical name resolution.
 
-The goal is not only to recognize the term. The goal is to explain Lexical Environments from first principles, apply it in code or architecture, debug it when it breaks, and defend trade-offs in an interview or design review.
+Expanded explanation:
+
+- Each lexical environment contains an environment record.
+- The environment record stores bindings such as `let`, `const`, function declarations, class declarations, parameters, imports, or object-backed global bindings.
+- The lexical environment points to an outer environment, forming a chain.
+- Identifier lookup walks this chain until it finds a binding or fails with `ReferenceError`.
+
+Conceptual shape:
+
+```text
+LexicalEnvironment
+  EnvironmentRecord
+    name -> binding
+  OuterLexicalEnvironment -> another LexicalEnvironment or null
+```
+
+Example:
+
+```js
+const globalName = "global";
+
+function outer() {
+  const outerName = "outer";
+
+  function inner() {
+    return `${globalName}:${outerName}`;
+  }
+
+  return inner;
+}
+```
+
+`inner` resolves `outerName` through the retained outer lexical environment and `globalName` through the global lexical environment.
+
+---
 
 ## 2. Why It Exists
 
-Lexical Environments exists because real systems need explicit rules for correctness, ownership, execution, and change. Without this concept, teams usually rely on implicit assumptions, and implicit assumptions become bugs when systems grow.
+JavaScript needs lexical environments to implement lexical scoping.
 
-This topic matters because it helps engineers:
+The runtime must answer:
 
-- reduce ambiguity in 002.02 Runtime Semantics,
-- make behavior easier to test and review,
-- prevent local decisions from creating system-level failures,
-- identify performance and reliability limits before production incidents,
-- communicate trade-offs clearly across frontend, backend, platform, security, and product teams.
+- Where is `user` declared?
+- Is `count` initialized yet?
+- Should this assignment update a local, outer, module, or global binding?
+- Can this closure still access a variable after the outer function returned?
+- Does this `catch` parameter shadow an outer variable?
+- Is an imported binding live?
+- Should this name lookup throw `ReferenceError`?
 
-You should understand this before moving deeper because later topics often depend on the same mental models: state ownership, lifecycle timing, API contracts, failure handling, scaling pressure, and observability.
+Lexical environments make these features possible:
+
+- block scope,
+- function scope,
+- closures,
+- TDZ,
+- module live bindings,
+- catch scope,
+- class private names together with private environments,
+- global lexical bindings,
+- direct eval behavior,
+- identifier shadowing.
+
+Production relevance:
+
+- closure leaks retain environments,
+- shadowing causes subtle bugs,
+- module cycles expose uninitialized bindings,
+- async callbacks keep lexical state alive,
+- wrong variable capture in loops causes incorrect behavior,
+- runtime config captured too early can become stale,
+- debugging scope chains explains many "why is this value still here?" incidents.
+
+---
 
 ## 3. Syntax & Variants
 
-Not every engineering topic has programming syntax, but every topic has an interface shape. The interface shape is how the concept appears to the rest of the system.
+Lexical environments are created by language constructs.
 
-In JavaScript Internals, Lexical Environments commonly appears as a function, type, object, runtime behavior, data structure, or algorithm.
+### Global lexical environment
 
-Typical shape:
+```js
+let appMode = "prod";
+const version = "1.0.0";
+```
 
-```ts
-type LexicalEnvironmentsInput = {
-  id: string;
-  payload: unknown;
-};
+Global `let` and `const` create global lexical bindings but do not become properties on `globalThis`.
 
-type LexicalEnvironmentsResult =
-  | { ok: true; value: unknown }
-  | { ok: false; error: string; retryable: boolean };
+### Function environment
 
-export function handleLexicalEnvironments(
-  input: LexicalEnvironmentsInput,
-): LexicalEnvironmentsResult {
-  if (!input.id) {
-    return { ok: false, error: "missing_id", retryable: false };
-  }
-
-  try {
-    const value = input.payload;
-    return { ok: true, value };
-  } catch {
-    return { ok: false, error: "unexpected_failure", retryable: true };
-  }
+```js
+function greet(name) {
+  const message = `Hello, ${name}`;
+  return message;
 }
 ```
 
-When reading or writing code for this topic, identify:
+Function calls create environments for parameters and local declarations.
 
-- the input boundary,
-- the output contract,
-- the state being read or changed,
-- the owner of the behavior,
-- the failure path,
-- the observability signal.
+### Block environment
 
-Variants to identify:
+```js
+if (enabled) {
+  let message = "enabled";
+  console.log(message);
+}
+```
 
-- direct language or framework syntax,
-- configuration shape,
-- API or interface shape,
-- runtime behavior shape,
-- rare edge syntax or unusual usage,
-- legacy forms that still appear in production.
+Blocks can create lexical environments for `let`, `const`, class declarations, and block-scoped function behavior depending on mode and environment.
+
+### Loop environment
+
+```js
+const callbacks = [];
+
+for (let i = 0; i < 3; i += 1) {
+  callbacks.push(() => i);
+}
+```
+
+`let` in loops can create a fresh binding per iteration, which is why this returns `0`, `1`, `2` instead of all `3`.
+
+### Catch environment
+
+```js
+try {
+  throw new Error("failed");
+} catch (error) {
+  console.log(error.message);
+}
+```
+
+`catch` creates a scope for the catch parameter.
+
+### Module environment
+
+```js
+import { count } from "./counter.js";
+export const label = `count:${count}`;
+```
+
+Modules use module environment records and live bindings.
+
+### Object environment record
+
+Classic `with` uses an object environment record.
+
+```js
+with (obj) {
+  console.log(name);
+}
+```
+
+`with` makes identifier resolution dynamic and is disallowed in strict mode.
+
+---
 
 ## 4. Internal Working
 
-The internal working of Lexical Environments should be understood as a lifecycle, not as a definition.
+Identifier resolution follows an environment chain.
 
-```text
-Input / trigger
-  -> validate assumptions
-  -> enter 002.02 Runtime Semantics boundary
-  -> apply Lexical Environments rules
-  -> read or update state
-  -> handle success, failure, or partial success
-  -> emit observable signal
-  -> return result or continue workflow
+```mermaid
+flowchart TD
+  A["Identifier Read: name"] --> B["Current Environment Record"]
+  B --> C{"Binding Exists?"}
+  C -->|Yes| D{"Initialized?"}
+  D -->|Yes| E["Return Binding Value"]
+  D -->|No| F["ReferenceError / TDZ"]
+  C -->|No| G{"Outer Environment?"}
+  G -->|Yes| H["Move To Outer"]
+  H --> B
+  G -->|No| I["ReferenceError"]
 ```
 
-For this topic, inspect the real mechanism behind the abstraction:
+### Binding creation
 
-- engine, compiler, type system, memory model, call stack, event loop, and module boundary,
-- ordering and timing,
-- ownership of mutable state,
-- limits and resource usage,
-- retry, cancellation, cleanup, and rollback behavior,
-- how the behavior changes between local development, CI, staging, and production.
+During context setup, declarations are discovered and bindings are created.
 
-Senior engineers do not stop at "it works." They ask what the runtime must do, what it keeps in memory, what it sends over the network, what can be retried, what can be duplicated, and what must be protected by invariants.
-
-## 5. Memory Behavior
-
-Every topic consumes or protects memory, state, or another resource. For Lexical Environments, reason about memory and resource behavior explicitly.
-
-Common resources:
-
-- memory and retained references,
-- CPU and event-loop time,
-- network calls and connection pools,
-- database locks, indexes, and storage,
-- queue depth and worker capacity,
-- browser main-thread budget,
-- cloud cost and operational attention.
-
-Resource model:
-
-```text
-Work enters system
-  -> resource is allocated
-  -> work is processed
-  -> resource is released, retained, cached, or leaked
-```
-
-Production questions:
-
-- What grows with traffic?
-- What grows with data size?
-- What grows with number of tenants, teams, or services?
-- What is bounded?
-- What can leak?
-- What needs cleanup?
-- What metric proves the resource behavior is healthy?
-
-For JavaScript Internals, watch runtime errors, latency, memory growth, bundle size, CPU time, test failures, and defect rate.
-
-## 6. Execution Behavior
-
-Execution behavior describes what actually happens when the system runs.
-
-Trace Lexical Environments through:
-
-- the happy path,
-- invalid input,
-- missing dependency,
-- slow dependency,
-- concurrent execution,
-- retry after timeout,
-- duplicate request or event,
-- deploy with old and new versions running together,
-- cleanup after failure.
-
-Execution timeline:
-
-```text
-Before
-  -> required state and configuration exist
-During
-  -> core behavior runs and may touch dependencies
-After
-  -> result, side effects, and telemetry are visible
-Failure
-  -> caller receives error, retry, fallback, or compensation path
-```
-
-The most important question is: what invariant must remain true even if the execution path is interrupted?
-
-## 7. Scope & Context Interaction
-
-Lexical Environments should be understood in its surrounding scope and execution context, not as an isolated detail.
-
-Scope questions:
-
-- Where is this behavior visible?
-- Who can call or mutate it?
-- What module, component, service, tenant, request, thread, worker, or transaction owns it?
-- Does it cross frontend, backend, database, queue, cache, or platform boundaries?
-- Does it behave differently inside closures, async callbacks, dependency injection scopes, request scopes, or deployment environments?
-
-Context model:
-
-```text
-Local context
-  -> module or component context
-  -> service or runtime context
-  -> system or organization context
-```
-
-For JavaScript and TypeScript topics, also check lexical scope, closure retention, module scope, global scope, and `this` behavior where applicable.
-
-## 8. Common Examples
-
-### Example 1: Local Implementation
-
-Use a local implementation when the behavior is simple, low-risk, and owned by one module or team.
-
-```ts
-type LexicalEnvironmentsInput = {
-  id: string;
-  payload: unknown;
-};
-
-type LexicalEnvironmentsResult =
-  | { ok: true; value: unknown }
-  | { ok: false; error: string; retryable: boolean };
-
-export function handleLexicalEnvironments(
-  input: LexicalEnvironmentsInput,
-): LexicalEnvironmentsResult {
-  if (!input.id) {
-    return { ok: false, error: "missing_id", retryable: false };
-  }
-
-  try {
-    const value = input.payload;
-    return { ok: true, value };
-  } catch {
-    return { ok: false, error: "unexpected_failure", retryable: true };
-  }
+```js
+function example() {
+  var a = 1;
+  let b = 2;
+  const c = 3;
 }
 ```
 
-### Example 2: Shared Abstraction
+Conceptually:
 
-Move the behavior behind a shared abstraction when multiple teams repeat the same logic and the contract is stable.
+- `a` is a `var` binding initialized to `undefined`.
+- `b` is a lexical binding initially uninitialized.
+- `c` is a lexical binding initially uninitialized.
+- `b` and `c` are initialized when their declarations execute.
 
-```text
-Consumer
-  -> stable interface
-  -> shared implementation
-  -> logs, metrics, tests, and ownership
+### TDZ
+
+```js
+console.log(value);
+let value = 1;
 ```
 
-### Example 3: Platform or Managed Capability
+The binding exists, but it is uninitialized. Access throws `ReferenceError`.
 
-Use a platform capability when correctness, scale, compliance, or operational cost is too important for every team to solve independently.
+### Outer link
+
+```js
+function outer() {
+  const token = "abc";
+
+  return function inner() {
+    return token;
+  };
+}
+```
+
+`inner` stores a link to the lexical environment where `token` exists.
+
+### Shadowing
+
+```js
+const value = "global";
+
+function read() {
+  const value = "local";
+  return value;
+}
+```
+
+Lookup finds the nearest binding first.
+
+### Live bindings
+
+```js
+// counter.js
+export let count = 0;
+export function increment() {
+  count += 1;
+}
+```
+
+Importers observe the same binding, not a copied value.
+
+### Environment record types
+
+Common conceptual records:
+
+- Declarative environment record: stores bindings for functions, blocks, catch, modules.
+- Object environment record: binds names to object properties, used by `with` and part of global behavior.
+- Global environment record: combines object-backed global bindings and declarative global lexical bindings.
+- Module environment record: supports imports, exports, and live bindings.
+- Function environment record: includes `this`, `super`, parameters, and function-specific behavior.
+
+---
+
+## 5. Memory Behavior
+
+Lexical environments can be short-lived or retained.
+
+### Short-lived environment
+
+```js
+function sum(a, b) {
+  const total = a + b;
+  return total;
+}
+```
+
+If no inner function captures `total`, the environment can be discarded after the call.
+
+### Retained environment
+
+```js
+function makeFormatter(prefix) {
+  return function format(value) {
+    return `${prefix}:${value}`;
+  };
+}
+
+const formatOrder = makeFormatter("order");
+```
+
+The `prefix` binding remains alive because `formatOrder` uses it.
+
+### Async retention
+
+```js
+async function handle(payload) {
+  const parsed = JSON.parse(payload);
+  await save(parsed.id);
+  return parsed.status;
+}
+```
+
+Bindings needed after `await` can be retained across the async suspension.
+
+### Memory leak pattern
+
+```js
+function attach(element, data) {
+  element.addEventListener("click", () => {
+    console.log(data.largePayload.id);
+  });
+}
+```
+
+The event listener retains `data` through the closure. If the listener is never removed, the environment remains reachable.
+
+### Memory diagram
+
+```mermaid
+flowchart TD
+  A["Outer Function Runs"] --> B["Lexical Environment Created"]
+  B --> C{"Captured By Inner Function?"}
+  C -->|No| D["Environment Can Be Released"]
+  C -->|Yes| E["Closure Retains Environment"]
+  E --> F{"Closure Still Reachable?"}
+  F -->|Yes| G["Bindings Stay Alive"]
+  F -->|No| H["Collectable"]
+```
+
+### Production memory signals
+
+- heap snapshots show `Closure` retaining large objects,
+- DOM nodes retained by listeners,
+- timers keep old config/state alive,
+- async jobs retain payloads across awaits,
+- caches store closures that capture request data.
+
+---
+
+## 6. Execution Behavior
+
+### Lookup order
+
+```js
+const value = "global";
+
+function outer() {
+  const value = "outer";
+
+  function inner() {
+    const value = "inner";
+    return value;
+  }
+
+  return inner();
+}
+```
+
+`inner` returns `"inner"` because lookup starts in the nearest environment.
+
+### Outer lookup
+
+```js
+const taxRate = 0.18;
+
+function total(amount) {
+  return amount + amount * taxRate;
+}
+```
+
+`taxRate` is not local, so lookup moves outward.
+
+### Assignment lookup
+
+```js
+let count = 0;
+
+function increment() {
+  count += 1;
+}
+```
+
+Assignment resolves the binding and updates it. It does not create a new local binding unless a declaration exists.
+
+### Accidental global in sloppy mode
+
+```js
+function bad() {
+  missingDeclaration = 1;
+}
+```
+
+In sloppy scripts, assignment to an unresolved reference can create a global property. Strict mode throws.
+
+### Per-iteration environment
+
+```js
+const fns = [];
+
+for (let i = 0; i < 3; i += 1) {
+  fns.push(() => i);
+}
+
+console.log(fns.map((fn) => fn())); // [0, 1, 2]
+```
+
+Each iteration has a distinct `i` binding.
+
+### `var` loop capture
+
+```js
+const fns = [];
+
+for (var i = 0; i < 3; i += 1) {
+  fns.push(() => i);
+}
+
+console.log(fns.map((fn) => fn())); // [3, 3, 3]
+```
+
+There is one function/global-scoped `i` binding.
+
+---
+
+## 7. Scope & Context Interaction
+
+Execution contexts hold references to lexical environments.
 
 ```text
-Product team
-  -> platform API
-  -> centrally owned reliability, security, and observability
+Execution Context
+  -> LexicalEnvironment
+       EnvironmentRecord
+       Outer -> LexicalEnvironment
+  -> VariableEnvironment
 ```
+
+### Lexical scope vs dynamic call stack
+
+```js
+function makeReader() {
+  const value = "created";
+  return function read() {
+    return value;
+  };
+}
+
+function callReader(fn) {
+  const value = "caller";
+  return fn();
+}
+
+callReader(makeReader()); // "created"
+```
+
+The function resolves variables based on where it was created, not where it was called.
+
+### `this` is not lexical environment lookup
+
+```js
+const value = "global";
+
+const obj = {
+  value: "object",
+  read() {
+    return this.value;
+  },
+};
+```
+
+`this` comes from call form, not identifier lookup. Arrow functions are different because they capture lexical `this`.
+
+### VariableEnvironment vs LexicalEnvironment
+
+Historically and spec-wise, execution contexts distinguish variable and lexical environments in some cases.
+
+Practical model:
+
+- `var` and function declarations often belong to the variable environment.
+- `let`, `const`, class, and block declarations belong to lexical environments.
+- During execution, current lexical environment can change when entering blocks.
+
+### Module live binding context
+
+```js
+import { featureEnabled } from "./flags.js";
+```
+
+The imported name is resolved through a module environment record that references the exporting module's binding.
+
+### Direct eval
+
+```js
+function demo() {
+  let local = 1;
+  eval("local = 2");
+  return local;
+}
+```
+
+Direct eval can interact with local lexical environments, which is one reason it complicates optimization and reasoning.
+
+---
+
+## 8. Common Examples
+
+### Example 1: Block scope
+
+```js
+if (true) {
+  const message = "inside";
+}
+
+console.log(message); // ReferenceError
+```
+
+The `message` binding exists only in the block's lexical environment.
+
+### Example 2: Shadowing
+
+```js
+const status = "global";
+
+function render() {
+  const status = "local";
+  return status;
+}
+```
+
+Local `status` shadows global `status`.
+
+### Example 3: Closure state
+
+```js
+function createStore(initialValue) {
+  let value = initialValue;
+
+  return {
+    get() {
+      return value;
+    },
+    set(next) {
+      value = next;
+    },
+  };
+}
+```
+
+Both methods share the same retained lexical environment.
+
+### Example 4: Module live binding
+
+```js
+// feature.js
+export let enabled = false;
+export function enable() {
+  enabled = true;
+}
+```
+
+```js
+// app.js
+import { enabled, enable } from "./feature.js";
+
+console.log(enabled); // false
+enable();
+console.log(enabled); // true
+```
+
+`enabled` is live.
+
+### Example 5: Catch parameter scope
+
+```js
+const error = "outer";
+
+try {
+  throw new Error("inner");
+} catch (error) {
+  console.log(error.message);
+}
+
+console.log(error); // "outer"
+```
+
+The catch parameter shadows the outer `error`.
+
+### Example 6: Per-iteration binding
+
+```js
+const handlers = [];
+
+for (let index = 0; index < 3; index += 1) {
+  handlers.push(() => index);
+}
+```
+
+Each handler captures a different `index` binding.
+
+---
 
 ## 9. Confusing / Tricky Examples
 
-### Confusion 1: The Name Sounds Simple
+### Trap 1: TDZ makes `typeof` throw
 
-Many developers can define Lexical Environments, but cannot trace its lifecycle or failure modes. Interviewers often move quickly from definition to edge cases.
+```js
+{
+  console.log(typeof value);
+  let value = 1;
+}
+```
 
-### Confusion 2: Local Behavior Differs From Production
+This throws because `value` is in the TDZ.
 
-Local environments rarely reproduce production traffic, data shape, dependency latency, permissions, deploy overlap, or noisy neighbors.
+### Trap 2: Closure captures binding, not value snapshot
 
-### Confusion 3: The Happy Path Hides Ownership
+```js
+let count = 0;
 
-If no one owns the failure path, monitoring, documentation, migration plan, or rollback process, the design is incomplete.
+const read = () => count;
+count = 5;
 
-### Confusion 4: Optimization Before Measurement
+console.log(read()); // 5
+```
 
-Optimizing Lexical Environments without baseline data can make the system harder to debug while failing to improve the real bottleneck.
+The closure sees the binding's current value.
+
+### Trap 3: Loop capture with `var`
+
+```js
+for (var i = 0; i < 3; i += 1) {
+  setTimeout(() => console.log(i), 0);
+}
+```
+
+Logs `3`, `3`, `3`.
+
+### Trap 4: Shadowing can hide imports
+
+```js
+import { config } from "./config.js";
+
+function start(config) {
+  return config.port;
+}
+```
+
+The parameter shadows the imported binding.
+
+### Trap 5: Global lexical bindings are not global object properties
+
+```js
+let app = "x";
+console.log(globalThis.app); // usually undefined
+```
+
+But:
+
+```js
+var legacy = "x";
+console.log(globalThis.legacy); // script environments commonly expose this
+```
+
+### Trap 6: Imported bindings are read-only from importer
+
+```js
+import { count } from "./counter.js";
+
+count += 1; // TypeError in modules
+```
+
+The exporting module controls mutation.
+
+---
 
 ## 10. Real Production Use Cases
 
-Lexical Environments appears in production anywhere JavaScript Internals needs predictable behavior across real users, real traffic, real failures, and real team boundaries.
+### React stale closures
 
-Used in:
+Problem:
 
-- frontend apps, Node.js services, SDKs, libraries, build pipelines, and shared platform packages,
-- payment and billing workflows,
-- authentication and authorization flows,
-- admin and internal platforms,
-- realtime or async processing,
-- reporting and analytics,
-- compliance and audit trails,
-- incident response and operational runbooks.
+- event handler uses stale state.
 
-Production makes this harder because:
+Connection:
 
-- inputs are messy,
-- clients and services run different versions,
-- dependencies degrade before they fail,
-- retries multiply load,
-- dashboards show symptoms before root cause,
-- ownership is split across teams.
+- the handler closes over bindings from a particular render.
 
-## Architecture Decisions
+Fix direction:
 
-When designing around Lexical Environments, compare multiple approaches.
+- understand render scope,
+- use functional updates,
+- manage dependencies intentionally,
+- avoid pretending closures update magically.
 
-| Approach | Use When | Trade-Off |
-|---|---|---|
-| Inline/local logic | Small scope, low risk, one owner | Fast to build, easier to duplicate |
-| Shared library | Same logic repeated across modules | Versioning and rollout become important |
-| Service/API boundary | Multiple consumers need stable behavior | Network, latency, and ownership overhead |
-| Platform capability | High scale, compliance, or reliability needs | Requires platform maturity and governance |
-| Managed service | Commodity capability with strong provider support | Less control, provider constraints |
+### Node config captured too early
 
-Decision questions:
+Problem:
 
-- What is the blast radius if this breaks?
-- Who owns the contract?
-- How often will it change?
-- What must be observable?
-- What happens during rollback?
-- What is the simplest design that satisfies current correctness and scale?
+- tests update environment/config but service still uses old value.
+
+Connection:
+
+- module-level constants capture configuration during module evaluation.
+
+Fix direction:
+
+- load config explicitly,
+- pass config into factories,
+- avoid hidden module-scope reads in testable code.
+
+### Event listener leak
+
+Problem:
+
+- old page state remains in memory after navigation.
+
+Connection:
+
+- listener closure retains lexical environment.
+
+Fix direction:
+
+- remove listeners,
+- use lifecycle cleanup,
+- capture minimal data.
+
+### Feature flag snapshot bug
+
+Problem:
+
+- function continues reading old flags after refresh.
+
+Connection:
+
+- closure captured a snapshot object instead of reading current store binding.
+
+Fix direction:
+
+- define whether code should capture snapshot or live source,
+- name APIs accordingly.
+
+### Module cycle ReferenceError
+
+Problem:
+
+- module import cycle throws before initialization.
+
+Connection:
+
+- live binding exists but is uninitialized during module evaluation.
+
+Fix direction:
+
+- break cycles,
+- move shared constants,
+- avoid top-level work that reads cyclic imports.
+
+---
 
 ## 11. Interview Questions
 
-1. What is Lexical Environments, and why does it matter in JavaScript Internals?
-2. What problem does it solve inside 002.02 Runtime Semantics?
-3. How does it work internally?
-4. What are the most common edge cases?
-5. What failure modes appear only in production?
-6. How would you implement a minimal version?
-7. How would you test it?
-8. How would you debug a production issue related to it?
-9. What metrics or logs would you add?
-10. How does the design change at 10x traffic, data, or team size?
-11. What trade-offs exist between simple implementation and platform abstraction?
-12. What senior-level mistake do engineers make with this topic?
+### Basic
+
+1. What is a lexical environment?
+2. What is an environment record?
+3. What is an outer lexical environment?
+4. How does JavaScript resolve an identifier?
+5. What is the TDZ?
+
+### Intermediate
+
+1. Why do closures work after the outer function returns?
+2. Why does `let` in a loop fix the classic closure bug?
+3. How do global `let` and global `var` differ?
+4. What is shadowing?
+5. How do module live bindings differ from copied values?
+
+### Advanced
+
+1. Explain declarative, object, global, function, and module environment records.
+2. How does direct eval affect lexical environments?
+3. Why can closures cause memory leaks?
+4. How do async functions retain lexical state across `await`?
+5. How can module cycles expose uninitialized bindings?
+
+### Tricky
+
+1. Does a closure capture a value or a binding?
+2. Is the scope chain the same as the call stack?
+3. Why can `typeof x` throw when `x` is a `let` binding in TDZ?
+4. Can an imported binding be reassigned by the importer?
+5. Is `globalThis.x` always the same as global `x`?
+
+Strong answers should trace identifier lookup through environment records and outer links.
+
+---
 
 ## 12. Senior-Level Pitfalls
 
-### Pitfall 1: Treating It As Isolated Trivia
+### Pitfall 1: Capturing too much in closures
 
-Lexical Environments is connected to runtime behavior, architecture, operations, and team ownership. A narrow definition is not enough.
+Closures retain bindings and often the objects those bindings reference.
 
-### Pitfall 2: Ignoring Failure Semantics
+Senior correction:
 
-A design that only explains success is not production-ready. Define timeout, retry, cancellation, idempotency, rollback, and cleanup behavior.
+- capture minimal values,
+- clean up listeners/timers,
+- inspect heap retainer paths.
 
-### Pitfall 3: Missing Observability
+### Pitfall 2: Confusing binding capture with value snapshot
 
-If the system cannot prove what happened, debugging becomes guesswork. Add logs, metrics, traces, and structured identifiers at decision points.
+Closures capture bindings.
 
-### Pitfall 4: Hidden Shared State
+Senior correction:
 
-Shared state without clear ownership creates race conditions, stale reads, memory leaks, and cross-request contamination.
+- make snapshot vs live behavior explicit in API names and implementation.
 
-### Pitfall 5: Premature Abstraction
+### Pitfall 3: Module-scope state in request systems
 
-Abstracting too early can freeze weak assumptions. Wait until the repeated shape is stable, then extract a clear interface.
+Module state is shared across requests in a Node process.
+
+Senior correction:
+
+- avoid request-specific module state,
+- use explicit request context,
+- test concurrent requests.
+
+### Pitfall 4: Shadowing critical names
+
+Shadowing can hide imports, globals, or outer state.
+
+Senior correction:
+
+- use lint rules for confusing shadowing,
+- name parameters precisely,
+- avoid broad names like `config`, `data`, and `state` in nested scopes.
+
+### Pitfall 5: Overusing direct eval
+
+Eval can access local lexical environments and break optimization assumptions.
+
+Senior correction:
+
+- avoid eval,
+- use safe parsers or expression evaluators.
+
+### Pitfall 6: Ignoring module cycles
+
+Live bindings plus evaluation order can create TDZ-like failures.
+
+Senior correction:
+
+- enforce dependency graph rules,
+- move contracts to acyclic modules,
+- delay reads until after initialization when necessary.
+
+---
 
 ## 13. Best Practices
 
-- Start with a precise definition.
-- Identify the owner and boundary.
-- Make inputs, outputs, and invariants explicit.
-- Prefer simple local design until the pressure for abstraction is real.
-- Test normal, edge, and failure paths.
-- Add observability before relying on the behavior in production.
-- Keep resource usage bounded.
-- Document assumptions and trade-offs.
-- Design rollback and migration paths.
-- Revisit the decision when scale, team count, or correctness requirements change.
+### Scoping
+
+- Prefer `const` by default.
+- Use `let` for intentional reassignment.
+- Avoid `var` in modern code unless maintaining legacy code.
+- Keep variable scope as narrow as possible.
+- Avoid shadowing that reduces clarity.
+
+### Closures
+
+- Use closures intentionally for encapsulation.
+- Avoid capturing large payloads accidentally.
+- Clean up closures registered with listeners, timers, or subscriptions.
+- In React and Angular, understand render/lifecycle scope.
+
+### Modules
+
+- Avoid mutable module state for request-specific data.
+- Prefer explicit factories for configurable services.
+- Avoid circular imports.
+- Treat imported bindings as live but read-only from importer code.
+
+### Runtime safety
+
+- Use strict mode/module semantics.
+- Avoid direct eval.
+- Validate external data before storing in long-lived closures.
+- Use heap snapshots to investigate retained environments.
+
+### Tooling
+
+- Enable no-shadow rules where helpful.
+- Use TypeScript no-use-before-define settings carefully.
+- Use lint rules to catch accidental globals.
+- Use dependency graph tooling to detect module cycles.
+
+---
 
 ## 14. Debugging Scenarios
 
-### Scenario 1: Works Locally, Fails In Production
+### Scenario 1: Stale closure in UI
 
-Likely causes:
+Symptoms:
 
-- different configuration,
-- different data shape,
-- missing permissions,
-- dependency latency,
-- concurrency,
-- version mismatch.
+- button handler uses old state value.
 
-Debugging steps:
-
-1. Compare environment configuration.
-2. Capture one failing input.
-3. Trace the request or workflow end to end.
-4. Check deploy, data, and dependency timelines.
-5. Reproduce with production-like constraints.
-
-### Scenario 2: Intermittent Failure
-
-Likely causes:
-
-- race condition,
-- retry interaction,
-- shared mutable state,
-- timeout boundary,
-- cache inconsistency,
-- queue ordering.
-
-Debugging steps:
-
-1. Group failures by tenant, version, region, and dependency.
-2. Inspect p95 and p99 instead of averages.
-3. Add correlation IDs.
-4. Check whether retries amplify the issue.
-5. Verify cleanup and idempotency.
-
-### Scenario 3: Performance Regression
-
-Likely causes:
-
-- unbounded work,
-- inefficient query or algorithm,
-- larger payload,
-- cache miss pattern,
-- excessive serialization,
-- synchronous work on a critical path.
-
-Debugging steps:
-
-1. Establish baseline.
-2. Profile the hot path.
-3. Compare before and after deploy.
-4. Measure resource saturation.
-5. Optimize the proven bottleneck only.
-
-### Scenario 4: Memory Or Resource Growth
-
-Likely causes:
-
-- retained references,
-- unbounded queue,
-- missing cleanup,
-- long-lived subscriptions,
-- growing cache,
-- connection leak.
-
-Debugging steps:
-
-1. Capture heap, CPU, or resource profile.
-2. Inspect retainers or open handles.
-3. Confirm lifecycle cleanup.
-4. Add bounds and eviction.
-5. Verify recovery after load drops.
-
-## Diagrams
-
-Dedicated diagrams are available in [diagrams.md](./diagrams.md).
-
-### Concept Flow
-
-```mermaid
-flowchart TD
-  A[Input or trigger] --> B[Validate assumptions]
-  B --> C[Enter 002.02 Runtime Semantics boundary]
-  C --> D[Apply Lexical Environments]
-  D --> E[Read or change state]
-  E --> F[Return result]
-  F --> G[Emit telemetry]
-```
-
-### Failure Flow
-
-```mermaid
-flowchart TD
-  A[Unexpected behavior] --> B{Input valid?}
-  B -->|No| C[Fix validation or caller contract]
-  B -->|Yes| D{State correct?}
-  D -->|No| E[Inspect ownership, mutation, cache, or ordering]
-  D -->|Yes| F{Dependency healthy?}
-  F -->|No| G[Check timeout, retry, fallback, and saturation]
-  F -->|Yes| H[Inspect implementation assumptions and edge cases]
-```
-
-### Production Readiness Loop
+Debugging flow:
 
 ```text
-Design
-  -> implement
-  -> test
-  -> instrument
-  -> deploy safely
-  -> observe
-  -> learn
-  -> refine
+Find handler creation
+  -> identify which render created closure
+  -> inspect dependencies / captured bindings
+  -> switch to functional update or current ref where appropriate
 ```
+
+Root cause:
+
+- closure captured binding from a previous render scope.
+
+### Scenario 2: Memory leak from listener
+
+Symptoms:
+
+- heap snapshot shows old component retained.
+
+Debugging flow:
+
+```text
+Take heap snapshot
+  -> inspect retainer path
+  -> find event listener closure
+  -> remove listener on cleanup
+  -> reduce captured values
+```
+
+Root cause:
+
+- lexical environment remains reachable through listener.
+
+### Scenario 3: Unexpected `ReferenceError`
+
+Symptoms:
+
+- `Cannot access 'config' before initialization`.
+
+Debugging flow:
+
+```text
+Find binding declaration
+  -> check TDZ access
+  -> check module cycle
+  -> check shadowing
+  -> reorder or break dependency
+```
+
+Root cause:
+
+- binding exists but is uninitialized.
+
+### Scenario 4: Wrong tenant in Node service
+
+Symptoms:
+
+- request A sees tenant from request B.
+
+Debugging flow:
+
+```text
+Search module-scope mutable state
+  -> reproduce with concurrent requests
+  -> pass context explicitly
+  -> add concurrency test
+```
+
+Root cause:
+
+- shared module binding used as request-local state.
+
+### Scenario 5: Config changes ignored in tests
+
+Symptoms:
+
+- test changes env var but service still uses old value.
+
+Debugging flow:
+
+```text
+Inspect module evaluation
+  -> find top-level config capture
+  -> refactor into loadConfig/factory
+  -> reset module cache only as last resort in tests
+```
+
+Root cause:
+
+- lexical binding captured at module load time.
+
+---
 
 ## 15. Exercises / Practice
 
-### Exercise 1
+### Exercise 1: Trace lookup
 
-Explain Lexical Environments in your own words using three levels:
+```js
+const value = "global";
 
-- beginner explanation,
-- intermediate internal explanation,
-- senior production explanation.
+function outer() {
+  const value = "outer";
+  return function inner() {
+    return value;
+  };
+}
 
-### Exercise 2
-
-Draw the lifecycle for Lexical Environments:
-
-```text
-input -> decision -> state change -> output -> telemetry
+console.log(outer()());
 ```
 
-Mark where validation, failure handling, and cleanup happen.
+Draw the environment chain used by `inner`.
 
-### Exercise 3
+### Exercise 2: TDZ prediction
 
-Write one example where Lexical Environments works correctly and one where it fails because of an edge case.
+```js
+{
+  console.log(typeof feature);
+  const feature = "on";
+}
+```
 
-### Exercise 4
+Predict the result and explain why.
 
-Create a debugging checklist for a production incident involving Lexical Environments. Include logs, metrics, traces, and rollback options.
+### Exercise 3: Loop closure
 
-### Exercise 5
+Predict:
 
-Compare two architecture choices for this topic and explain when each is better.
+```js
+const a = [];
+for (var i = 0; i < 3; i += 1) a.push(() => i);
+
+const b = [];
+for (let j = 0; j < 3; j += 1) b.push(() => j);
+
+console.log(a.map((fn) => fn()));
+console.log(b.map((fn) => fn()));
+```
+
+### Exercise 4: Avoid retention
+
+Refactor:
+
+```js
+function makeHandler(payload) {
+  return () => payload.records.length;
+}
+```
+
+Assume only `records.length` is needed.
+
+### Exercise 5: Module live binding
+
+Explain why this logs the updated value:
+
+```js
+// state.js
+export let ready = false;
+export function markReady() {
+  ready = true;
+}
+```
+
+```js
+// app.js
+import { ready, markReady } from "./state.js";
+markReady();
+console.log(ready);
+```
+
+---
 
 ## 16. Comparison
 
-Compare Lexical Environments with nearby or competing concepts.
+### Lexical environment vs execution context
 
-Comparison prompts:
+| Concept | Main Job | Lifetime |
+| --- | --- | --- |
+| Execution context | Track running code and control flow | Usually call duration, can suspend |
+| Lexical environment | Resolve identifiers and retain bindings | Can outlive call if captured |
 
-- What problem does each option solve?
-- Which one is simpler?
-- Which one is safer?
-- Which one scales better?
-- Which one is easier to debug?
-- Which one has better ecosystem or platform support?
+### `var` vs `let` vs `const`
 
-Decision table:
+| Feature | `var` | `let` | `const` |
+| --- | --- | --- | --- |
+| Scope | Function/global | Block | Block |
+| Initial state | `undefined` | Uninitialized TDZ | Uninitialized TDZ |
+| Reassign | Yes | Yes | No binding reassignment |
+| Global object property in scripts | Often yes | No | No |
+| Per-loop binding | No | Yes in `for` loops | Yes where applicable |
 
-| Option | Prefer When | Avoid When |
-|---|---|---|
-| Lexical Environments | It directly matches the invariant and ownership boundary | The abstraction hides important failure behavior |
-| Simpler local approach | Scope is small, low risk, and easy to test | Logic is duplicated across many teams |
-| Shared/platform approach | Correctness, scale, or governance matters | The contract is still changing rapidly |
+### Object environment vs declarative environment
+
+| Environment Record | Stores Bindings In | Example |
+| --- | --- | --- |
+| Declarative | internal binding table | function/block/module scope |
+| Object | object properties | `with`, global object part |
+| Module | module binding records | imports/exports |
+| Function | declarative plus function-specific data | parameters, `this`, `super` |
+
+### Snapshot vs live binding
+
+| Pattern | Behavior |
+| --- | --- |
+| Closure over binding | reads latest value of that binding |
+| Local copied value | snapshot at copy time |
+| Module import | live binding to exporter |
+| Destructured object property | snapshot of property value at destructure time |
+
+---
 
 ## 17. Related Concepts
 
-Lexical Environments connects to the rest of the knowledge tree.
+Lexical Environments connect to:
 
-Study links:
+- `002.02.01 Execution Contexts`: contexts hold lexical environments.
+- `001.01.02 Scope, Closures, and Hoisting`: user-facing behavior.
+- `001.01.01 Variables & Declarations`: declaration semantics.
+- `002.02.03 Microtasks and Macrotasks`: async callbacks retain lexical state.
+- `002.03.03 Leaks and Retainers`: closures retain environments.
+- Modules and Bundling Boundaries: module live bindings and cycles.
+- React State Management: stale closures and render scope.
+- Node.js Request Context: avoiding shared module bindings for request data.
 
-- Parent category: JavaScript Internals
-- Parent topic: 002.02 Runtime Semantics
-- Internal flow and diagrams: [diagrams.md](./diagrams.md)
-- Practice files in this folder: debugging, questions, exercises, and review notes
+Knowledge graph:
 
-Related concept types:
+```mermaid
+flowchart LR
+  A["Identifier"] --> B["Current Environment"]
+  B --> C{"Binding Found?"}
+  C -->|Yes| D["Read / Write Binding"]
+  C -->|No| E["Outer Environment"]
+  E --> B
+  D --> F["Closure Can Retain Binding"]
+  D --> G["TDZ If Uninitialized"]
+```
 
-- prerequisites that make this topic easier,
-- follow-up topics that build on it,
-- architecture concepts that use it,
-- production concerns that expose its limits,
-- interview patterns that test it indirectly.
+---
 
 ## Advanced Add-ons
 
 ### Performance Impact
 
-- Time complexity: identify whether work is constant, linear, logarithmic, fan-out, or unbounded.
-- Memory usage: identify retained data, copied data, cached data, and cleanup timing.
-- Hot path risk: determine whether this runs per request, per render, per event, per query, or per deployment.
-- Measurement: use baselines, profiling, p95/p99, and resource saturation before optimizing.
+Lexical environments affect performance through:
+
+- closure allocation,
+- retained context objects,
+- variable lookup complexity in dynamic cases,
+- optimization barriers from direct eval and `with`,
+- memory pressure from captured data,
+- async continuation state.
+
+Guidance:
+
+- do not fear closures in normal code,
+- do avoid accidental large captures in long-lived callbacks,
+- avoid direct eval and `with`,
+- prefer narrow scopes,
+- profile before rewriting lexical patterns.
 
 ### System Design Relevance
 
-Lexical Environments matters in system design when it affects boundaries, contracts, scaling behavior, correctness, or operational ownership.
+Lexical environments matter to system design because state lifetime and ownership are architectural concerns.
 
-Ask:
+Examples:
 
-- Does it belong inside a module, service, shared library, platform layer, or managed service?
-- What is the blast radius if it fails?
-- What happens at 10x traffic, data, tenants, regions, or teams?
-- What reliability, observability, and rollback strategy is required?
+- Node services should not store request state in shared module bindings.
+- Frontend components must clean up closures registered externally.
+- Feature-flag systems must distinguish live reads from snapshots.
+- Configuration should be loaded and passed intentionally.
+- Long-running jobs should avoid retaining full payloads across awaits.
+
+Decision framework:
+
+```mermaid
+flowchart TD
+  A["Need State"] --> B{"Who Owns Lifetime?"}
+  B -->|Function Call| C["Local Binding"]
+  B -->|Returned Callback| D["Closure With Minimal Capture"]
+  B -->|Module Lifetime| E["Module Binding / Singleton"]
+  B -->|Request Lifetime| F["Explicit Context"]
+  B -->|Dynamic Keys| G["Map / Store"]
+```
 
 ### Security Impact
 
-Security relevance depends on whether Lexical Environments touches input, identity, authorization, secrets, user data, logs, dependencies, or execution boundaries.
+Lexical environment bugs can create security issues:
 
-Check:
+- secrets retained in closures longer than expected,
+- tenant/user context stored globally,
+- shadowing hides security checks,
+- eval accesses local scope,
+- module cycles bypass expected initialization order.
 
-- validation and sanitization,
-- least privilege,
-- sensitive data exposure,
-- injection or confused-deputy risks,
-- auditability and compliance requirements.
+Practices:
+
+- avoid capturing secrets in long-lived callbacks,
+- pass authorization context explicitly,
+- lint shadowing around security-sensitive names,
+- avoid eval,
+- clear references when lifecycle ends.
 
 ### Browser vs Node Behavior
 
-If this topic appears in JavaScript runtimes, compare browser and Node.js behavior:
+Browser:
 
-- global object and module scope,
-- event loop and task queues,
-- API availability,
-- security sandbox,
-- file, network, and process access,
-- debugging and profiling tools.
+- global `let`/`const` do not become `window` properties,
+- event listeners often retain DOM and component environments,
+- closures across renders cause stale-state bugs,
+- iframes/workers have separate globals and realms.
 
-For non-runtime topics, compare local development, CI, staging, and production behavior instead.
+Node:
+
+- module bindings live for process/module-cache lifetime,
+- CommonJS and ESM differ in module wrapping and live binding semantics,
+- request-specific data must not be stored in module bindings,
+- async callbacks often retain request payloads.
+
+Shared:
+
+- lexical lookup is based on source location,
+- closures capture bindings,
+- TDZ applies before initialization,
+- direct eval complicates local environments.
 
 ### Polyfill / Implementation
 
-Staff-level understanding includes knowing whether you can implement a simplified version yourself.
+You cannot polyfill lexical environments, but you can model identifier lookup.
 
-Implementation prompts:
+```ts
+type Env = {
+  bindings: Map<string, unknown>;
+  outer?: Env;
+};
 
-- What is the smallest correct version?
-- Which edge cases are intentionally unsupported?
-- Which behavior must match platform semantics?
-- What tests prove compatibility?
-- When is using a proven library safer than custom implementation?
+function resolve(env: Env, name: string): unknown {
+  if (env.bindings.has(name)) {
+    return env.bindings.get(name);
+  }
+
+  if (env.outer) {
+    return resolve(env.outer, name);
+  }
+
+  throw new ReferenceError(`${name} is not defined`);
+}
+
+const globalEnv: Env = {
+  bindings: new Map([["appName", "Interview"]]),
+};
+
+const functionEnv: Env = {
+  bindings: new Map([["user", "Ava"]]),
+  outer: globalEnv,
+};
+
+console.log(resolve(functionEnv, "appName")); // Interview
+```
+
+This model omits TDZ, mutable/immutable binding records, `this`, modules, private names, and many spec details. It is only a learning sketch.
+
+---
 
 ## 18. Summary
 
-Lexical Environments is a practical engineering topic, not just a vocabulary item. Mastery means you can define it, implement it, reason about internals, predict edge cases, debug failures, and explain trade-offs.
+Lexical environments are how JavaScript resolves names and preserves scope.
 
-Remember:
+Quick recall:
 
-- Start from first principles.
-- Identify boundaries and ownership.
-- Understand execution and resource behavior.
-- Design for failure, not only success.
-- Add observability.
-- Keep the simplest design that satisfies correctness and scale.
-- Revisit the design as production pressure changes.
+- A lexical environment is an environment record plus an outer link.
+- Identifier lookup walks the environment chain.
+- Closures retain lexical environments.
+- `let` and `const` bindings exist before initialization and can be in TDZ.
+- `var` is function/global scoped and initialized to `undefined`.
+- `let` in loops can create per-iteration bindings.
+- Module imports are live bindings.
+- Global lexical bindings are not the same as global object properties.
+- Direct eval and `with` complicate lexical reasoning.
+- Many memory leaks are retained lexical environments through closures.
+
+Staff-level takeaway:
+
+- Lexical environment mastery gives you a precise model for closures, TDZ, stale state, module live bindings, retained memory, and the difference between where code is called and where names are resolved.
